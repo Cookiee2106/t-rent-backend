@@ -3,6 +3,5 @@ node_modules
 .env
 dist
 coverage
-uploads
 .DS_Store
 /generated/prisma
