@@ -1,0 +1,646 @@
+generator client {
+  provider        = "prisma-client"
+  output          = "../generated/prisma"
+  previewFeatures = ["partialIndexes"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model asset_movements {
+  id                                                                    String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  asset_id                                                              String             @db.Uuid
+  from_location_id                                                      String?            @db.Uuid
+  to_location_id                                                        String?            @db.Uuid
+  status_before                                                         String?            @db.VarChar(50)
+  status_after                                                          String?            @db.VarChar(50)
+  movement_type                                                         String             @db.VarChar(50)
+  related_order_id                                                      String?            @db.Uuid
+  note                                                                  String?
+  created_by                                                            String?            @db.Uuid
+  created_at                                                            DateTime           @default(now()) @db.Timestamp(6)
+  identified_assets                                                     identified_assets  @relation(fields: [asset_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users                                                                 users?             @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  storage_locations_asset_movements_from_location_idTostorage_locations storage_locations? @relation("asset_movements_from_location_idTostorage_locations", fields: [from_location_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rental_orders                                                         rental_orders?     @relation(fields: [related_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  storage_locations_asset_movements_to_location_idTostorage_locations   storage_locations? @relation("asset_movements_to_location_idTostorage_locations", fields: [to_location_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([asset_id], map: "idx_asset_movements_asset_id")
+  @@index([related_order_id], map: "idx_asset_movements_related_order_id")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model audit_logs {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id     String?  @db.Uuid
+  role        String?  @db.VarChar(50)
+  action      String   @db.VarChar(100)
+  target_type String?  @db.VarChar(100)
+  target_id   String?  @db.Uuid
+  description String?
+  before_data Json?
+  after_data  Json?
+  ip_address  String?  @db.VarChar(100)
+  user_agent  String?
+  created_at  DateTime @default(now()) @db.Timestamp(6)
+  users       users?   @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([created_at], map: "idx_audit_logs_created_at")
+  @@index([user_id], map: "idx_audit_logs_user_id")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model brands {
+  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name              String              @unique @db.VarChar(100)
+  status            String              @default("ACTIVE") @db.VarChar(50)
+  deleted_at        DateTime?           @db.Timestamp(6)
+  identified_assets identified_assets[]
+  product_models    product_models[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model cart_items {
+  id                      String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cart_id                 String         @db.Uuid
+  product_model_id        String         @db.Uuid
+  quantity                Int            @default(1)
+  start_date              DateTime       @db.Date
+  end_date                DateTime       @db.Date
+  daily_price_snapshot    Decimal        @default(0) @db.Decimal(12, 2)
+  deposit_amount_snapshot Decimal        @default(0) @db.Decimal(12, 2)
+  status                  String         @default("ACTIVE") @db.VarChar(50)
+  created_at              DateTime       @default(now()) @db.Timestamp(6)
+  updated_at              DateTime       @default(now()) @db.Timestamp(6)
+  carts                   carts          @relation(fields: [cart_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  product_models          product_models @relation(fields: [product_model_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([cart_id], map: "idx_cart_items_cart_id")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model carts {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  customer_id       String            @db.Uuid
+  status            String            @default("ACTIVE") @db.VarChar(50)
+  created_at        DateTime          @default(now()) @db.Timestamp(6)
+  updated_at        DateTime          @default(now()) @db.Timestamp(6)
+  cart_items        cart_items[]
+  customer_profiles customer_profiles @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([customer_id], map: "idx_carts_customer_id")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model categories {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String           @unique @db.VarChar(100)
+  status         String           @default("ACTIVE") @db.VarChar(50)
+  deleted_at     DateTime?        @db.Timestamp(6)
+  product_models product_models[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model contract_files {
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contract_id        String           @db.Uuid
+  original_file_name String           @db.VarChar(255)
+  file_url           String
+  file_type          String?          @db.VarChar(50)
+  file_size          Int?
+  file_hash          String?          @db.VarChar(255)
+  uploaded_by        String?          @db.Uuid
+  uploaded_at        DateTime         @default(now()) @db.Timestamp(6)
+  rental_contracts   rental_contracts @relation(fields: [contract_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users              users?           @relation(fields: [uploaded_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([contract_id], map: "idx_contract_files_contract_id")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model customer_profiles {
+  id                     String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                String                   @unique @db.Uuid
+  address                String?
+  identity_number        String?                  @unique @db.VarChar(50)
+  verification_status    String                   @default("NOT_VERIFIED") @db.VarChar(50)
+  created_at             DateTime                 @default(now()) @db.Timestamp(6)
+  updated_at             DateTime                 @default(now()) @db.Timestamp(6)
+  carts                  carts[]
+  users                  users                    @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  customer_verifications customer_verifications[]
+  damage_case_responses  damage_case_responses[]
+  rental_contracts       rental_contracts[]
+  rental_orders          rental_orders[]
+  term_acceptances       term_acceptances[]
+
+  @@index([identity_number], map: "idx_customer_profiles_identity")
+  @@index([user_id], map: "idx_customer_profiles_user_id")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model customer_verifications {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  customer_id       String            @db.Uuid
+  identity_number   String            @db.VarChar(50)
+  front_image_url   String?
+  back_image_url    String?
+  status            String            @default("PENDING") @db.VarChar(50)
+  reject_reason     String?
+  reviewed_by       String?           @db.Uuid
+  reviewed_at       DateTime?         @db.Timestamp(6)
+  created_at        DateTime          @default(now()) @db.Timestamp(6)
+  customer_profiles customer_profiles @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users             users?            @relation(fields: [reviewed_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([customer_id], map: "idx_customer_verifications_customer_id")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model damage_case_responses {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  damage_case_id    String            @db.Uuid
+  customer_id       String            @db.Uuid
+  message           String
+  created_at        DateTime          @default(now()) @db.Timestamp(6)
+  customer_profiles customer_profiles @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  damage_cases      damage_cases      @relation(fields: [damage_case_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([damage_case_id], map: "idx_damage_case_responses_case_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model damage_cases {
+  id                                    String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  rental_order_id                       String                  @db.Uuid
+  rental_order_item_id                  String?                 @db.Uuid
+  case_code                             String                  @unique @db.VarChar(100)
+  case_type                             String                  @db.VarChar(50)
+  description                           String?
+  estimated_fee                         Decimal?                @default(0) @db.Decimal(12, 2)
+  final_fee                             Decimal?                @default(0) @db.Decimal(12, 2)
+  status                                String                  @default("OPEN") @db.VarChar(50)
+  created_by                            String?                 @db.Uuid
+  resolved_by                           String?                 @db.Uuid
+  resolved_at                           DateTime?               @db.Timestamp(6)
+  created_at                            DateTime                @default(now()) @db.Timestamp(6)
+  damage_case_responses                 damage_case_responses[]
+  users_damage_cases_created_byTousers  users?                  @relation("damage_cases_created_byTousers", fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rental_orders                         rental_orders           @relation(fields: [rental_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rental_order_items                    rental_order_items?     @relation(fields: [rental_order_item_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_damage_cases_resolved_byTousers users?                  @relation("damage_cases_resolved_byTousers", fields: [resolved_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([rental_order_id], map: "idx_damage_cases_order_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model handover_record_details {
+  id                            String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  handover_record_id            String                       @db.Uuid
+  rental_order_id               String                       @db.Uuid
+  rental_order_asset_id         String?                      @db.Uuid
+  rental_order_quantity_item_id String?                      @db.Uuid
+  delivered_quantity            Int                          @default(1)
+  condition_note                String?
+  note                          String?
+  created_at                    DateTime                     @default(now()) @db.Timestamp(6)
+  rental_orders                 rental_orders                @relation(fields: [rental_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  handover_records              handover_records             @relation(fields: [rental_order_id, handover_record_id], references: [rental_order_id, id], onDelete: NoAction, onUpdate: NoAction)
+  rental_order_assets           rental_order_assets?         @relation(fields: [rental_order_id, rental_order_asset_id], references: [rental_order_id, id], onDelete: NoAction, onUpdate: NoAction)
+  rental_order_quantity_items   rental_order_quantity_items? @relation(fields: [rental_order_id, rental_order_quantity_item_id], references: [rental_order_id, id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([handover_record_id], map: "idx_handover_details_record_id")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model handover_records {
+  id                      String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  rental_order_id         String                    @db.Uuid
+  staff_id                String                    @db.Uuid
+  handover_at             DateTime                  @default(now()) @db.Timestamp(6)
+  note                    String?
+  status                  String                    @default("COMPLETED") @db.VarChar(50)
+  handover_record_details handover_record_details[]
+  rental_orders           rental_orders             @relation(fields: [rental_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users                   users                     @relation(fields: [staff_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([rental_order_id, id])
+  @@index([rental_order_id], map: "idx_handover_records_order_id")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model identified_assets {
+  id                                                                         String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  asset_code                                                                 String                @unique @db.VarChar(100)
+  asset_name                                                                 String                @db.VarChar(255)
+  asset_type                                                                 String                @db.VarChar(50)
+  brand_id                                                                   String?               @db.Uuid
+  product_model_id                                                           String?               @db.Uuid
+  serial_number                                                              String?               @unique @db.VarChar(255)
+  identification_note                                                        String?
+  default_location_id                                                        String?               @db.Uuid
+  current_location_id                                                        String?               @db.Uuid
+  status                                                                     String                @default("AVAILABLE") @db.VarChar(50)
+  condition_note                                                             String?
+  deleted_at                                                                 DateTime?             @db.Timestamp(6)
+  created_at                                                                 DateTime              @default(now()) @db.Timestamp(6)
+  updated_at                                                                 DateTime              @default(now()) @db.Timestamp(6)
+  asset_movements                                                            asset_movements[]
+  brands                                                                     brands?               @relation(fields: [brand_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  storage_locations_identified_assets_current_location_idTostorage_locations storage_locations?    @relation("identified_assets_current_location_idTostorage_locations", fields: [current_location_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  storage_locations_identified_assets_default_location_idTostorage_locations storage_locations?    @relation("identified_assets_default_location_idTostorage_locations", fields: [default_location_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  product_models                                                             product_models?       @relation(fields: [product_model_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  maintenance_records                                                        maintenance_records[]
+  rental_order_assets                                                        rental_order_assets[]
+
+  @@index([asset_code], map: "idx_identified_assets_asset_code")
+  @@index([product_model_id, current_location_id], map: "idx_identified_assets_available", where: raw("((deleted_at IS NULL) AND ((status)::text = 'AVAILABLE'::text))"))
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model included_items {
+  id                          String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  product_model_id            String                        @db.Uuid
+  item_name                   String                        @db.VarChar(255)
+  quantity                    Int                           @default(1)
+  management_type             String                        @db.VarChar(50)
+  required                    Boolean                       @default(true)
+  product_models              product_models                @relation(fields: [product_model_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rental_order_assets         rental_order_assets[]
+  rental_order_quantity_items rental_order_quantity_items[]
+
+  @@index([product_model_id], map: "idx_included_items_product_model_id")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model maintenance_records {
+  id                                            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  asset_id                                      String              @db.Uuid
+  rental_order_id                               String?             @db.Uuid
+  rental_order_item_id                          String?             @db.Uuid
+  reason                                        String?
+  status                                        String              @default("IN_PROGRESS") @db.VarChar(50)
+  result                                        String?             @db.VarChar(50)
+  started_by                                    String?             @db.Uuid
+  started_at                                    DateTime            @default(now()) @db.Timestamp(6)
+  completed_by                                  String?             @db.Uuid
+  completed_at                                  DateTime?           @db.Timestamp(6)
+  note                                          String?
+  identified_assets                             identified_assets   @relation(fields: [asset_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_maintenance_records_completed_byTousers users?              @relation("maintenance_records_completed_byTousers", fields: [completed_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rental_orders                                 rental_orders?      @relation(fields: [rental_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rental_order_items                            rental_order_items? @relation(fields: [rental_order_item_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users_maintenance_records_started_byTousers   users?              @relation("maintenance_records_started_byTousers", fields: [started_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([asset_id], map: "idx_maintenance_asset_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model otp_verifications {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id         String         @db.Uuid
+  rental_order_id String?        @db.Uuid
+  otp_hash        String         @db.VarChar(255)
+  purpose         String         @db.VarChar(50)
+  status          String         @default("PENDING") @db.VarChar(50)
+  expires_at      DateTime       @db.Timestamp(6)
+  verified_at     DateTime?      @db.Timestamp(6)
+  failed_attempts Int            @default(0)
+  created_at      DateTime       @default(now()) @db.Timestamp(6)
+  rental_orders   rental_orders? @relation(fields: [rental_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users           users          @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([rental_order_id], map: "idx_otp_verifications_order_id")
+  @@index([user_id], map: "idx_otp_verifications_user_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model payments {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  rental_order_id String        @db.Uuid
+  payment_type    String        @db.VarChar(50)
+  amount          Decimal       @default(0) @db.Decimal(12, 2)
+  method          String        @default("CASH") @db.VarChar(50)
+  status          String        @default("PENDING") @db.VarChar(50)
+  paid_by         String?       @db.Uuid
+  paid_at         DateTime?     @db.Timestamp(6)
+  note            String?
+  users           users?        @relation(fields: [paid_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rental_orders   rental_orders @relation(fields: [rental_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([rental_order_id], map: "idx_payments_order_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model product_models {
+  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  category_id        String?              @db.Uuid
+  brand_id           String?              @db.Uuid
+  name               String               @db.VarChar(255)
+  description        String?
+  image_url          String?
+  daily_price        Decimal              @default(0) @db.Decimal(12, 2)
+  deposit_amount     Decimal              @default(0) @db.Decimal(12, 2)
+  status             String               @default("ACTIVE") @db.VarChar(50)
+  deleted_at         DateTime?            @db.Timestamp(6)
+  created_at         DateTime             @default(now()) @db.Timestamp(6)
+  updated_at         DateTime             @default(now()) @db.Timestamp(6)
+  cart_items         cart_items[]
+  identified_assets  identified_assets[]
+  included_items     included_items[]
+  brands             brands?              @relation(fields: [brand_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  categories         categories?          @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rental_order_items rental_order_items[]
+
+  @@index([category_id, brand_id], map: "idx_product_models_active_search", where: raw("((deleted_at IS NULL) AND ((status)::text = 'ACTIVE'::text))"))
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model quantity_accessories {
+  id                          String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                        String                        @db.VarChar(255)
+  total_quantity              Int                           @default(0)
+  maintenance_quantity        Int                           @default(0)
+  lost_quantity               Int                           @default(0)
+  deleted_at                  DateTime?                     @db.Timestamp(6)
+  rental_order_quantity_items rental_order_quantity_items[]
+  stock_movements             stock_movements[]
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model rental_contracts {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contract_code     String            @unique @db.VarChar(100)
+  rental_order_id   String            @db.Uuid
+  customer_id       String            @db.Uuid
+  staff_id          String?           @db.Uuid
+  signed_at         DateTime?         @db.Timestamp(6)
+  status            String            @default("CREATED") @db.VarChar(50)
+  note              String?
+  created_at        DateTime          @default(now()) @db.Timestamp(6)
+  updated_at        DateTime          @default(now()) @db.Timestamp(6)
+  contract_files    contract_files[]
+  customer_profiles customer_profiles @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rental_orders     rental_orders     @relation(fields: [rental_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users             users?            @relation(fields: [staff_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([contract_code], map: "idx_contracts_code")
+  @@index([rental_order_id], map: "idx_contracts_order_id")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model rental_order_assets {
+  id                           String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  rental_order_id              String                    @db.Uuid
+  rental_order_item_id         String                    @db.Uuid
+  included_item_id             String?                   @db.Uuid
+  asset_id                     String                    @db.Uuid
+  asset_code_snapshot          String?                   @db.VarChar(100)
+  serial_snapshot              String?                   @db.VarChar(255)
+  identification_note_snapshot String?
+  condition_before             String?
+  condition_after              String?
+  status                       String                    @default("PREPARED") @db.VarChar(50)
+  created_at                   DateTime                  @default(now()) @db.Timestamp(6)
+  handover_record_details      handover_record_details[]
+  identified_assets            identified_assets         @relation(fields: [asset_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  included_items               included_items?           @relation(fields: [included_item_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rental_orders                rental_orders             @relation(fields: [rental_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rental_order_items           rental_order_items        @relation(fields: [rental_order_item_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  return_record_details        return_record_details[]
+
+  @@unique([rental_order_id, id])
+  @@index([asset_id], map: "idx_rental_order_assets_asset_id")
+  @@index([rental_order_id], map: "idx_rental_order_assets_order_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model rental_order_items {
+  id                          String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  rental_order_id             String                        @db.Uuid
+  product_model_id            String                        @db.Uuid
+  quantity                    Int                           @default(1)
+  daily_price_snapshot        Decimal                       @default(0) @db.Decimal(12, 2)
+  deposit_amount_snapshot     Decimal                       @default(0) @db.Decimal(12, 2)
+  rental_amount               Decimal                       @default(0) @db.Decimal(12, 2)
+  deposit_amount              Decimal                       @default(0) @db.Decimal(12, 2)
+  status                      String                        @default("PENDING") @db.VarChar(50)
+  created_at                  DateTime                      @default(now()) @db.Timestamp(6)
+  updated_at                  DateTime                      @default(now()) @db.Timestamp(6)
+  damage_cases                damage_cases[]
+  maintenance_records         maintenance_records[]
+  rental_order_assets         rental_order_assets[]
+  product_models              product_models                @relation(fields: [product_model_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rental_orders               rental_orders                 @relation(fields: [rental_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rental_order_quantity_items rental_order_quantity_items[]
+
+  @@index([rental_order_id], map: "idx_rental_order_items_order_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model rental_order_quantity_items {
+  id                      String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  rental_order_id         String                    @db.Uuid
+  rental_order_item_id    String                    @db.Uuid
+  included_item_id        String?                   @db.Uuid
+  quantity_accessory_id   String                    @db.Uuid
+  expected_quantity       Int                       @default(0)
+  delivered_quantity      Int                       @default(0)
+  returned_quantity       Int                       @default(0)
+  status                  String                    @default("PREPARED") @db.VarChar(50)
+  note                    String?
+  handover_record_details handover_record_details[]
+  included_items          included_items?           @relation(fields: [included_item_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  quantity_accessories    quantity_accessories      @relation(fields: [quantity_accessory_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rental_orders           rental_orders             @relation(fields: [rental_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rental_order_items      rental_order_items        @relation(fields: [rental_order_item_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  return_record_details   return_record_details[]
+
+  @@unique([rental_order_id, id])
+  @@index([quantity_accessory_id], map: "idx_rental_order_quantity_items_accessory_id")
+  @@index([rental_order_id], map: "idx_rental_order_quantity_items_order_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model rental_orders {
+  id                          String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  order_code                  String                        @unique @db.VarChar(100)
+  customer_id                 String                        @db.Uuid
+  start_date                  DateTime                      @db.Date
+  end_date                    DateTime                      @db.Date
+  rental_days                 Int
+  total_rental_amount         Decimal                       @default(0) @db.Decimal(12, 2)
+  total_deposit_amount        Decimal                       @default(0) @db.Decimal(12, 2)
+  status                      String                        @default("PENDING_DEPOSIT") @db.VarChar(50)
+  expired_at                  DateTime?                     @db.Timestamp(6)
+  created_at                  DateTime                      @default(now()) @db.Timestamp(6)
+  updated_at                  DateTime                      @default(now()) @db.Timestamp(6)
+  asset_movements             asset_movements[]
+  damage_cases                damage_cases[]
+  handover_record_details     handover_record_details[]
+  handover_records            handover_records[]
+  maintenance_records         maintenance_records[]
+  otp_verifications           otp_verifications[]
+  payments                    payments[]
+  rental_contracts            rental_contracts[]
+  rental_order_assets         rental_order_assets[]
+  rental_order_items          rental_order_items[]
+  rental_order_quantity_items rental_order_quantity_items[]
+  customer_profiles           customer_profiles             @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  return_record_details       return_record_details[]
+  return_records              return_records[]
+  stock_movements             stock_movements[]
+  term_acceptances            term_acceptances[]
+
+  @@index([customer_id], map: "idx_rental_orders_customer_id")
+  @@index([start_date, end_date], map: "idx_rental_orders_date_range")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model rental_terms {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  version          String             @db.VarChar(50)
+  content          String
+  content_hash     String?            @db.VarChar(255)
+  status           String             @default("ACTIVE") @db.VarChar(50)
+  created_by       String?            @db.Uuid
+  created_at       DateTime           @default(now()) @db.Timestamp(6)
+  users            users?             @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  term_acceptances term_acceptances[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model return_record_details {
+  id                            String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  return_record_id              String                       @db.Uuid
+  rental_order_id               String                       @db.Uuid
+  rental_order_asset_id         String?                      @db.Uuid
+  rental_order_quantity_item_id String?                      @db.Uuid
+  returned_quantity             Int                          @default(0)
+  condition_note                String?
+  is_damaged                    Boolean                      @default(false)
+  is_missing                    Boolean                      @default(false)
+  note                          String?
+  created_at                    DateTime                     @default(now()) @db.Timestamp(6)
+  rental_orders                 rental_orders                @relation(fields: [rental_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rental_order_assets           rental_order_assets?         @relation(fields: [rental_order_id, rental_order_asset_id], references: [rental_order_id, id], onDelete: NoAction, onUpdate: NoAction)
+  rental_order_quantity_items   rental_order_quantity_items? @relation(fields: [rental_order_id, rental_order_quantity_item_id], references: [rental_order_id, id], onDelete: NoAction, onUpdate: NoAction)
+  return_records                return_records               @relation(fields: [rental_order_id, return_record_id], references: [rental_order_id, id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([return_record_id], map: "idx_return_details_record_id")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model return_records {
+  id                    String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  rental_order_id       String                  @db.Uuid
+  staff_id              String                  @db.Uuid
+  returned_at           DateTime                @default(now()) @db.Timestamp(6)
+  result                String                  @default("VALID") @db.VarChar(50)
+  note                  String?
+  return_record_details return_record_details[]
+  rental_orders         rental_orders           @relation(fields: [rental_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users                 users                   @relation(fields: [staff_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([rental_order_id, id])
+  @@index([rental_order_id], map: "idx_return_records_order_id")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model stock_movements {
+  id                   String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  accessory_id         String               @db.Uuid
+  change_quantity      Int
+  movement_type        String               @db.VarChar(50)
+  reason               String?
+  related_order_id     String?              @db.Uuid
+  created_by           String?              @db.Uuid
+  created_at           DateTime             @default(now()) @db.Timestamp(6)
+  quantity_accessories quantity_accessories @relation(fields: [accessory_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  users                users?               @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rental_orders        rental_orders?       @relation(fields: [related_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([accessory_id], map: "idx_stock_movements_accessory_id")
+  @@index([related_order_id], map: "idx_stock_movements_related_order_id")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model storage_locations {
+  id                                                                         String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  area                                                                       String              @db.VarChar(100)
+  shelf                                                                      String?             @db.VarChar(50)
+  level                                                                      String?             @db.VarChar(50)
+  tray                                                                       String?             @db.VarChar(50)
+  location_type                                                              String              @default("STORAGE") @db.VarChar(50)
+  status                                                                     String              @default("ACTIVE") @db.VarChar(50)
+  asset_movements_asset_movements_from_location_idTostorage_locations        asset_movements[]   @relation("asset_movements_from_location_idTostorage_locations")
+  asset_movements_asset_movements_to_location_idTostorage_locations          asset_movements[]   @relation("asset_movements_to_location_idTostorage_locations")
+  identified_assets_identified_assets_current_location_idTostorage_locations identified_assets[] @relation("identified_assets_current_location_idTostorage_locations")
+  identified_assets_identified_assets_default_location_idTostorage_locations identified_assets[] @relation("identified_assets_default_location_idTostorage_locations")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model term_acceptances {
+  id                         String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  rental_order_id            String            @db.Uuid
+  customer_id                String            @db.Uuid
+  rental_term_id             String            @db.Uuid
+  accepted_at                DateTime          @default(now()) @db.Timestamp(6)
+  ip_address                 String?           @db.VarChar(100)
+  user_agent                 String?
+  otp_verified               Boolean           @default(false)
+  snapshot_term_content_hash String?           @db.VarChar(255)
+  customer_profiles          customer_profiles @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rental_orders              rental_orders     @relation(fields: [rental_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rental_terms               rental_terms      @relation(fields: [rental_term_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([rental_order_id], map: "idx_term_acceptances_order_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model users {
+  id                                                          String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  full_name                                                   String                   @db.VarChar(255)
+  email                                                       String                   @unique @db.VarChar(255)
+  phone                                                       String?                  @db.VarChar(20)
+  password_hash                                               String                   @db.VarChar(255)
+  role                                                        String                   @default("CUSTOMER") @db.VarChar(50)
+  status                                                      String                   @default("ACTIVE") @db.VarChar(50)
+  deleted_at                                                  DateTime?                @db.Timestamp(6)
+  created_at                                                  DateTime                 @default(now()) @db.Timestamp(6)
+  updated_at                                                  DateTime                 @default(now()) @db.Timestamp(6)
+  asset_movements                                             asset_movements[]
+  audit_logs                                                  audit_logs[]
+  contract_files                                              contract_files[]
+  customer_profiles                                           customer_profiles?
+  customer_verifications                                      customer_verifications[]
+  damage_cases_damage_cases_created_byTousers                 damage_cases[]           @relation("damage_cases_created_byTousers")
+  damage_cases_damage_cases_resolved_byTousers                damage_cases[]           @relation("damage_cases_resolved_byTousers")
+  handover_records                                            handover_records[]
+  maintenance_records_maintenance_records_completed_byTousers maintenance_records[]    @relation("maintenance_records_completed_byTousers")
+  maintenance_records_maintenance_records_started_byTousers   maintenance_records[]    @relation("maintenance_records_started_byTousers")
+  otp_verifications                                           otp_verifications[]
+  payments                                                    payments[]
+  rental_contracts                                            rental_contracts[]
+  rental_terms                                                rental_terms[]
+  return_records                                              return_records[]
+  stock_movements                                             stock_movements[]
+
+  @@index([email], map: "idx_users_email")
+}
