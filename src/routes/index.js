@@ -6,6 +6,6 @@ router.get("/", (req, res) => {
   });
 });
 
-router.use("/uploads", require("../modules/uploads/upload.routes"));
+router.use("/uploads", require("../modules/uploads/upload"));
 
 module.exports = router;

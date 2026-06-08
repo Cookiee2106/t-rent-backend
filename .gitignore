@@ -11,7 +11,7 @@ dist
 coverage
 
 # Upload local files
-uploads
+/uploads/
 
 # OS files
 .DS_Store
