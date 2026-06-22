@@ -1,9 +1,11 @@
 const router = require("express").Router();
+const express = require("express");
 const authMiddleware = require("../../middlewares/authMiddleware");
 const roleMiddleware = require("../../middlewares/roleMiddleware");
 const upload = require("../../middlewares/uploadMiddleware");
 const adminController = require("./adminController");
 
+router.use(express.json());
 router.use(authMiddleware);
 router.use(roleMiddleware("STAFF", "ADMIN"));
 

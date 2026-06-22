@@ -167,6 +167,8 @@ async function createReturnInspection(orderId, staffId, data) {
     throw error;
   }
 
+  console.log("[DEBUG] createReturnInspection order.status:", order.status, "| id:", order.id, "| code:", order.order_code);
+
   if (order.status !== "RENTING") {
     const error = new Error("Đơn hàng phải ở trạng thái RENTING để thanh lý");
     error.statusCode = 400;
@@ -322,7 +324,7 @@ async function processRefundDeposit(orderId, staffId, data) {
     throw error;
   }
 
-  if (order.return_records.deposit_result === "REFUNDED") {
+  if (order.return_records.deposit_result === "REFUND") {
     const error = new Error("Tiền cọc đã được hoàn trả");
     error.statusCode = 400;
     throw error;
@@ -346,7 +348,7 @@ async function processRefundDeposit(orderId, staffId, data) {
     await tx.return_records.update({
       where: { rental_order_id: orderId },
       data: {
-        deposit_result: "REFUNDED",
+        deposit_result: "REFUND",
         refund_amount: amount || order.total_deposit_amount,
         refund_payment_id: payment.id,
       },
@@ -390,7 +392,7 @@ async function processDeductDeposit(orderId, staffId, data) {
     const payment = await tx.payments.create({
       data: {
         rental_order_id: orderId,
-        payment_type: "DEDUCTION",
+        payment_type: "DEDUCT_DEPOSIT",
         amount: totalDeduction,
         method: "CASH",
         status: "PAID",
@@ -406,7 +408,7 @@ async function processDeductDeposit(orderId, staffId, data) {
         data: {
           return_record_id: order.return_records.id,
           return_record_detail_id: charge.return_record_detail_id || null,
-          charge_type: charge.charge_type || "DAMAGE",
+          charge_type: charge.charge_type || "DAMAGED",
           description: charge.description || null,
           amount: charge.amount,
           created_by: staffId,
@@ -417,7 +419,7 @@ async function processDeductDeposit(orderId, staffId, data) {
     await tx.return_records.update({
       where: { rental_order_id: orderId },
       data: {
-        deposit_result: "DEDUCTED",
+        deposit_result: "DEDUCT",
         deduction_amount: totalDeduction,
         deduction_payment_id: payment.id,
       },
