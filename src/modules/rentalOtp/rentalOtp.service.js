@@ -31,15 +31,30 @@ function generateOtpCode() {
  * - Tạo OTP, hash và lưu vào bảng otp_verifications
  * - Trả về OTP plain text (demo: show console)
  */
-async function sendOtp(userId, purpose = "CREATE_ORDER") {
+async function sendOtp(userId, termsAcceptanceId, purpose = "CREATE_ORDER") {
   // Lấy thông tin email của user
   const user = await prisma.users.findUnique({
     where: { id: userId },
-    select: { email: true, full_name: true },
+    include: { customer_profiles: true },
   });
 
   if (!user) {
     throw Object.assign(new Error("Không tìm thấy người dùng"), { statusCode: 404 });
+  }
+
+  if (!termsAcceptanceId) {
+    throw Object.assign(new Error("termsAcceptanceId là bắt buộc"), { statusCode: 400 });
+  }
+
+  const termsAcceptance = await prisma.term_acceptances.findFirst({
+    where: {
+      id: termsAcceptanceId,
+      customer_id: user.customer_profiles?.id,
+    },
+  });
+
+  if (!termsAcceptance) {
+    throw Object.assign(new Error("Xác nhận điều khoản không hợp lệ"), { statusCode: 400 });
   }
 
   // Hủy tất cả OTP cũ còn PENDING của user cho cùng purpose
@@ -101,7 +116,7 @@ async function sendOtp(userId, purpose = "CREATE_ORDER") {
  * - So sánh hash
  * - Nếu hợp lệ → cập nhật status VERIFIED
  */
-async function verifyOtp(otpId, otpCode, userId) {
+async function verifyOtp(otpId, otpCode, userId, termsAcceptanceId) {
   // Tìm OTP record
   const otpRecord = await prisma.otp_verifications.findUnique({
     where: { id: otpId },

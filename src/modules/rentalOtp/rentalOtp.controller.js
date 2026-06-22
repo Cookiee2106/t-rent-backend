@@ -8,7 +8,7 @@ const rentalOtpService = require("./rentalOtp.service");
  */
 async function sendOtp(req, res, next) {
   try {
-    const { userId } = req.body;
+    const { userId, termsAcceptanceId } = req.body;
 
     if (!userId) {
       return res.status(400).json({
@@ -17,7 +17,7 @@ async function sendOtp(req, res, next) {
       });
     }
 
-    const result = await rentalOtpService.sendOtp(userId);
+    const result = await rentalOtpService.sendOtp(userId, termsAcceptanceId);
 
     return res.status(201).json({
       success: true,
@@ -43,7 +43,7 @@ async function sendOtp(req, res, next) {
  */
 async function verifyOtp(req, res, next) {
   try {
-    const { otpId, otpCode, userId } = req.body;
+    const { otpId, otpCode, userId, termsAcceptanceId } = req.body;
 
     if (!otpId || !otpCode || !userId) {
       return res.status(400).json({
@@ -52,7 +52,14 @@ async function verifyOtp(req, res, next) {
       });
     }
 
-    const result = await rentalOtpService.verifyOtp(otpId, otpCode, userId);
+    if (!termsAcceptanceId) {
+      return res.status(400).json({
+        success: false,
+        message: "termsAcceptanceId là bắt buộc",
+      });
+    }
+
+    const result = await rentalOtpService.verifyOtp(otpId, otpCode, userId, termsAcceptanceId);
 
     if (!result.success) {
       return res.status(400).json({
