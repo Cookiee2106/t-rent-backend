@@ -1,18 +1,16 @@
 const nodemailer = require("nodemailer");
 
+// Khởi tạo Nodemailer transporter với Gmail SMTP
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
     user: process.env.SMTP_EMAIL,
     pass: process.env.SMTP_APP_PASSWORD,
   },
-  connectionTimeout: 5000,
-  greetingTimeout: 5000,
-  socketTimeout: 5000,
 });
 
 /**
- * Gửi email OTP cho khách hàng
+ * Gửi email OTP cho khách hàng bằng Nodemailer
  * @param {string} toEmail - Email người nhận
  * @param {string} otpCode - Mã OTP 6 chữ số
  * @param {number} expiresMinutes - Số phút hết hạn
@@ -55,7 +53,7 @@ async function sendOtpEmail(toEmail, otpCode, expiresMinutes = 5) {
   };
 
   const info = await transporter.sendMail(mailOptions);
-  console.log(`[EMAIL] Đã gửi OTP đến ${toEmail} - MessageID: ${info.messageId}`);
+  console.log(`[EMAIL] ✅ Đã gửi OTP bằng Nodemailer đến ${toEmail}`);
   return info;
 }
 
