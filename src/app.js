@@ -4,7 +4,7 @@ const helmet = require("helmet");
 const morgan = require("morgan");
 
 const routes = require("./routes");
-const errorMiddleware = require("./middlewares/error.middleware");
+const errorMiddleware = require("./middlewares/errorMiddleware");
 
 const app = express();
 
