@@ -363,8 +363,204 @@ async function handleVnpayIpn(query) {
   }
 }
 
+/**
+ * TEST: Simulate IPN Success - Bypass signature verification
+ * CHỈ DÙNG CHO TEST, KHÔNG DÙNG TRONG PRODUCTION
+ */
+async function testSimulateIpnSuccess(paymentId) {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("Ham chi khả dụng trong môi trường test");
+  }
+
+  const txnRef = paymentId;
+  const responseCode = "00";
+  const transactionNo = "TEST" + Date.now();
+
+  if (!txnRef) {
+    return { RspCode: "99", Message: "Khong tim thay ma tham chieu" };
+  }
+
+  // Tìm payment
+  const payment = await prisma.payments.findUnique({
+    where: { id: txnRef },
+    include: {
+      checkout_sessions: {
+        include: {
+          checkout_session_items: { include: { product_models: true } },
+        },
+      },
+      rental_orders: true,
+    },
+  });
+
+  if (!payment) {
+    return { RspCode: "01", Message: "Khong tim thay giao dich thanh toan" };
+  }
+
+  // Payment đã xử lý - KHÔNG LÀM GÌ
+  if (payment.status === "PAID") {
+    return { RspCode: "00", Message: "Giao dich da duoc xu ly" };
+  }
+
+  // THÀNH CÔNG
+  if (responseCode === "00") {
+    const session = payment.checkout_sessions;
+
+    if (!session) {
+      return { RspCode: "01", Message: "Khong tim thay phien thanh toan" };
+    }
+
+    if (session.status === "PAID") {
+      return { RspCode: "00", Message: "Giao dich da duoc xu ly" };
+    }
+
+    // Bước 6: TOÀN BỘ trong một transaction
+    try {
+      let orderId;
+      let orderCode;
+
+      for (let attempt = 0; attempt < 5; attempt++) {
+        try {
+          const result = await prisma.$transaction(async (tx) => {
+            const firstItem = session.checkout_session_items[0];
+            const productModel = firstItem?.product_models || null;
+
+            const code = await generateUniqueOrderCode(tx, productModel);
+
+            const minStartDate = session.checkout_session_items.reduce(
+              (min, item) =>
+                new Date(item.start_date) < min ? new Date(item.start_date) : min,
+              new Date()
+            );
+            const maxEndDate = session.checkout_session_items.reduce(
+              (max, item) =>
+                new Date(item.end_date) > max ? new Date(item.end_date) : max,
+              new Date()
+            );
+
+            const firstStart = new Date(firstItem.start_date);
+            const firstEnd = new Date(firstItem.end_date);
+            const rentalDays = Math.ceil(
+              (firstEnd.getTime() - firstStart.getTime()) / (1000 * 60 * 60 * 24)
+            );
+            const expiredAt = new Date(Date.now() + 30 * 60 * 1000);
+
+            const rentalOrder = await tx.rental_orders.create({
+              data: {
+                order_code: code,
+                customer_id: session.customer_id,
+                start_date: minStartDate,
+                end_date: maxEndDate,
+                rental_days: rentalDays,
+                total_rental_amount: session.rental_amount,
+                total_deposit_amount: session.deposit_amount,
+                status: "RESERVED",
+                expired_at: expiredAt,
+              },
+            });
+
+            await tx.rental_order_items.createMany({
+              data: session.checkout_session_items.map((item) => ({
+                rental_order_id: rentalOrder.id,
+                product_model_id: item.product_model_id,
+                quantity: item.quantity || 1,
+                daily_price_snapshot: item.daily_price_snapshot,
+                deposit_amount_snapshot: item.deposit_amount_snapshot,
+                rental_amount: item.rental_amount,
+                deposit_amount:
+                  parseFloat(item.deposit_amount_snapshot || 0) * (item.quantity || 1),
+                status: "PENDING",
+              })),
+            });
+
+            await tx.checkout_sessions.update({
+              where: { id: session.id },
+              data: { status: "PAID", paid_at: new Date() },
+            });
+
+            if (session.cart_id) {
+              const sessionItemIds = session.checkout_session_items
+                .filter((item) => item.cart_item_id)
+                .map((item) => item.cart_item_id);
+
+              if (sessionItemIds.length > 0) {
+                await tx.cart_items.updateMany({
+                  where: { id: { in: sessionItemIds } },
+                  data: { status: "ORDERED", updated_at: new Date() },
+                });
+              }
+            }
+
+            await tx.payments.update({
+              where: { id: payment.id },
+              data: {
+                status: "PAID",
+                transaction_code: transactionNo,
+                paid_at: new Date(),
+                rental_order_id: rentalOrder.id,
+              },
+            });
+
+            if (session.terms_acceptance_id) {
+              await tx.term_acceptances.update({
+                where: { id: session.terms_acceptance_id },
+                data: { rental_order_id: rentalOrder.id },
+              });
+            }
+
+            console.log(`[TEST] Order created: ${code}`);
+            return { orderId: rentalOrder.id, orderCode: code };
+          });
+
+          orderId = result.orderId;
+          orderCode = result.orderCode;
+          break;
+        } catch (error) {
+          const isUniqueError =
+            error.code === "P2002" ||
+            error.code === "23505" ||
+            (error.message && error.message.includes("Unique constraint")) ||
+            (error.message && error.message.includes("duplicate key")) ||
+            (error.meta?.target && error.meta.target.includes("order_code"));
+
+          if (isUniqueError) {
+            console.log(`[TEST] Order code conflict, retry ${attempt + 1}/5`);
+            continue;
+          }
+          throw error;
+        }
+      }
+
+      if (!orderId) {
+        throw new Error("Khong tao duoc ma don hang sau 5 lan thu");
+      }
+
+      return { RspCode: "00", Message: "Xac nhan thanh toan thanh cong", orderCode };
+    } catch (error) {
+      console.error("[TEST] IPN transaction failed:", error);
+      return { RspCode: "99", Message: "Loi he thong" };
+    }
+  } else {
+    // THẤT BẠI
+    await prisma.payments.update({
+      where: { id: payment.id },
+      data: { status: "FAILED" },
+    });
+
+    if (payment.checkout_session_id) {
+      await prisma.checkout_sessions.update({
+        where: { id: payment.checkout_session_id },
+        data: { status: "PAYMENT_FAILED", failed_at: new Date() },
+      });
+    }
+
+    return { RspCode: "00", Message: "Xac nhan thanh toan that bai" };
+  }
+}
+
 module.exports = {
   createVnpayPaymentUrl,
   handleVnpayReturn,
   handleVnpayIpn,
+  testSimulateIpnSuccess,
 };
