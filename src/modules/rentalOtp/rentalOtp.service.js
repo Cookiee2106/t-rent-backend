@@ -232,7 +232,7 @@ async function verifyOtp(otpId, otpCode, userId, termsAcceptanceId) {
     otpId,
     otpVerificationToken,
     verifiedAt: new Date(),
-    verificationToken,
+    otpVerificationToken: verificationToken,
   };
 }
 
