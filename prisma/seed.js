@@ -439,6 +439,111 @@ async function main() {
   }
 
   // ============================================================
+  // ⑬ Tạo handover data cho đơn RENTING (sẵn sàng test return)
+  // ============================================================
+  console.log("\n⑬ HANDOVER DATA CHO ĐƠN RENTING");
+
+  for (const o of orderSeeds) {
+    if (o.status !== "RENTING") continue;
+
+    const orderRes = await pool.query(
+      `SELECT id FROM rental_orders WHERE order_code = $1`, [o.code]
+    );
+    if (orderRes.rows.length === 0) continue;
+    const orderId = orderRes.rows[0].id;
+
+    // Lấy staff_id
+    const staffRes = await pool.query(
+      `SELECT id FROM users WHERE email = 'staff@test.com' LIMIT 1`
+    );
+    const staffId = staffRes.rows[0]?.id;
+    if (!staffId) continue;
+
+    // Lấy rental_order_items
+    const itemsRes = await pool.query(
+      `SELECT id, product_model_id, quantity FROM rental_order_items WHERE rental_order_id = $1`,
+      [orderId]
+    );
+
+    for (const item of itemsRes.rows) {
+      // Lấy asset AVAILABLE cho product_model này
+      const assetRes = await pool.query(
+        `SELECT id, asset_code, serial_number, identification_note, current_location_id
+         FROM identified_assets
+         WHERE product_model_id = $1 AND status = 'AVAILABLE' AND deleted_at IS NULL
+         LIMIT $2`,
+        [item.product_model_id, item.quantity]
+      );
+
+      if (assetRes.rows.length === 0) {
+        console.log(`  ⚠️  Không đủ assets cho item ${item.product_model_id}`);
+        continue;
+      }
+
+      // Tạo handover_records
+      const handoverRes = await pool.query(
+        `INSERT INTO handover_records (rental_order_id, staff_id, handover_at, note, status)
+         VALUES ($1, $2, NOW(), 'Seed: bàn giao tự động', 'COMPLETED')
+         RETURNING id`,
+        [orderId, staffId]
+      );
+      const handoverId = handoverRes.rows[0].id;
+
+      for (const asset of assetRes.rows) {
+        // Tạo rental_order_assets
+        const roaRes = await pool.query(
+          `INSERT INTO rental_order_assets
+             (rental_order_id, rental_order_item_id, asset_id,
+              asset_code_snapshot, serial_snapshot, identification_note_snapshot,
+              condition_before, status)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, 'DELIVERED')
+           RETURNING id`,
+          [orderId, item.id, asset.id,
+           asset.asset_code, asset.serial_number, asset.identification_note,
+           'Seed: tài sản tốt']
+        );
+        const roaId = roaRes.rows[0].id;
+
+        // Tạo handover_record_details
+        await pool.query(
+          `INSERT INTO handover_record_details
+             (handover_record_id, rental_order_id, rental_order_asset_id,
+              delivered_quantity, condition_note)
+           VALUES ($1, $2, $3, 1, 'Seed: bàn giao tự động')`,
+          [handoverId, orderId, roaId]
+        );
+
+        // Update identified_assets → RENTED
+        await pool.query(
+          `UPDATE identified_assets SET status = 'RENTED' WHERE id = $1`,
+          [asset.id]
+        );
+
+        // Tạo asset_movement
+        await pool.query(
+          `INSERT INTO asset_movements
+             (asset_id, related_order_id, from_location_id,
+              status_before, status_after, movement_type,
+              note, created_by)
+           VALUES ($1, $2, $3, 'AVAILABLE', 'RENTED', 'DELIVER',
+                   $4, $5)`,
+          [asset.id, orderId, asset.current_location_id,
+           `Seed: bàn giao cho đơn ${o.code}`, staffId]
+        );
+      }
+
+      // Update rental_order_items → RENTED
+      await pool.query(
+        `UPDATE rental_order_items SET status = 'RENTED', updated_at = NOW()
+         WHERE id = $1`,
+        [item.id]
+      );
+    }
+
+    console.log(`  ✅ Đơn ${o.code} → đã tạo handover data (sẵn sàng test return)`);
+  }
+
+  // ============================================================
   // KẾT THÚC
   // ============================================================
   console.log("\n========================================");
