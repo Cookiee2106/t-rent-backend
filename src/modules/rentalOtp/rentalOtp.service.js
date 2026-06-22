@@ -1,5 +1,6 @@
 const prisma = require("../../utils/prisma");
 const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
 const { sendOtpEmail } = require("./rentalOtp.email");
 
 // ============================================================
@@ -163,6 +164,8 @@ async function verifyOtp(otpId, otpCode, userId) {
   }
 
   // ===== OTP HỢP LỆ =====
+  const verificationToken = crypto.randomUUID();
+
   await prisma.otp_verifications.update({
     where: { id: otpId },
     data: {
@@ -175,6 +178,7 @@ async function verifyOtp(otpId, otpCode, userId) {
   console.log("========================================");
   console.log(`[OTP] ✅ XÁC THỰC THÀNH CÔNG cho user ${userId}`);
   console.log(`[OTP] OTP ID: ${otpId}`);
+  console.log(`[OTP] Verification Token: ${verificationToken}`);
   console.log(`[OTP] Chuyển sang bước thanh toán cọc giữ chỗ...`);
   console.log("========================================");
 
@@ -183,6 +187,7 @@ async function verifyOtp(otpId, otpCode, userId) {
     message: "Xác thực OTP thành công. Chuyển sang bước thanh toán cọc.",
     otpId,
     verifiedAt: new Date(),
+    verificationToken,
   };
 }
 
