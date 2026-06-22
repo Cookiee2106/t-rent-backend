@@ -39,7 +39,11 @@ async function createVnpayPaymentUrl(userId, checkoutSessionId, clientIp) {
     throw error;
   }
 
-  if (session.status !== "READY_FOR_PAYMENT") {
+  // Cho phép tạo payment URL khi:
+  // - READY_FOR_PAYMENT: session mới tạo
+  // - PAYMENT_PENDING: đang chờ thanh toán
+  // Không cho phép: PAID, PAYMENT_FAILED, EXPIRED
+  if (!["READY_FOR_PAYMENT", "PAYMENT_PENDING"].includes(session.status)) {
     const error = new Error("Phiên thanh toán không ở trạng thái hợp lệ");
     error.statusCode = 400;
     throw error;
@@ -51,6 +55,7 @@ async function createVnpayPaymentUrl(userId, checkoutSessionId, clientIp) {
     throw error;
   }
 
+  // Kiểm tra hết hạn - nếu hết hạn thì không cho tạo payment
   if (session.expires_at && new Date(session.expires_at) < new Date()) {
     await prisma.checkout_sessions.update({
       where: { id: session.id },
@@ -61,6 +66,7 @@ async function createVnpayPaymentUrl(userId, checkoutSessionId, clientIp) {
     throw error;
   }
 
+  // Tìm payment PENDING cũ - nếu có thì tạo payment URL mới cho payment cũ
   const existingPayment = await prisma.payments.findFirst({
     where: {
       checkout_session_id: session.id,
@@ -72,8 +78,11 @@ async function createVnpayPaymentUrl(userId, checkoutSessionId, clientIp) {
 
   let payment;
   if (existingPayment) {
+    // Payment PENDING tồn tại → dùng lại
     payment = existingPayment;
   } else {
+    // Không có payment PENDING → tạo mới
+    // (Trường hợp này xảy ra khi payment trước đó FAILED hoặc chưa từng tạo)
     payment = await prisma.payments.create({
       data: {
         checkout_session_id: session.id,
@@ -85,10 +94,13 @@ async function createVnpayPaymentUrl(userId, checkoutSessionId, clientIp) {
     });
   }
 
-  await prisma.checkout_sessions.update({
-    where: { id: session.id },
-    data: { status: "PAYMENT_PENDING" },
-  });
+  // Cập nhật session sang PAYMENT_PENDING (nếu chưa phải)
+  if (session.status !== "PAYMENT_PENDING") {
+    await prisma.checkout_sessions.update({
+      where: { id: session.id },
+      data: { status: "PAYMENT_PENDING" },
+    });
+  }
 
   const returnUrl =
     process.env.VNPAY_RETURN_URL ||

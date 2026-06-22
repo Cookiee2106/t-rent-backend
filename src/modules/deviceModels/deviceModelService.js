@@ -99,7 +99,7 @@ async function getProductModelDetail(id) {
           name: true,
         },
       },
-      included_items: {
+      included_items_included_items_product_model_idToproduct_models: {
         where: { deleted_at: null },
         select: {
           id: true,
@@ -129,7 +129,7 @@ async function getProductModelDetail(id) {
     status: productModel.status,
     brand: productModel.brands,
     category: productModel.categories,
-    includedItems: productModel.included_items.map((item) => ({
+    includedItems: productModel.included_items_included_items_product_model_idToproduct_models.map((item) => ({
       id: item.id,
       itemName: item.item_name,
       quantity: item.quantity,
