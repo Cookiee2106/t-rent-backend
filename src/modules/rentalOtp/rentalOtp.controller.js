@@ -70,6 +70,7 @@ async function verifyOtp(req, res, next) {
       data: {
         otpId: result.otpId,
         verifiedAt: result.verifiedAt,
+        verificationToken: result.verificationToken,
       },
     });
   } catch (error) {
