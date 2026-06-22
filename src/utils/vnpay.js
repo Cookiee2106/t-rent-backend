@@ -20,7 +20,7 @@ function buildPaymentUrl({ orderId, amount, orderInfo, returnUrl, ipnUrl, client
     .toISOString()
     .replace(/[-:T.]/g, "")
     .slice(0, 14);
-  const expireDate = new Date(date.getTime() + 15 * 60 * 1000)
+  const expireDate = new Date(date.getTime() + 30 * 60 * 1000)
     .toISOString()
     .replace(/[-:T.]/g, "")
     .slice(0, 14);

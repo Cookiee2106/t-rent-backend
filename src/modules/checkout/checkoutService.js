@@ -49,6 +49,14 @@ async function createCheckoutSession(userId, { termsAcceptanceId, otpVerificatio
     throw error;
   }
 
+  // Kiểm tra term_acceptance chưa được gắn với rental_order nào
+  // (Mỗi acceptance chỉ dùng cho 1 đơn thuê)
+  if (termsAcceptance.rental_order_id) {
+    const error = new Error("Điều khoản này đã được sử dụng cho đơn thuê khác");
+    error.statusCode = 400;
+    throw error;
+  }
+
   if (!otpVerificationToken) {
     const error = new Error("OTP chưa được xác minh");
     error.statusCode = 400;
