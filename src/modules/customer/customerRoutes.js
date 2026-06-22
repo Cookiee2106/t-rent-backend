@@ -16,4 +16,8 @@ router.post(
   customerController.submitVerification
 );
 
+router.get("/orders", customerController.getOrders);
+router.get("/orders/:id", customerController.getOrderDetail);
+router.patch("/orders/:id/cancel", customerController.cancelOrder);
+
 module.exports = router;

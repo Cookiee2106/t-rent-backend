@@ -15,5 +15,6 @@ router.use("/rental-terms", require("../modules/rentalTerms/rentalTermRoutes"));
 router.use("/checkout-sessions", require("../modules/checkout/checkoutRoutes"));
 router.use("/payments", require("../modules/payments/paymentRoutes"));
 router.use("/uploads", require("../modules/uploads/upload"));
+router.use("/rental-otp", require("../modules/rentalOtp/rentalOtp.routes"));
 
 module.exports = router;
