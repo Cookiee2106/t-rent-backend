@@ -10,4 +10,11 @@ router.post(
 router.get("/vnpay/return", paymentController.handleReturn);
 router.get("/vnpay/ipn", paymentController.handleIpn);
 
+// TEST ENDPOINT - Chỉ hoạt động khi NODE_ENV != production
+router.get(
+  "/vnpay/test-simulate-ipn",
+  authMiddleware,
+  paymentController.testSimulateIpnSuccess
+);
+
 module.exports = router;

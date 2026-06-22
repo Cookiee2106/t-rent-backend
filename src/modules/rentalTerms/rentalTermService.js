@@ -56,24 +56,7 @@ async function acceptTerms(customerId, termsId, termsVersion) {
     throw error;
   }
 
-  const existingAcceptance = await prisma.term_acceptances.findFirst({
-    where: {
-      customer_id: customerProfile.id,
-      rental_term_id: termsId,
-    },
-    orderBy: {
-      accepted_at: "desc",
-    },
-  });
-
-  if (existingAcceptance) {
-    return {
-      message: "Đã chấp nhận điều khoản trước đó",
-      termsAcceptanceId: existingAcceptance.id,
-      alreadyAccepted: true,
-    };
-  }
-
+  // LUÔN TẠO MỚI - Không reuse term_acceptance cũ
   const crypto = require("crypto");
   const contentHash = crypto
     .createHash("sha256")
@@ -91,7 +74,8 @@ async function acceptTerms(customerId, termsId, termsVersion) {
   return {
     message: "Đã chấp nhận điều khoản thuê",
     termsAcceptanceId: acceptance.id,
-    alreadyAccepted: false,
+    termsVersion: term.version,
+    acceptedAt: acceptance.accepted_at,
   };
 }
 

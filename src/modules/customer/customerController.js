@@ -22,7 +22,7 @@ const getAccount = asyncHandler(async (req, res) => {
 const updateProfile = asyncHandler(async (req, res) => {
   const { address, identityNumber } = req.body;
 
-  const updated = await customerService.updateProfile(req.user.id, {
+  const updated = await customerService.updateCustomerProfile(req.user.id, {
     address,
     identityNumber,
   });

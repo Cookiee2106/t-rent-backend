@@ -2,13 +2,14 @@ const rentalOtpService = require("./rentalOtp.service");
 
 /**
  * POST /api/rental-otp/send
- * Body: { userId }
+ * Body: { userId, termsAcceptanceId }
  *
  * Bước 10: Hệ thống gửi mã OTP xác thực đặt thuê
+ * Yêu cầu: customer đã accept terms
  */
 async function sendOtp(req, res, next) {
   try {
-    const { userId } = req.body;
+    const { userId, termsAcceptanceId } = req.body;
 
     if (!userId) {
       return res.status(400).json({
@@ -17,7 +18,14 @@ async function sendOtp(req, res, next) {
       });
     }
 
-    const result = await rentalOtpService.sendOtp(userId);
+    if (!termsAcceptanceId) {
+      return res.status(400).json({
+        success: false,
+        message: "Vui lòng chấp nhận điều khoản thuê trước",
+      });
+    }
+
+    const result = await rentalOtpService.sendOtp(userId, termsAcceptanceId);
 
     return res.status(201).json({
       success: true,
@@ -37,13 +45,13 @@ async function sendOtp(req, res, next) {
 
 /**
  * POST /api/rental-otp/verify
- * Body: { otpId, otpCode, userId }
+ * Body: { otpId, otpCode, userId, termsAcceptanceId }
  *
- * Bước 11-12-13: Khách nhập OTP → Kiểm tra → Nếu hợp lệ → chuyển thanh toán
+ * Bước 11-12-13: Khách nhập OTP → Kiểm tra → Nếu hợp lệ → trả otpVerificationToken
  */
 async function verifyOtp(req, res, next) {
   try {
-    const { otpId, otpCode, userId } = req.body;
+    const { otpId, otpCode, userId, termsAcceptanceId } = req.body;
 
     if (!otpId || !otpCode || !userId) {
       return res.status(400).json({
@@ -52,7 +60,7 @@ async function verifyOtp(req, res, next) {
       });
     }
 
-    const result = await rentalOtpService.verifyOtp(otpId, otpCode, userId);
+    const result = await rentalOtpService.verifyOtp(otpId, otpCode, userId, termsAcceptanceId);
 
     if (!result.success) {
       return res.status(400).json({
@@ -69,8 +77,8 @@ async function verifyOtp(req, res, next) {
       message: result.message,
       data: {
         otpId: result.otpId,
-        verifiedAt: result.verifiedAt,
         otpVerificationToken: result.otpVerificationToken,
+        verifiedAt: result.verifiedAt,
       },
     });
   } catch (error) {

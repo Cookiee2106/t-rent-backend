@@ -1,6 +1,19 @@
 const prisma = require("../../utils/prisma");
 
-async function getOrCreateCart(customerId) {
+async function getOrCreateCart(userId) {
+  // Lấy customer_profile từ userId
+  const profile = await prisma.customer_profiles.findUnique({
+    where: { user_id: userId },
+  });
+
+  if (!profile) {
+    const error = new Error("Không tìm thấy hồ sơ khách hàng");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const customerId = profile.id;
+
   let cart = await prisma.carts.findFirst({
     where: {
       customer_id: customerId,
@@ -127,10 +140,22 @@ async function addCartItem(customerId, { productModelId, quantity, startDate, en
   };
 }
 
-async function getCart(customerId) {
+async function getCart(userId) {
+  // Lấy customer_profile từ userId
+  const profile = await prisma.customer_profiles.findUnique({
+    where: { user_id: userId },
+  });
+
+  if (!profile) {
+    return {
+      id: null,
+      items: [],
+    };
+  }
+
   const cart = await prisma.carts.findFirst({
     where: {
-      customer_id: customerId,
+      customer_id: profile.id,
       status: "ACTIVE",
     },
     include: {
@@ -181,10 +206,21 @@ async function getCart(customerId) {
   };
 }
 
-async function removeCartItem(customerId, itemId) {
+async function removeCartItem(userId, itemId) {
+  // Lấy customer_profile từ userId
+  const profile = await prisma.customer_profiles.findUnique({
+    where: { user_id: userId },
+  });
+
+  if (!profile) {
+    const error = new Error("Không tìm thấy hồ sơ khách hàng");
+    error.statusCode = 404;
+    throw error;
+  }
+
   const cart = await prisma.carts.findFirst({
     where: {
-      customer_id: customerId,
+      customer_id: profile.id,
       status: "ACTIVE",
     },
   });

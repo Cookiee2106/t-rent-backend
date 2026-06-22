@@ -46,8 +46,33 @@ const handleIpn = asyncHandler(async (req, res) => {
   return res.status(400).json(result);
 });
 
+/**
+ * TEST ENDPOINT - Simulate VNPAY IPN Success
+ * CHỈ DÙNG CHO TEST, KHÔNG DÙNG TRONG PRODUCTION
+ */
+const testSimulateIpnSuccess = asyncHandler(async (req, res) => {
+  const { paymentId } = req.query;
+
+  if (process.env.NODE_ENV === "production") {
+    return errorResponse(res, 403, "Endpoint không khả dụng trong production");
+  }
+
+  if (!paymentId) {
+    return errorResponse(res, 400, "Vui lòng cung cấp paymentId");
+  }
+
+  const result = await paymentService.testSimulateIpnSuccess(paymentId);
+
+  if (result.RspCode === "00") {
+    return successResponse(res, 200, "Simulate IPN success thành công", result);
+  }
+
+  return errorResponse(res, 400, "Simulate IPN thất bại", result);
+});
+
 module.exports = {
   createPaymentUrl,
   handleReturn,
   handleIpn,
+  testSimulateIpnSuccess,
 };

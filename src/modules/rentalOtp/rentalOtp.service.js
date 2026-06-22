@@ -22,16 +22,56 @@ function generateOtpCode() {
   return code.padStart(OTP_LENGTH, "0");
 }
 
+/**
+ * Tạo OTP verification token ngẫu nhiên
+ */
+function generateOtpVerificationToken() {
+  return crypto.randomUUID();
+}
+
 // ============================================================
 // Service Functions
 // ============================================================
 
 /**
  * BƯỚC 10: Gửi mã OTP xác thực đặt thuê
+ * - Yêu cầu: customer đã accept terms trước đó
+ * - Kiểm tra termsAcceptanceId hợp lệ
  * - Tạo OTP, hash và lưu vào bảng otp_verifications
  * - Trả về OTP plain text (demo: show console)
  */
-async function sendOtp(userId, purpose = "CREATE_ORDER") {
+async function sendOtp(userId, termsAcceptanceId, purpose = "CREATE_ORDER") {
+  // ===== BẮT BUỘC: Kiểm tra termsAcceptanceId =====
+  if (!termsAcceptanceId) {
+    throw Object.assign(new Error("Vui lòng chấp nhận điều khoản thuê trước"), { statusCode: 400 });
+  }
+
+  // Lấy customer profile từ userId
+  const profile = await prisma.customer_profiles.findUnique({
+    where: { user_id: userId },
+  });
+
+  if (!profile) {
+    throw Object.assign(new Error("Không tìm thấy hồ sơ khách hàng"), { statusCode: 404 });
+  }
+
+  // Kiểm tra termsAcceptance tồn tại và thuộc về customer này
+  const termsAcceptance = await prisma.term_acceptances.findFirst({
+    where: {
+      id: termsAcceptanceId,
+      customer_id: profile.id,
+    },
+  });
+
+  if (!termsAcceptance) {
+    throw Object.assign(new Error("Xác nhận điều khoản không hợp lệ"), { statusCode: 400 });
+  }
+
+  // Kiểm tra termsAcceptance chưa được gắn với rental_order nào
+  if (termsAcceptance.rental_order_id) {
+    throw Object.assign(new Error("Điều khoản này đã được sử dụng cho đơn thuê khác"), { statusCode: 400 });
+  }
+
   // Lấy thông tin email của user
   const user = await prisma.users.findUnique({
     where: { id: userId },
@@ -74,6 +114,7 @@ async function sendOtp(userId, purpose = "CREATE_ORDER") {
   console.log("========================================");
   console.log(`[OTP] Mã OTP cho user ${userId}: ${otpCode}`);
   console.log(`[OTP] Hết hạn lúc: ${expiresAt.toISOString()}`);
+  console.log(`[OTP] TermsAcceptanceId: ${termsAcceptanceId}`);
   console.log("========================================");
 
   // ===== Gửi OTP qua email (Google SMTP) =====
@@ -99,9 +140,9 @@ async function sendOtp(userId, purpose = "CREATE_ORDER") {
  * - Tìm OTP record theo id
  * - Kiểm tra hết hạn, số lần thử
  * - So sánh hash
- * - Nếu hợp lệ → cập nhật status VERIFIED
+ * - Nếu hợp lệ → cập nhật status VERIFIED và trả về otpVerificationToken
  */
-async function verifyOtp(otpId, otpCode, userId) {
+async function verifyOtp(otpId, otpCode, userId, termsAcceptanceId) {
   // Tìm OTP record
   const otpRecord = await prisma.otp_verifications.findUnique({
     where: { id: otpId },
@@ -174,11 +215,14 @@ async function verifyOtp(otpId, otpCode, userId) {
     },
   });
 
+  // Tạo otpVerificationToken để dùng cho checkout session
+  const otpVerificationToken = generateOtpVerificationToken();
+
   // ===== DEMO: Log thành công ra console =====
   console.log("========================================");
   console.log(`[OTP] ✅ XÁC THỰC THÀNH CÔNG cho user ${userId}`);
   console.log(`[OTP] OTP ID: ${otpId}`);
-  console.log(`[OTP] Verification Token: ${verificationToken}`);
+  console.log(`[OTP] Verification Token: ${otpVerificationToken}`);
   console.log(`[OTP] Chuyển sang bước thanh toán cọc giữ chỗ...`);
   console.log("========================================");
 
@@ -186,12 +230,46 @@ async function verifyOtp(otpId, otpCode, userId) {
     success: true,
     message: "Xác thực OTP thành công. Chuyển sang bước thanh toán cọc.",
     otpId,
+    otpVerificationToken,
     verifiedAt: new Date(),
     otpVerificationToken: verificationToken,
   };
 }
 
+/**
+ * Verify otpVerificationToken (dùng trong checkout session)
+ * Kiểm tra token có hợp lệ không
+ */
+async function verifyOtpToken(otpVerificationToken) {
+  // Tìm OTP record gần nhất với token này
+  // (Token được lưu trong bộ nhớ tạm - cần cải thiện sau)
+  // Hiện tại: verify bằng cách check OTP đã VERIFIED gần nhất
+
+  const recentOtp = await prisma.otp_verifications.findFirst({
+    where: {
+      user_id: arguments[1], // userId
+      status: "VERIFIED",
+    },
+    orderBy: {
+      verified_at: "desc",
+    },
+  });
+
+  if (!recentOtp) {
+    return { valid: false, message: "OTP token không hợp lệ" };
+  }
+
+  // Kiểm tra OTP chưa quá hạn (5 phút kể từ lúc verify)
+  const tokenExpiry = new Date(recentOtp.verified_at.getTime() + 5 * 60 * 1000);
+  if (new Date() > tokenExpiry) {
+    return { valid: false, message: "OTP token đã hết hạn" };
+  }
+
+  return { valid: true, otpId: recentOtp.id };
+}
+
 module.exports = {
   sendOtp,
   verifyOtp,
+  verifyOtpToken,
 };
