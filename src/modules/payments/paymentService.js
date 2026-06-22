@@ -1,36 +1,6 @@
 const prisma = require("../../utils/prisma");
 const { buildPaymentUrl, verifyIpn } = require("../../utils/vnpay");
-
-function normalizeDeviceCodeFromProduct(productModel) {
-  if (!productModel) return "DEV";
-
-  // Ưu tiên: code -> slug -> name
-  const raw = productModel.code || productModel.slug || productModel.name || "DEV";
-
-  if (!raw || raw === "DEV") return "DEV";
-
-  let code = raw.toUpperCase();
-
-  // Bỏ dấu tiếng Việt
-  code = code
-    .replace(/[ÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẴẲ]/g, "A")
-    .replace(/[ÈÉẸẺẼÊỀẾỆỂỄ]/g, "E")
-    .replace(/[ÌÍỊỈĨ]/g, "I")
-    .replace(/[ÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠ]/g, "O")
-    .replace(/[ÙÚỤỦŨƯỪỨỰỬỮ]/g, "U")
-    .replace(/[ỲÝỴỶỸ]/g, "Y")
-    .replace(/Đ/g, "D");
-
-  // Bỏ khoảng trắng và ký tự đặc biệt
-  code = code.replace(/[^A-Z0-9]/g, "");
-
-  // Giới hạn 8 ký tự
-  if (code.length > 8) {
-    code = code.substring(0, 8);
-  }
-
-  return code || "DEV";
-}
+const { generateUniqueOrderCode } = require("../../utils/orderCode");
 
 async function createVnpayPaymentUrl(userId, checkoutSessionId, clientIp) {
   if (!checkoutSessionId) {
@@ -223,55 +193,140 @@ async function handleVnpayIpn(query) {
       return { RspCode: "00", Message: "Giao dich da duoc xu ly" };
     }
 
-    // Bước 6: TOÀN BỘ trong một transaction
+    // Bước 6: TOÀN BỘ trong một transaction (bọc ngoài để đảm bảo atomicity)
     try {
-      await prisma.$transaction(async (tx) => {
-        // Lấy thông tin product model đầu tiên để sinh mã máy
-        const firstItem = session.checkout_session_items[0];
-        const productModel = firstItem?.product_models || null;
+      let orderId;
+      let orderCode;
 
-        // Tạo order với retry nếu trùng order_code
-        const orderId = await createOrderWithRetryTx(tx, session, productModel);
+      // Retry loop bên ngoài để mỗi attempt có transaction riêng
+      for (let attempt = 0; attempt < 5; attempt++) {
+        try {
+          // Tạo transaction mới cho mỗi attempt
+          const result = await prisma.$transaction(async (tx) => {
+            const firstItem = session.checkout_session_items[0];
+            const productModel = firstItem?.product_models || null;
 
-        // Cập nhật checkout session
-        await tx.checkout_sessions.update({
-          where: { id: session.id },
-          data: { status: "PAID", paid_at: new Date() },
-        });
+            // Sinh order code TRONG TRANSACTION - query lại max STT mỗi attempt
+            const code = await generateUniqueOrderCode(tx, productModel);
 
-        // Cập nhật cart items
-        if (session.cart_id) {
-          const sessionItemIds = session.checkout_session_items
-            .filter((item) => item.cart_item_id)
-            .map((item) => item.cart_item_id);
+            // Tính toán ngày thuê
+            const minStartDate = session.checkout_session_items.reduce(
+              (min, item) =>
+                new Date(item.start_date) < min ? new Date(item.start_date) : min,
+              new Date()
+            );
+            const maxEndDate = session.checkout_session_items.reduce(
+              (max, item) =>
+                new Date(item.end_date) > max ? new Date(item.end_date) : max,
+              new Date()
+            );
 
-          if (sessionItemIds.length > 0) {
-            await tx.cart_items.updateMany({
-              where: { id: { in: sessionItemIds } },
-              data: { status: "ORDERED", updated_at: new Date() },
+            const firstStart = new Date(firstItem.start_date);
+            const firstEnd = new Date(firstItem.end_date);
+            const rentalDays = Math.ceil(
+              (firstEnd.getTime() - firstStart.getTime()) / (1000 * 60 * 60 * 24)
+            );
+            const expiredAt = new Date(Date.now() + 30 * 60 * 1000);
+
+            // Tạo rental_order
+            const rentalOrder = await tx.rental_orders.create({
+              data: {
+                order_code: code,
+                customer_id: session.customer_id,
+                start_date: minStartDate,
+                end_date: maxEndDate,
+                rental_days: rentalDays,
+                total_rental_amount: session.rental_amount,
+                total_deposit_amount: session.deposit_amount,
+                status: "RESERVED",
+                expired_at: expiredAt,
+              },
             });
-          }
-        }
 
-        // Cập nhật payment
-        await tx.payments.update({
-          where: { id: payment.id },
-          data: {
-            status: "PAID",
-            transaction_code: transactionNo,
-            paid_at: new Date(),
-            rental_order_id: orderId,
-          },
-        });
+            // Tạo rental_order_items
+            await tx.rental_order_items.createMany({
+              data: session.checkout_session_items.map((item) => ({
+                rental_order_id: rentalOrder.id,
+                product_model_id: item.product_model_id,
+                quantity: item.quantity || 1,
+                daily_price_snapshot: item.daily_price_snapshot,
+                deposit_amount_snapshot: item.deposit_amount_snapshot,
+                rental_amount: item.rental_amount,
+                deposit_amount:
+                  parseFloat(item.deposit_amount_snapshot || 0) * (item.quantity || 1),
+                status: "PENDING",
+              })),
+            });
 
-        // Cập nhật terms acceptance
-        if (session.terms_acceptance_id) {
-          await tx.term_acceptances.update({
-            where: { id: session.terms_acceptance_id },
-            data: { rental_order_id: orderId },
+            // Cập nhật checkout session
+            await tx.checkout_sessions.update({
+              where: { id: session.id },
+              data: { status: "PAID", paid_at: new Date() },
+            });
+
+            // Cập nhật cart items
+            if (session.cart_id) {
+              const sessionItemIds = session.checkout_session_items
+                .filter((item) => item.cart_item_id)
+                .map((item) => item.cart_item_id);
+
+              if (sessionItemIds.length > 0) {
+                await tx.cart_items.updateMany({
+                  where: { id: { in: sessionItemIds } },
+                  data: { status: "ORDERED", updated_at: new Date() },
+                });
+              }
+            }
+
+            // Cập nhật payment
+            await tx.payments.update({
+              where: { id: payment.id },
+              data: {
+                status: "PAID",
+                transaction_code: transactionNo,
+                paid_at: new Date(),
+                rental_order_id: rentalOrder.id,
+              },
+            });
+
+            // Cập nhật terms acceptance
+            if (session.terms_acceptance_id) {
+              await tx.term_acceptances.update({
+                where: { id: session.terms_acceptance_id },
+                data: { rental_order_id: rentalOrder.id },
+              });
+            }
+
+            console.log(`Order created: ${code}`);
+            return { orderId: rentalOrder.id, orderCode: code };
           });
+
+          orderId = result.orderId;
+          orderCode = result.orderCode;
+          break; // Thành công → thoát retry loop
+        } catch (error) {
+          // Kiểm tra lỗi unique constraint
+          const isUniqueError =
+            error.code === "P2002" ||
+            error.code === "23505" ||
+            (error.message && error.message.includes("Unique constraint")) ||
+            (error.message && error.message.includes("duplicate key")) ||
+            (error.meta?.target && error.meta.target.includes("order_code"));
+
+          if (isUniqueError) {
+            // Unique error → rollback tự động, retry với mã mới
+            console.log(`Order code conflict on attempt ${attempt + 1}/5, retry with new STT`);
+            continue;
+          }
+
+          // Lỗi khác → throw
+          throw error;
         }
-      });
+      }
+
+      if (!orderId) {
+        throw new Error("Khong tao duoc ma don hang sau 5 lan thu");
+      }
 
       return { RspCode: "00", Message: "Xac nhan thanh toan thanh cong" };
     } catch (error) {
@@ -296,128 +351,8 @@ async function handleVnpayIpn(query) {
   }
 }
 
-// Tạo order với retry - DÙNG TRONG TRANSACTION
-// productModel: object chứa code/slug/name từ product_models
-async function createOrderWithRetryTx(tx, session, productModel, maxRetries = 5) {
-  const deviceCode = normalizeDeviceCodeFromProduct(productModel);
-
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    try {
-      const orderCode = await generateUniqueOrderCode(tx, deviceCode);
-
-      const firstItem = session.checkout_session_items[0];
-      const minStartDate = session.checkout_session_items.reduce(
-        (min, item) =>
-          new Date(item.start_date) < min ? new Date(item.start_date) : min,
-        new Date()
-      );
-      const maxEndDate = session.checkout_session_items.reduce(
-        (max, item) =>
-          new Date(item.end_date) > max ? new Date(item.end_date) : max,
-        new Date()
-      );
-
-      const firstStart = new Date(firstItem.start_date);
-      const firstEnd = new Date(firstItem.end_date);
-      const rentalDays = Math.ceil(
-        (firstEnd.getTime() - firstStart.getTime()) / (1000 * 60 * 60 * 24)
-      );
-      const expiredAt = new Date(Date.now() + 30 * 60 * 1000);
-
-      const rentalOrder = await tx.rental_orders.create({
-        data: {
-          order_code: orderCode,
-          customer_id: session.customer_id,
-          start_date: minStartDate,
-          end_date: maxEndDate,
-          rental_days: rentalDays,
-          total_rental_amount: session.rental_amount,
-          total_deposit_amount: session.deposit_amount,
-          status: "RESERVED",
-          expired_at: expiredAt,
-        },
-      });
-
-      await tx.rental_order_items.createMany({
-        data: session.checkout_session_items.map((item) => ({
-          rental_order_id: rentalOrder.id,
-          product_model_id: item.product_model_id,
-          quantity: item.quantity || 1,
-          daily_price_snapshot: item.daily_price_snapshot,
-          deposit_amount_snapshot: item.deposit_amount_snapshot,
-          rental_amount: item.rental_amount,
-          deposit_amount:
-            parseFloat(item.deposit_amount_snapshot || 0) * (item.quantity || 1),
-          status: "PENDING",
-        })),
-      });
-
-      console.log(`Order created: ${orderCode}`);
-      return rentalOrder.id;
-    } catch (error) {
-      // Retry nếu trùng order_code (Prisma error code P2002 hoặc message chứa unique)
-      const isUniqueError =
-        error.code === "P2002" ||
-        error.code === "23505" ||
-        (error.message && error.message.includes("Unique constraint"));
-
-      if (isUniqueError) {
-        console.log(`Order code conflict, retry ${attempt + 1}/${maxRetries}`);
-        continue;
-      }
-      // Lỗi khác thì throw ngay
-      throw error;
-    }
-  }
-
-  throw new Error("Khong tao duoc ma don hang, vui long thu lai sau");
-}
-
-// Sinh mã order code DUY NHẤT trong ngày
-// Gọi TRONG TRANSACTION để đảm bảo count đúng
-async function generateUniqueOrderCode(tx, deviceCode) {
-  const now = new Date();
-  const day = String(now.getDate()).padStart(2, "0");
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const prefix = `${day}${month}${deviceCode}`;
-
-  // Query số lớn nhất trong ngày với prefix đúng
-  // Tìm tất cả order_code bắt đầu bằng prefix trong ngày
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
-
-  const existingOrders = await tx.rental_orders.findMany({
-    where: {
-      order_code: { startsWith: prefix },
-      created_at: {
-        gte: today,
-        lt: tomorrow,
-      },
-    },
-    select: { order_code: true },
-    orderBy: { order_code: "desc" },
-    take: 1,
-  });
-
-  let nextSeq = 1;
-  if (existingOrders.length > 0) {
-    const lastCode = existingOrders[0].order_code;
-    // Parse số thứ tự từ mã cuối, ví dụ: "2206CANONR5-002" -> 2
-    const parts = lastCode.split("-");
-    if (parts.length === 2) {
-      const lastSeq = parseInt(parts[1], 10);
-      if (!isNaN(lastSeq)) {
-        nextSeq = lastSeq + 1;
-      }
-    }
-  }
-
-  return `${prefix}-${String(nextSeq).padStart(3, "0")}`;
-}
-
 module.exports = {
   createVnpayPaymentUrl,
   handleVnpayReturn,
   handleVnpayIpn,
-  normalizeDeviceCodeFromProduct,
 };
