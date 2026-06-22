@@ -187,7 +187,7 @@ async function verifyOtp(otpId, otpCode, userId) {
     message: "Xác thực OTP thành công. Chuyển sang bước thanh toán cọc.",
     otpId,
     verifiedAt: new Date(),
-    verificationToken,
+    otpVerificationToken: verificationToken,
   };
 }
 
