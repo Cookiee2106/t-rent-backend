@@ -167,6 +167,8 @@ async function createReturnInspection(orderId, staffId, data) {
     throw error;
   }
 
+  console.log("[DEBUG] createReturnInspection order.status:", order.status, "| id:", order.id, "| code:", order.order_code);
+
   if (order.status !== "RENTING") {
     const error = new Error("Đơn hàng phải ở trạng thái RENTING để thanh lý");
     error.statusCode = 400;
