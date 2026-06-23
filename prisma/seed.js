@@ -381,7 +381,8 @@ async function main() {
           o.status, o.start, o.end, o.days,
           o.rent, o.deposit,
           o.status === "RESERVED" ? new Date(Date.now() + 30 * 60 * 1000) : null,
-          null, null,
+          o.status === "CANCELLED" ? new Date() : null,
+          o.cancelReason,
           orderId,
         ]
       );
