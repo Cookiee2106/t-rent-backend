@@ -110,6 +110,7 @@ async function getAdminOrders(page = 1, limit = 20, filters = {}) {
         customer_profiles: {
           select: {
             id: true,
+            verification_status: true,
             users: { select: { id: true, full_name: true, email: true, phone: true } },
           },
         },
