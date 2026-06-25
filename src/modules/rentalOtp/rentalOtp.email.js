@@ -1,19 +1,17 @@
+const nodemailer = require("nodemailer");
+
 /**
- * Gửi email OTP cho khách hàng bằng Brevo API (tránh bị chặn port trên Render)
+ * Gửi email OTP cho khách hàng bằng Google SMTP
  * @param {string} toEmail - Email người nhận
  * @param {string} otpCode - Mã OTP 6 chữ số
  * @param {number} expiresMinutes - Số phút hết hạn
  */
 async function sendOtpEmail(toEmail, otpCode, expiresMinutes = 5) {
-  const brevoApiKey = process.env.BREVO_API_KEY;
-  const senderEmail = process.env.SMTP_EMAIL; // Email gửi (phải là email đã Verify trên Brevo)
+  const senderEmail = process.env.SMTP_EMAIL;
+  const appPassword = process.env.SMTP_APP_PASSWORD;
 
-  if (!brevoApiKey) {
-    throw new Error("Thiếu BREVO_API_KEY trong file .env");
-  }
-
-  if (!senderEmail) {
-    throw new Error("Thiếu SMTP_EMAIL trong file .env");
+  if (!senderEmail || !appPassword) {
+    throw new Error("Thiếu cấu hình SMTP_EMAIL hoặc SMTP_APP_PASSWORD trong file .env");
   }
 
   const htmlContent = `
@@ -47,39 +45,28 @@ async function sendOtpEmail(toEmail, otpCode, expiresMinutes = 5) {
     </div>
   `;
 
-  const payload = {
-    sender: {
-      name: "T-Rent",
-      email: senderEmail,
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: senderEmail,
+      pass: appPassword,
     },
-    to: [
-      {
-        email: toEmail,
-      },
-    ],
-    subject: "Mã xác thực OTP đặt thuê thiết bị - T-Rent",
-    htmlContent: htmlContent,
-  };
-
-  const response = await fetch("https://api.brevo.com/v3/smtp/email", {
-    method: "POST",
-    headers: {
-      "accept": "application/json",
-      "api-key": brevoApiKey,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify(payload),
   });
 
-  const responseData = await response.json();
+  const mailOptions = {
+    from: `"T-Rent" <${senderEmail}>`,
+    to: toEmail,
+    subject: "Mã xác thực OTP đặt thuê thiết bị - T-Rent",
+    html: htmlContent,
+  };
 
-  if (!response.ok) {
-    throw new Error(`Lỗi gửi mail Brevo: ${response.status} - ${JSON.stringify(responseData)}`);
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`[EMAIL]  Đã gửi OTP bằng Google SMTP đến ${toEmail}`);
+    return info;
+  } catch (error) {
+    throw new Error(`Lỗi gửi mail Google SMTP: ${error.message}`);
   }
-
-  console.log(`[EMAIL] ✅ Đã gửi OTP bằng Brevo API đến ${toEmail}`);
-  return responseData;
 }
 
 module.exports = { sendOtpEmail };
-

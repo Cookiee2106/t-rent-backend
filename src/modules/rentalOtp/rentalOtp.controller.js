@@ -2,40 +2,40 @@ const rentalOtpService = require("./rentalOtp.service");
 
 /**
  * POST /api/rental-otp/send
- * Body: { userId, termsAcceptanceId }
+ * Body: { nguoi_dung_id, xac_nhan_dieu_khoan_id }
  *
  * Bước 10: Hệ thống gửi mã OTP xác thực đặt thuê
  * Yêu cầu: customer đã accept terms
  */
 async function sendOtp(req, res, next) {
   try {
-    const { userId, termsAcceptanceId } = req.body;
+    const { nguoi_dung_id, xac_nhan_dieu_khoan_id } = req.body;
 
-    if (!userId) {
+    if (!nguoi_dung_id) {
       return res.status(400).json({
         success: false,
-        message: "userId là bắt buộc",
+        message: "nguoi_dung_id là bắt buộc",
       });
     }
 
-    if (!termsAcceptanceId) {
+    if (!xac_nhan_dieu_khoan_id) {
       return res.status(400).json({
         success: false,
         message: "Vui lòng chấp nhận điều khoản thuê trước",
       });
     }
 
-    const result = await rentalOtpService.sendOtp(userId, termsAcceptanceId);
+    const result = await rentalOtpService.sendOtp(nguoi_dung_id, xac_nhan_dieu_khoan_id);
 
     return res.status(201).json({
       success: true,
       message: "Đã gửi mã OTP xác thực",
       data: {
-        otpId: result.otpId,
-        expiresAt: result.expiresAt,
-        sentTo: result.sentTo,
+        otp_id: result.otp_id,
+        het_han_luc: result.het_han_luc,
+        gui_den: result.gui_den,
         // Demo only: trả OTP code để test trên Postman
-        otpCode: result.otpCode,
+        ma_otp: result.ma_otp,
       },
     });
   } catch (error) {
@@ -45,29 +45,29 @@ async function sendOtp(req, res, next) {
 
 /**
  * POST /api/rental-otp/verify
- * Body: { otpId, otpCode, userId, termsAcceptanceId }
+ * Body: { otp_id, ma_otp, nguoi_dung_id, xac_nhan_dieu_khoan_id }
  *
- * Bước 11-12-13: Khách nhập OTP → Kiểm tra → Nếu hợp lệ → trả otpVerificationToken
+ * Bước 11-12-13: Khách nhập OTP → Kiểm tra → Nếu hợp lệ → trả ma_xac_thuc
  */
 async function verifyOtp(req, res, next) {
   try {
-    const { otpId, otpCode, userId, termsAcceptanceId } = req.body;
+    const { otp_id, ma_otp, nguoi_dung_id, xac_nhan_dieu_khoan_id } = req.body;
 
-    if (!otpId || !otpCode || !userId) {
+    if (!otp_id || !ma_otp || !nguoi_dung_id) {
       return res.status(400).json({
         success: false,
-        message: "otpId, otpCode và userId là bắt buộc",
+        message: "otp_id, ma_otp và nguoi_dung_id là bắt buộc",
       });
     }
 
-    const result = await rentalOtpService.verifyOtp(otpId, otpCode, userId, termsAcceptanceId);
+    const result = await rentalOtpService.verifyOtp(otp_id, ma_otp, nguoi_dung_id, xac_nhan_dieu_khoan_id);
 
     if (!result.success) {
       return res.status(400).json({
         success: false,
         message: result.message,
         data: {
-          attemptsLeft: result.attemptsLeft,
+          so_lan_con_lai: result.so_lan_con_lai,
         },
       });
     }
@@ -76,9 +76,9 @@ async function verifyOtp(req, res, next) {
       success: true,
       message: result.message,
       data: {
-        otpId: result.otpId,
-        otpVerificationToken: result.otpVerificationToken,
-        verifiedAt: result.verifiedAt,
+        otp_id: result.otp_id,
+        ma_xac_thuc: result.ma_xac_thuc,
+        xac_thuc_luc: result.xac_thuc_luc,
       },
     });
   } catch (error) {
