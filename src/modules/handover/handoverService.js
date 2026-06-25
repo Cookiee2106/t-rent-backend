@@ -181,7 +181,7 @@ async function createHandover(don_thue_id, nhan_vien_id, du_lieu) {
 
         // 4. INSERT lich_su_di_chuyen_thiet_bi
         await tx.$executeRaw`
-          INSERT INTO lich_su_di_chuyen_thiet_bi (id, thiet_bi_id, don_thue_lien_quan_id, tu_vi_tri_id, trang_thai_truoc, trang_thai_sau, loai_di_chuyen, ghi_chu, nguoi_thuc_hien_id, created_at)
+          INSERT INTO lich_su_di_chuyen_thiet_bi (id, thiet_bi_id, don_thue_id, vi_tri_truoc_id, trang_thai_truoc, trang_thai_sau, loai_di_chuyen, ghi_chu, nguoi_thuc_hien_id, created_at)
           VALUES (gen_random_uuid(), ${tai_san_id}::uuid, ${don_thue_id}::uuid, ${thiet_bi.vi_tri_hien_tai_id}::uuid, 'SAN_SANG', 'DANG_THUE', 'BAN_GIAO', ${"Bàn giao cho đơn " + don.ma_don}, ${nhan_vien_id}::uuid, NOW())
         `;
 

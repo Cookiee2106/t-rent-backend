@@ -4,7 +4,7 @@ const roleMiddleware = require("../../middlewares/roleMiddleware");
 const maintenanceController = require("./maintenanceController");
 
 router.use(authMiddleware);
-router.use(roleMiddleware("STAFF", "ADMIN"));
+router.use(roleMiddleware("NHAN_VIEN", "QUAN_TRI"));
 
 router.get("/", maintenanceController.list);
 router.post("/", maintenanceController.create);

@@ -423,7 +423,7 @@ async function createReturnInspection(don_thue_id, nhan_vien_id, du_lieu) {
           : `Trả về từ đơn ${don.ma_don}`;
 
       await tx.$executeRaw`
-        INSERT INTO lich_su_di_chuyen_thiet_bi (id, thiet_bi_id, don_thue_lien_quan_id, den_vi_tri_id, trang_thai_truoc, trang_thai_sau, loai_di_chuyen, ghi_chu, nguoi_thuc_hien_id, created_at)
+        INSERT INTO lich_su_di_chuyen_thiet_bi (id, thiet_bi_id, don_thue_id, vi_tri_sau_id, trang_thai_truoc, trang_thai_sau, loai_di_chuyen, ghi_chu, nguoi_thuc_hien_id, created_at)
         VALUES (gen_random_uuid(), ${thiet_bi_gan.thiet_bi_vat_ly_id}::uuid, ${don_thue_id}::uuid, ${thiet_bi_gan.vi_tri_hien_tai_id}::uuid, 'DANG_THUE', ${trang_thai_moi}, ${loai_di_chuyen}, ${ghi_chu_di_chuyen}, ${nhan_vien_id}::uuid, NOW())
       `;
 
@@ -638,8 +638,8 @@ async function createMaintenanceRecord(don_thue_id, nhan_vien_id, du_lieu) {
   const ket_qua_db = await prisma.$transaction(async (tx) => {
     // INSERT phieu_bao_tri
     const phieu_moi = await tx.$queryRaw`
-      INSERT INTO phieu_bao_tri (id, thiet_bi_id, don_thue_id, ly_do, trang_thai, bat_dau_boi, bat_dau_luc, ghi_chu, created_at, updated_at)
-      VALUES (gen_random_uuid(), ${thiet_bi_id}::uuid, ${don_thue_id}::uuid, ${ly_do || "Hư hỏng sau khi thuê"}, 'DANG_XU_LY', ${nhan_vien_id}::uuid, NOW(), ${ghi_chu || null}, NOW(), NOW())
+      INSERT INTO phieu_bao_tri (id, thiet_bi_id, don_thue_id, ly_do, trang_thai, nguoi_tao_id, bat_dau_luc, ghi_chu)
+      VALUES (gen_random_uuid(), ${thiet_bi_id}::uuid, ${don_thue_id}::uuid, ${ly_do || "Hư hỏng sau khi thuê"}, 'DANG_XU_LY', ${nhan_vien_id}::uuid, NOW(), ${ghi_chu || null})
       RETURNING id
     `;
 
@@ -652,7 +652,7 @@ async function createMaintenanceRecord(don_thue_id, nhan_vien_id, du_lieu) {
 
     // INSERT lich_su_di_chuyen_thiet_bi
     await tx.$executeRaw`
-      INSERT INTO lich_su_di_chuyen_thiet_bi (id, thiet_bi_id, don_thue_lien_quan_id, trang_thai_truoc, trang_thai_sau, loai_di_chuyen, ghi_chu, nguoi_thuc_hien_id, created_at)
+      INSERT INTO lich_su_di_chuyen_thiet_bi (id, thiet_bi_id, don_thue_id, trang_thai_truoc, trang_thai_sau, loai_di_chuyen, ghi_chu, nguoi_thuc_hien_id, created_at)
       VALUES (gen_random_uuid(), ${thiet_bi_id}::uuid, ${don_thue_id}::uuid, ${thiet_bi.trang_thai}, 'BAO_TRI', 'BAO_TRI', ${`Tạo phiếu bảo trì: ${ly_do || "Hư hỏng sau khi thuê"}`}, ${nhan_vien_id}::uuid, NOW())
     `;
 
