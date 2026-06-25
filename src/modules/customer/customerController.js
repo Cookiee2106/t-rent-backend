@@ -1,63 +1,88 @@
 const asyncHandler = require("../../utils/asyncHandler");
 const { successResponse, errorResponse } = require("../../utils/response");
 const customerService = require("./customerService");
-const orderService = require("../rentalOrders/rentalOrders.service");
-const prisma = require("../../utils/prisma");
 
-async function getCustomerProfile(userId) {
-  const profile = await prisma.customer_profiles.findUnique({ where: { user_id: userId } });
-  if (!profile) {
-    const error = new Error("Không tìm thấy hồ sơ khách hàng");
-    error.statusCode = 404;
-    throw error;
-  }
-  return profile;
+// ============================================================
+// HELPER: Kiểm tra field không hợp lệ trong body
+// ============================================================
+function co_field_khong_hop_le(body, cac_field_cho_phep) {
+  const cac_field_trong_body = Object.keys(body || {});
+  return cac_field_trong_body.some((field) => !cac_field_cho_phep.includes(field));
 }
 
+// ============================================================
+// Người 1: Lấy thông tin tài khoản
+// ============================================================
 const getAccount = asyncHandler(async (req, res) => {
-  const account = await customerService.getCustomerAccount(req.user.id);
-  return successResponse(res, 200, "Lấy thông tin tài khoản thành công", account);
+  const tai_khoan = await customerService.getCustomerAccount(req.user.id);
+  return successResponse(res, 200, "Lấy thông tin tài khoản thành công", tai_khoan);
 });
 
+// ============================================================
+// Người 1: Cập nhật hồ sơ
+// ============================================================
 const updateProfile = asyncHandler(async (req, res) => {
-  const { address, identityNumber } = req.body;
+  const { dia_chi, so_cccd } = req.body;
 
-  const updated = await customerService.updateProfile(req.user.id, {
-    address,
-    identityNumber,
+  // Chỉ cho phép field tiếng Việt
+  if (co_field_khong_hop_le(req.body, ["dia_chi", "so_cccd"])) {
+    return errorResponse(res, 400, "Field không hợp lệ, vui lòng dùng đúng field tiếng Việt");
+  }
+
+  if (!dia_chi && !so_cccd) {
+    return errorResponse(res, 400, "Vui lòng cung cấp thông tin cần cập nhật");
+  }
+
+  const ho_so_da_cap_nhat = await customerService.updateCustomerProfile(req.user.id, {
+    dia_chi,
+    so_cccd,
   });
 
-  return successResponse(res, 200, "Cập nhật hồ sơ thành công", updated);
+  return successResponse(res, 200, "Cập nhật hồ sơ thành công", ho_so_da_cap_nhat);
 });
 
+// ============================================================
+// Người 1: Gửi hồ sơ xác minh
+// ============================================================
 const submitVerification = asyncHandler(async (req, res) => {
-  const { identityNumber } = req.body;
+  const { so_cccd } = req.body;
   const files = req.files;
 
-  const result = await customerService.submitVerification(req.user.id, files, identityNumber);
+  // Chỉ cho phép field tiếng Việt
+  if (co_field_khong_hop_le(req.body, ["so_cccd"])) {
+    return errorResponse(res, 400, "Field không hợp lệ, vui lòng dùng đúng field tiếng Việt");
+  }
 
-  return successResponse(res, 201, "Gửi hồ sơ xác minh thành công, đang chờ duyệt", result);
+  const ket_qua = await customerService.submitVerification(req.user.id, files, so_cccd);
+
+  return successResponse(res, 201, "Gửi hồ sơ xác minh thành công, đang chờ duyệt", ket_qua);
 });
 
+// ============================================================
+// API #4: Lấy danh sách đơn thuê của khách hàng
+// ============================================================
 const getOrders = asyncHandler(async (req, res) => {
-  const { page, limit } = req.query;
-  const profile = await getCustomerProfile(req.user.id);
-  const result = await orderService.getCustomerOrders(profile.id, parseInt(page) || 1, parseInt(limit) || 20);
-  return successResponse(res, 200, "Lấy danh sách đơn hàng thành công", result.orders, { pagination: result.pagination });
+  const { trang, gioi_han } = req.query;
+  const ket_qua = await customerService.getCustomerOrders(req.user.id, { trang, gioi_han });
+  return successResponse(res, 200, "Lấy danh sách đơn thuê thành công", ket_qua);
 });
 
+// ============================================================
+// API #5: Lấy chi tiết đơn thuê
+// ============================================================
 const getOrderDetail = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const profile = await getCustomerProfile(req.user.id);
-  const order = await orderService.getCustomerOrderDetail(id, profile.id);
-  return successResponse(res, 200, "Lấy chi tiết đơn hàng thành công", order);
+  const don_thue_id = req.params.id;
+  const ket_qua = await customerService.getCustomerOrderDetail(req.user.id, don_thue_id);
+  return successResponse(res, 200, "Lấy chi tiết đơn thuê thành công", ket_qua);
 });
 
+// ============================================================
+// API #6: Hủy đơn thuê
+// ============================================================
 const cancelOrder = asyncHandler(async (req, res) => {
-  const { id } = req.params;
-  const profile = await getCustomerProfile(req.user.id);
-  const order = await orderService.cancelOrder(id, profile.id);
-  return successResponse(res, 200, "Hủy đơn hàng thành công", order);
+  const don_thue_id = req.params.id;
+  const ket_qua = await customerService.cancelOrderCustomer(req.user.id, don_thue_id);
+  return successResponse(res, 200, "Hủy đơn thuê thành công", ket_qua);
 });
 
 module.exports = {

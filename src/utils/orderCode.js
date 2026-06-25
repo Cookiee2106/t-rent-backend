@@ -5,7 +5,7 @@
  * @returns {string} Mã đã chuẩn hóa
  */
 function normalizeDeviceCode(rawCode) {
-  if (!rawCode) return null; // Không fallback "DEV" ở đây - để caller quyết định
+  if (!rawCode) return null;
 
   let code = String(rawCode).toUpperCase();
 
@@ -18,75 +18,99 @@ function normalizeDeviceCode(rawCode) {
     .replace(/[ÙÚỤỦŨƯỪỨỰỬỮ]/g, "U")
     .replace(/[ỲÝỴỶỸ]/g, "Y")
     .replace(/[Đ]/g, "D")
-    // Bỏ khoảng trắng và ký tự đặc biệt, GIỮ NGUYÊN chữ và số (bao gồm I, V, X của số La Mã)
+    // Bỏ khoảng trắng và ký tự đặc biệt, GIỮ NGUYÊN chữ và số
     .replace(/[^A-Z0-9]/g, "");
 
-  // KHÔNG giới hạn số ký tự - giữ nguyên toàn bộ
   return code || null;
 }
 
 /**
- * Lấy mã thiết bị từ product model theo thứ tự ưu tiên:
- * code → model_code → slug → name
- * @param {object|null} productModel - Object product_models từ Prisma
- * @returns {string} Mã thiết bị đã chuẩn hóa
+ * Tao ma tam tu ten hang + ten mau (vi DB chua co field ma_mau)
+ * Ví dụ: "Canon EOS R6" + "Canon" → "CANONEOSR6"
+ * @param {string|null} ten_hang - Tên hãng thiết bị
+ * @param {string|null} ten_mau - Tên mẫu thiết bị
+ * @returns {string} Ma da chuan hoa, toi da 12 ky tu
  */
-function getDeviceCodeFromProductModel(productModel) {
-  if (!productModel) return null;
+function taoMaTuTenMau(ten_hang, ten_mau) {
+  const chuoi_goc = `${ten_hang || ""} ${ten_mau || ""}`.trim();
 
-  // Ưu tiên: code → model_code → slug → name
-  const rawCode =
-    productModel.code ||
-    productModel.model_code ||
-    productModel.slug ||
-    productModel.name;
+  const ma = normalizeDeviceCode(chuoi_goc);
 
-  return normalizeDeviceCode(rawCode);
+  if (ma) {
+    // Lay 12 ky tu dau
+    return ma.slice(0, 12);
+  }
+
+  // Fallback: khong co ten
+  return "TB";
 }
 
 /**
- * Sinh mã order DUY NHẤT trong ngày
- * Gọi TRONG TRANSACTION để đảm bảo count đúng
+ * Lay ma thiet bi/mau thiet bi tu phien_thanh_toan
+ * Su dung de tao prefix ma don
  * @param {object} tx - Prisma transaction client
- * @param {object|null} productModel - Object product_models
- * @returns {string} Mã order mới (VD: "2206CANONR5-001")
+ * @param {string} phien_thanh_toan_id - ID phien thanh toan
+ * @returns {Promise<string>} Ma thiet bi da chuan hoa (VD: "CANONEOSR6")
  */
-async function generateUniqueOrderCode(tx, productModel) {
+async function layMaThietBiTuPhien(tx, phien_thanh_toan_id) {
+  const danh_sach = await tx.$queryRaw`
+    SELECT
+      m.ten_mau,
+      h.ten_hang
+    FROM chi_tiet_phien_thanh_toan ct
+    JOIN mau_thiet_bi m ON m.id = ct.mau_thiet_bi_id
+    LEFT JOIN hang_thiet_bi h ON h.id = m.hang_id
+    WHERE ct.phien_thanh_toan_id = ${phien_thanh_toan_id}
+    ORDER BY ct.created_at ASC
+    LIMIT 1
+  `;
+
+  if (danh_sach && danh_sach.length > 0) {
+    const item = danh_sach[0];
+    return taoMaTuTenMau(item.ten_hang, item.ten_mau);
+  }
+
+  return "TB";
+}
+
+/**
+ * Sinh ma order DUY NHAT trong ngay
+ * GoI TRONG TRANSACTION de dam bao count dung
+ * @param {object} tx - Prisma transaction client
+ * @param {string|null} phien_thanh_toan_id - ID phien thanh toan (de lay ma thiet bi)
+ * @returns {Promise<string>} Ma order moi (VD: "CANONEOSR6-260625-001")
+ */
+async function generateUniqueOrderCode(tx, phien_thanh_toan_id) {
   const now = new Date();
   const day = String(now.getDate()).padStart(2, "0");
   const month = String(now.getMonth() + 1).padStart(2, "0");
+  const year = String(now.getFullYear()).slice(-2);
 
-  // Lấy mã thiết bị từ product model
-  const deviceCode = getDeviceCodeFromProductModel(productModel);
-
-  // Nếu không có product model hoặc không extract được mã → không sinh mã
-  if (!deviceCode) {
-    throw new Error("Khong co thong tin mau thiet bi de tao ma don hang");
+  // Lay ma thiet bi tu phien_thanh_toan (neu co)
+  let ma_thiet_bi = "TB";
+  if (phien_thanh_toan_id) {
+    ma_thiet_bi = await layMaThietBiTuPhien(tx, phien_thanh_toan_id);
   }
 
-  const prefix = `${day}${month}${deviceCode}`;
+  const prefix = `${ma_thiet_bi}-${day}${month}`;
 
-  // Query tất cả order trong ngày với prefix đúng
+  // Query tat ca order trong ngay voi prefix dung (bang don_thue)
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
   const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
 
-  const existingOrders = await tx.rental_orders.findMany({
-    where: {
-      order_code: { startsWith: prefix },
-      created_at: {
-        gte: startOfDay,
-        lt: endOfDay,
-      },
-    },
-    select: { order_code: true },
-  });
+  const existingOrders = await tx.$queryRaw`
+    SELECT ma_don FROM don_thue
+    WHERE ma_don LIKE ${prefix + "-%"}
+      AND created_at >= ${startOfDay}
+      AND created_at < ${endOfDay}
+  `;
 
-  // Parse phần STT sau "-" từ tất cả order và lấy max
+  // Parse phan STT sau "-" tu tat ca order va lay max
   let maxSeq = 0;
   for (const order of existingOrders) {
-    const parts = order.order_code.split("-");
-    if (parts.length === 2) {
-      const seq = parseInt(parts[1], 10);
+    const parts = order.ma_don.split("-");
+    if (parts.length >= 3) {
+      const seq = parseInt(parts[parts.length - 1], 10);
       if (!isNaN(seq) && seq > maxSeq) {
         maxSeq = seq;
       }
@@ -99,6 +123,7 @@ async function generateUniqueOrderCode(tx, productModel) {
 
 module.exports = {
   normalizeDeviceCode,
-  getDeviceCodeFromProductModel,
+  taoMaTuTenMau,
+  layMaThietBiTuPhien,
   generateUniqueOrderCode,
 };

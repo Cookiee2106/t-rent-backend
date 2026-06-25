@@ -9,811 +9,705 @@ datasource db {
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model asset_movements {
-  id                                                                    String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  asset_id                                                              String             @db.Uuid
-  from_location_id                                                      String?            @db.Uuid
-  to_location_id                                                        String?            @db.Uuid
-  status_before                                                         String?            @db.VarChar(50)
-  status_after                                                          String?            @db.VarChar(50)
-  movement_type                                                         String             @db.VarChar(50)
-  related_order_id                                                      String?            @db.Uuid
-  note                                                                  String?
-  created_by                                                            String?            @db.Uuid
-  created_at                                                            DateTime           @default(now()) @db.Timestamp(6)
-  identified_assets                                                     identified_assets  @relation(fields: [asset_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  users                                                                 users?             @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  storage_locations_asset_movements_from_location_idTostorage_locations storage_locations? @relation("asset_movements_from_location_idTostorage_locations", fields: [from_location_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  rental_orders                                                         rental_orders?     @relation(fields: [related_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  storage_locations_asset_movements_to_location_idTostorage_locations   storage_locations? @relation("asset_movements_to_location_idTostorage_locations", fields: [to_location_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+model bo_di_kem {
+  id                                                              String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  mau_thiet_bi_id                                                 String                 @db.Uuid
+  ten_thanh_phan                                                  String                 @db.VarChar(255)
+  so_luong                                                        Int                    @default(1)
+  loai_quan_ly                                                    String                 @db.VarChar(50)
+  phu_kien_id                                                     String?                @db.Uuid
+  mau_thiet_bi_thanh_phan_id                                      String?                @db.Uuid
+  bat_buoc                                                        Boolean                @default(true)
+  ghi_chu                                                         String?
+  created_at                                                      DateTime               @default(now()) @db.Timestamptz(6)
+  mau_thiet_bi_bo_di_kem_mau_thiet_bi_idTomau_thiet_bi            mau_thiet_bi           @relation("bo_di_kem_mau_thiet_bi_idTomau_thiet_bi", fields: [mau_thiet_bi_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  mau_thiet_bi_bo_di_kem_mau_thiet_bi_thanh_phan_idTomau_thiet_bi mau_thiet_bi?          @relation("bo_di_kem_mau_thiet_bi_thanh_phan_idTomau_thiet_bi", fields: [mau_thiet_bi_thanh_phan_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  phu_kien                                                        phu_kien?              @relation(fields: [phu_kien_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  phu_kien_gan_voi_don                                            phu_kien_gan_voi_don[]
+  thiet_bi_gan_voi_don                                            thiet_bi_gan_voi_don[]
 
-  @@index([asset_id], map: "idx_asset_movements_asset_id")
-  @@index([related_order_id], map: "idx_asset_movements_related_order_id")
-}
-
-model audit_logs {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id     String?  @db.Uuid
-  role        String?  @db.VarChar(50)
-  action      String   @db.VarChar(100)
-  target_type String?  @db.VarChar(100)
-  target_id   String?  @db.Uuid
-  description String?
-  before_data Json?
-  after_data  Json?
-  ip_address  String?  @db.VarChar(100)
-  user_agent  String?
-  created_at  DateTime @default(now()) @db.Timestamp(6)
-  users       users?   @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
-  @@index([created_at], map: "idx_audit_logs_created_at")
-  @@index([target_type, target_id], map: "idx_audit_logs_target")
-  @@index([user_id], map: "idx_audit_logs_user_id")
+  @@index([mau_thiet_bi_id], map: "idx_bo_di_kem_mau")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model brands {
+model chi_tiet_ban_giao {
+  id                      String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phieu_ban_giao_id       String                @db.Uuid
+  thiet_bi_gan_voi_don_id String?               @db.Uuid
+  phu_kien_gan_voi_don_id String?               @db.Uuid
+  so_luong_giao           Int                   @default(1)
+  tinh_trang              String?
+  ghi_chu                 String?
+  created_at              DateTime              @default(now()) @db.Timestamptz(6)
+  phieu_ban_giao          phieu_ban_giao        @relation(fields: [phieu_ban_giao_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  phu_kien_gan_voi_don    phu_kien_gan_voi_don? @relation(fields: [phu_kien_gan_voi_don_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  thiet_bi_gan_voi_don    thiet_bi_gan_voi_don? @relation(fields: [thiet_bi_gan_voi_don_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([phieu_ban_giao_id], map: "idx_chi_tiet_ban_giao_phieu")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model chi_tiet_don_thue {
+  id                     String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  don_thue_id            String                 @db.Uuid
+  mau_thiet_bi_id        String                 @db.Uuid
+  so_luong               Int                    @default(1)
+  gia_thue_ngay_snapshot Decimal                @default(0) @db.Decimal(12, 2)
+  tien_coc_snapshot      Decimal                @default(0) @db.Decimal(12, 2)
+  tien_thue              Decimal                @default(0) @db.Decimal(12, 2)
+  tien_coc               Decimal                @default(0) @db.Decimal(12, 2)
+  trang_thai             String                 @default("CHO_CHUAN_BI") @db.VarChar(50)
+  created_at             DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime               @default(now()) @db.Timestamptz(6)
+  don_thue               don_thue               @relation(fields: [don_thue_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  mau_thiet_bi           mau_thiet_bi           @relation(fields: [mau_thiet_bi_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  phu_kien_gan_voi_don   phu_kien_gan_voi_don[]
+  thiet_bi_gan_voi_don   thiet_bi_gan_voi_don[]
+
+  @@index([don_thue_id], map: "idx_chi_tiet_don_thue_don")
+  @@index([mau_thiet_bi_id], map: "idx_chi_tiet_don_thue_mau")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model chi_tiet_gio_hang {
+  id                        String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  gio_hang_id               String                      @db.Uuid
+  mau_thiet_bi_id           String                      @db.Uuid
+  so_luong                  Int                         @default(1)
+  ngay_nhan                 DateTime                    @db.Timestamptz(6)
+  ngay_tra                  DateTime                    @db.Timestamptz(6)
+  gia_thue_ngay_snapshot    Decimal                     @default(0) @db.Decimal(12, 2)
+  tien_coc_snapshot         Decimal                     @default(0) @db.Decimal(12, 2)
+  trang_thai                String                      @default("HOAT_DONG") @db.VarChar(50)
+  created_at                DateTime                    @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime                    @default(now()) @db.Timestamptz(6)
+  gio_hang                  gio_hang                    @relation(fields: [gio_hang_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  mau_thiet_bi              mau_thiet_bi                @relation(fields: [mau_thiet_bi_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  chi_tiet_phien_thanh_toan chi_tiet_phien_thanh_toan[]
+
+  @@index([gio_hang_id], map: "idx_chi_tiet_gio_hang_gio")
+  @@index([mau_thiet_bi_id], map: "idx_chi_tiet_gio_hang_mau")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model chi_tiet_phien_thanh_toan {
+  id                     String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phien_thanh_toan_id    String             @db.Uuid
+  chi_tiet_gio_hang_id   String?            @db.Uuid
+  mau_thiet_bi_id        String             @db.Uuid
+  so_luong               Int                @default(1)
+  ngay_nhan              DateTime           @db.Timestamptz(6)
+  ngay_tra               DateTime           @db.Timestamptz(6)
+  gia_thue_ngay_snapshot Decimal            @default(0) @db.Decimal(12, 2)
+  tien_coc_snapshot      Decimal            @default(0) @db.Decimal(12, 2)
+  tien_thue              Decimal            @default(0) @db.Decimal(12, 2)
+  tien_coc               Decimal            @default(0) @db.Decimal(12, 2)
+  created_at             DateTime           @default(now()) @db.Timestamptz(6)
+  chi_tiet_gio_hang      chi_tiet_gio_hang? @relation(fields: [chi_tiet_gio_hang_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  mau_thiet_bi           mau_thiet_bi       @relation(fields: [mau_thiet_bi_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  phien_thanh_toan       phien_thanh_toan   @relation(fields: [phien_thanh_toan_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([phien_thanh_toan_id], map: "idx_chi_tiet_phien_thanh_toan_phien")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model chi_tiet_tra_thiet_bi {
+  id                      String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phieu_tra_id            String                @db.Uuid
+  thiet_bi_gan_voi_don_id String?               @db.Uuid
+  phu_kien_gan_voi_don_id String?               @db.Uuid
+  so_luong_tra            Int                   @default(0)
+  so_luong_hu             Int                   @default(0)
+  so_luong_mat            Int                   @default(0)
+  tinh_trang              String?
+  ghi_chu                 String?
+  created_at              DateTime              @default(now()) @db.Timestamptz(6)
+  phieu_tra_thiet_bi      phieu_tra_thiet_bi    @relation(fields: [phieu_tra_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  phu_kien_gan_voi_don    phu_kien_gan_voi_don? @relation(fields: [phu_kien_gan_voi_don_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  thiet_bi_gan_voi_don    thiet_bi_gan_voi_don? @relation(fields: [thiet_bi_gan_voi_don_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  phi_phat_sinh           phi_phat_sinh[]
+
+  @@index([phieu_tra_id], map: "idx_chi_tiet_tra_thiet_bi_phieu")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model danh_muc_thiet_bi {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ten_danh_muc String         @unique @db.VarChar(100)
+  trang_thai   String         @default("HOAT_DONG") @db.VarChar(50)
+  created_at   DateTime       @default(now()) @db.Timestamptz(6)
+  mau_thiet_bi mau_thiet_bi[]
+
+  @@index([trang_thai], map: "idx_danh_muc_thiet_bi_trang_thai")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model dieu_khoan_thue {
+  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phien_ban           String                @db.VarChar(50)
+  noi_dung            String
+  ma_bam_noi_dung     String?               @db.VarChar(255)
+  trang_thai          String                @default("HOAT_DONG") @db.VarChar(50)
+  nguoi_tao_id        String?               @db.Uuid
+  created_at          DateTime              @default(now()) @db.Timestamptz(6)
+  nguoi_dung          nguoi_dung?           @relation(fields: [nguoi_tao_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  xac_nhan_dieu_khoan xac_nhan_dieu_khoan[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model don_thue {
+  id                         String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ma_don                     String                       @unique @db.VarChar(100)
+  khach_hang_id              String                       @db.Uuid
+  ngay_nhan                  DateTime                     @db.Timestamptz(6)
+  ngay_tra                   DateTime                     @db.Timestamptz(6)
+  so_ngay_thue               Int
+  tong_tien_thue             Decimal                      @default(0) @db.Decimal(12, 2)
+  tong_tien_coc              Decimal                      @default(0) @db.Decimal(12, 2)
+  trang_thai                 String                       @default("DA_GIU_CHO") @db.VarChar(50)
+  huy_luc                    DateTime?                    @db.Timestamptz(6)
+  ly_do_huy                  String?
+  created_at                 DateTime                     @default(now()) @db.Timestamptz(6)
+  updated_at                 DateTime                     @default(now()) @db.Timestamptz(6)
+  chi_tiet_don_thue          chi_tiet_don_thue[]
+  ho_so_khach_hang           ho_so_khach_hang             @relation(fields: [khach_hang_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  hop_dong_giay              hop_dong_giay?
+  lich_su_di_chuyen_thiet_bi lich_su_di_chuyen_thiet_bi[]
+  lich_su_ton_kho            lich_su_ton_kho[]
+  phieu_ban_giao             phieu_ban_giao?
+  phieu_bao_tri              phieu_bao_tri[]
+  phieu_tra_thiet_bi         phieu_tra_thiet_bi?
+  phu_kien_gan_voi_don       phu_kien_gan_voi_don[]
+  tep_don_thue               tep_don_thue[]
+  thanh_toan                 thanh_toan[]
+  thiet_bi_gan_voi_don       thiet_bi_gan_voi_don[]
+  xac_nhan_dieu_khoan        xac_nhan_dieu_khoan[]
+
+  @@index([khach_hang_id], map: "idx_don_thue_khach")
+  @@index([ngay_nhan, ngay_tra], map: "idx_don_thue_ngay")
+  @@index([trang_thai], map: "idx_don_thue_trang_thai")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model gio_hang {
   id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name              String              @unique @db.VarChar(100)
-  status            String              @default("ACTIVE") @db.VarChar(50)
-  deleted_at        DateTime?           @db.Timestamp(6)
-  created_at        DateTime            @default(now()) @db.Timestamp(6)
-  identified_assets identified_assets[]
-  product_models    product_models[]
+  khach_hang_id     String              @db.Uuid
+  trang_thai        String              @default("HOAT_DONG") @db.VarChar(50)
+  created_at        DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime            @default(now()) @db.Timestamptz(6)
+  chi_tiet_gio_hang chi_tiet_gio_hang[]
+  ho_so_khach_hang  ho_so_khach_hang    @relation(fields: [khach_hang_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  phien_thanh_toan  phien_thanh_toan[]
+
+  @@index([khach_hang_id], map: "idx_gio_hang_khach")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model cart_items {
-  id                      String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  cart_id                 String                   @db.Uuid
-  product_model_id        String                   @db.Uuid
-  quantity                Int                      @default(1)
-  start_date              DateTime                 @db.Date
-  end_date                DateTime                 @db.Date
-  daily_price_snapshot    Decimal                  @default(0) @db.Decimal(12, 2)
-  deposit_amount_snapshot Decimal                  @default(0) @db.Decimal(12, 2)
-  status                  String                   @default("ACTIVE") @db.VarChar(50)
-  created_at              DateTime                 @default(now()) @db.Timestamp(6)
-  updated_at              DateTime                 @default(now()) @db.Timestamp(6)
-  carts                   carts                    @relation(fields: [cart_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  product_models          product_models           @relation(fields: [product_model_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  checkout_session_items  checkout_session_items[]
+model hang_thiet_bi {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ten_hang     String         @unique @db.VarChar(100)
+  trang_thai   String         @default("HOAT_DONG") @db.VarChar(50)
+  created_at   DateTime       @default(now()) @db.Timestamptz(6)
+  mau_thiet_bi mau_thiet_bi[]
 
-  @@index([cart_id], map: "idx_cart_items_cart_id")
-  @@index([product_model_id], map: "idx_cart_items_product_model_id")
+  @@index([trang_thai], map: "idx_hang_thiet_bi_trang_thai")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model carts {
+model ho_so_khach_hang {
+  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nguoi_dung_id       String                @unique @db.Uuid
+  dia_chi             String?
+  so_cccd             String?               @unique @db.VarChar(50)
+  trang_thai_xac_minh String                @default("CHUA_XAC_MINH") @db.VarChar(50)
+  created_at          DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime              @default(now()) @db.Timestamptz(6)
+  don_thue            don_thue[]
+  gio_hang            gio_hang[]
+  nguoi_dung          nguoi_dung            @relation(fields: [nguoi_dung_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  ho_so_xac_minh      ho_so_xac_minh[]
+  hop_dong_giay       hop_dong_giay[]
+  phien_thanh_toan    phien_thanh_toan[]
+  xac_nhan_dieu_khoan xac_nhan_dieu_khoan[]
+
+  @@index([nguoi_dung_id], map: "idx_ho_so_khach_hang_nguoi_dung")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model ho_so_xac_minh {
+  id                String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  khach_hang_id     String           @db.Uuid
+  so_cccd           String           @db.VarChar(50)
+  anh_mat_truoc_url String?
+  anh_mat_sau_url   String?
+  trang_thai        String           @default("CHO_DUYET") @db.VarChar(50)
+  ly_do_tu_choi     String?
+  nguoi_duyet_id    String?          @db.Uuid
+  duyet_luc         DateTime?        @db.Timestamptz(6)
+  created_at        DateTime         @default(now()) @db.Timestamptz(6)
+  ho_so_khach_hang  ho_so_khach_hang @relation(fields: [khach_hang_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  nguoi_dung        nguoi_dung?      @relation(fields: [nguoi_duyet_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([khach_hang_id], map: "idx_ho_so_xac_minh_khach")
+  @@index([trang_thai], map: "idx_ho_so_xac_minh_trang_thai")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model hop_dong_giay {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ma_hop_dong      String           @unique @db.VarChar(100)
+  don_thue_id      String           @unique @db.Uuid
+  khach_hang_id    String           @db.Uuid
+  nhan_vien_id     String?          @db.Uuid
+  ky_luc           DateTime         @default(now()) @db.Timestamptz(6)
+  ghi_chu          String?
+  created_at       DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime         @default(now()) @db.Timestamptz(6)
+  don_thue         don_thue         @relation(fields: [don_thue_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  ho_so_khach_hang ho_so_khach_hang @relation(fields: [khach_hang_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  nguoi_dung       nguoi_dung?      @relation(fields: [nhan_vien_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tep_hop_dong     tep_hop_dong[]
+
+  @@index([don_thue_id], map: "idx_hop_dong_giay_don")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model lich_su_di_chuyen_thiet_bi {
+  id                                                                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  thiet_bi_id                                                       String          @db.Uuid
+  vi_tri_truoc_id                                                   String?         @db.Uuid
+  vi_tri_sau_id                                                     String?         @db.Uuid
+  trang_thai_truoc                                                  String?         @db.VarChar(50)
+  trang_thai_sau                                                    String?         @db.VarChar(50)
+  loai_di_chuyen                                                    String          @db.VarChar(50)
+  don_thue_id                                                       String?         @db.Uuid
+  ghi_chu                                                           String?
+  nguoi_thuc_hien_id                                                String?         @db.Uuid
+  created_at                                                        DateTime        @default(now()) @db.Timestamptz(6)
+  don_thue                                                          don_thue?       @relation(fields: [don_thue_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  nguoi_dung                                                        nguoi_dung?     @relation(fields: [nguoi_thuc_hien_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  thiet_bi_vat_ly                                                   thiet_bi_vat_ly @relation(fields: [thiet_bi_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  vi_tri_kho_lich_su_di_chuyen_thiet_bi_vi_tri_sau_idTovi_tri_kho   vi_tri_kho?     @relation("lich_su_di_chuyen_thiet_bi_vi_tri_sau_idTovi_tri_kho", fields: [vi_tri_sau_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  vi_tri_kho_lich_su_di_chuyen_thiet_bi_vi_tri_truoc_idTovi_tri_kho vi_tri_kho?     @relation("lich_su_di_chuyen_thiet_bi_vi_tri_truoc_idTovi_tri_kho", fields: [vi_tri_truoc_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([don_thue_id], map: "idx_lich_su_di_chuyen_don")
+  @@index([thiet_bi_id], map: "idx_lich_su_di_chuyen_thiet_bi")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model lich_su_ton_kho {
+  id                 String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phu_kien_id        String      @db.Uuid
+  so_luong_thay_doi  Int
+  loai_thay_doi      String      @db.VarChar(50)
+  ly_do              String?
+  don_thue_id        String?     @db.Uuid
+  nguoi_thuc_hien_id String?     @db.Uuid
+  created_at         DateTime    @default(now()) @db.Timestamptz(6)
+  don_thue           don_thue?   @relation(fields: [don_thue_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  nguoi_dung         nguoi_dung? @relation(fields: [nguoi_thuc_hien_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  phu_kien           phu_kien    @relation(fields: [phu_kien_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([don_thue_id], map: "idx_lich_su_ton_kho_don")
+  @@index([phu_kien_id], map: "idx_lich_su_ton_kho_phu_kien")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model mau_thiet_bi {
+  id                                                           String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  danh_muc_id                                                  String?                     @db.Uuid
+  hang_id                                                      String?                     @db.Uuid
+  ten_mau                                                      String                      @db.VarChar(255)
+  mo_ta                                                        String?
+  anh_url                                                      String?
+  gia_thue_ngay                                                Decimal                     @default(0) @db.Decimal(12, 2)
+  tien_coc                                                     Decimal                     @default(0) @db.Decimal(12, 2)
+  trang_thai                                                   String                      @default("HOAT_DONG") @db.VarChar(50)
+  da_xoa_luc                                                   DateTime?                   @db.Timestamptz(6)
+  created_at                                                   DateTime                    @default(now()) @db.Timestamptz(6)
+  updated_at                                                   DateTime                    @default(now()) @db.Timestamptz(6)
+  bo_di_kem_bo_di_kem_mau_thiet_bi_idTomau_thiet_bi            bo_di_kem[]                 @relation("bo_di_kem_mau_thiet_bi_idTomau_thiet_bi")
+  bo_di_kem_bo_di_kem_mau_thiet_bi_thanh_phan_idTomau_thiet_bi bo_di_kem[]                 @relation("bo_di_kem_mau_thiet_bi_thanh_phan_idTomau_thiet_bi")
+  chi_tiet_don_thue                                            chi_tiet_don_thue[]
+  chi_tiet_gio_hang                                            chi_tiet_gio_hang[]
+  chi_tiet_phien_thanh_toan                                    chi_tiet_phien_thanh_toan[]
+  danh_muc_thiet_bi                                            danh_muc_thiet_bi?          @relation(fields: [danh_muc_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  hang_thiet_bi                                                hang_thiet_bi?              @relation(fields: [hang_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  thiet_bi_vat_ly                                              thiet_bi_vat_ly[]
+
+  @@index([danh_muc_id, hang_id], map: "idx_mau_thiet_bi_danh_muc_hang")
+  @@index([trang_thai], map: "idx_mau_thiet_bi_trang_thai")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model nguoi_dung {
+  id                         String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ho_ten                     String                       @db.VarChar(255)
+  email                      String                       @unique @db.VarChar(255)
+  so_dien_thoai              String?                      @db.VarChar(20)
+  mat_khau_hash              String                       @db.VarChar(255)
+  vai_tro                    String                       @default("KHACH_HANG") @db.VarChar(50)
+  trang_thai                 String                       @default("HOAT_DONG") @db.VarChar(50)
+  da_xoa_luc                 DateTime?                    @db.Timestamptz(6)
+  created_at                 DateTime                     @default(now()) @db.Timestamptz(6)
+  updated_at                 DateTime                     @default(now()) @db.Timestamptz(6)
+  dieu_khoan_thue            dieu_khoan_thue[]
+  ho_so_khach_hang           ho_so_khach_hang?
+  ho_so_xac_minh             ho_so_xac_minh[]
+  hop_dong_giay              hop_dong_giay[]
+  lich_su_di_chuyen_thiet_bi lich_su_di_chuyen_thiet_bi[]
+  lich_su_ton_kho            lich_su_ton_kho[]
+  nhat_ky_thao_tac           nhat_ky_thao_tac[]
+  phi_phat_sinh              phi_phat_sinh[]
+  phieu_ban_giao             phieu_ban_giao[]
+  phieu_bao_tri              phieu_bao_tri[]
+  phieu_tra_thiet_bi         phieu_tra_thiet_bi[]
+  tep_don_thue               tep_don_thue[]
+  tep_hop_dong               tep_hop_dong[]
+  xac_thuc_otp               xac_thuc_otp[]
+
+  @@index([email], map: "idx_nguoi_dung_email")
+  @@index([vai_tro, trang_thai], map: "idx_nguoi_dung_vai_tro_trang_thai")
+}
+
+model nhat_ky_thao_tac {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nguoi_dung_id String?     @db.Uuid
+  vai_tro       String?     @db.VarChar(50)
+  hanh_dong     String      @db.VarChar(100)
+  doi_tuong     String?     @db.VarChar(100)
+  doi_tuong_id  String?     @db.Uuid
+  mo_ta         String?
+  du_lieu_truoc Json?
+  du_lieu_sau   Json?
+  ip_address    String?     @db.VarChar(100)
+  user_agent    String?
+  created_at    DateTime    @default(now()) @db.Timestamptz(6)
+  nguoi_dung    nguoi_dung? @relation(fields: [nguoi_dung_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([created_at], map: "idx_nhat_ky_created_at")
+  @@index([doi_tuong, doi_tuong_id], map: "idx_nhat_ky_doi_tuong")
+  @@index([nguoi_dung_id], map: "idx_nhat_ky_nguoi_dung")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model phi_phat_sinh {
+  id                    String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phieu_tra_id          String                 @db.Uuid
+  chi_tiet_tra_id       String?                @db.Uuid
+  loai_phi              String                 @db.VarChar(50)
+  mo_ta                 String?
+  so_tien               Decimal                @default(0) @db.Decimal(12, 2)
+  nguoi_tao_id          String?                @db.Uuid
+  created_at            DateTime               @default(now()) @db.Timestamptz(6)
+  chi_tiet_tra_thiet_bi chi_tiet_tra_thiet_bi? @relation(fields: [chi_tiet_tra_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  nguoi_dung            nguoi_dung?            @relation(fields: [nguoi_tao_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  phieu_tra_thiet_bi    phieu_tra_thiet_bi     @relation(fields: [phieu_tra_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([phieu_tra_id], map: "idx_phi_phat_sinh_phieu")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model phien_thanh_toan {
+  id                        String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  khach_hang_id             String                      @db.Uuid
+  gio_hang_id               String                      @db.Uuid
+  xac_nhan_dieu_khoan_id    String?                     @db.Uuid
+  xac_thuc_otp_id           String?                     @db.Uuid
+  trang_thai                String                      @default("SAN_SANG_THANH_TOAN") @db.VarChar(50)
+  tong_tien_thue            Decimal                     @default(0) @db.Decimal(12, 2)
+  tong_tien_coc             Decimal                     @default(0) @db.Decimal(12, 2)
+  tong_tien_thanh_toan      Decimal                     @default(0) @db.Decimal(12, 2)
+  het_han_luc               DateTime?                   @db.Timestamptz(6)
+  da_thanh_toan_luc         DateTime?                   @db.Timestamptz(6)
+  that_bai_luc              DateTime?                   @db.Timestamptz(6)
+  created_at                DateTime                    @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime                    @default(now()) @db.Timestamptz(6)
+  chi_tiet_phien_thanh_toan chi_tiet_phien_thanh_toan[]
+  gio_hang                  gio_hang                    @relation(fields: [gio_hang_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  ho_so_khach_hang          ho_so_khach_hang            @relation(fields: [khach_hang_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  xac_nhan_dieu_khoan       xac_nhan_dieu_khoan?        @relation(fields: [xac_nhan_dieu_khoan_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  xac_thuc_otp              xac_thuc_otp?               @relation(fields: [xac_thuc_otp_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  thanh_toan                thanh_toan[]
+
+  @@index([gio_hang_id], map: "idx_phien_thanh_toan_gio")
+  @@index([khach_hang_id], map: "idx_phien_thanh_toan_khach")
+  @@index([trang_thai], map: "idx_phien_thanh_toan_trang_thai")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model phieu_ban_giao {
   id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  customer_id       String              @db.Uuid
-  status            String              @default("ACTIVE") @db.VarChar(50)
-  created_at        DateTime            @default(now()) @db.Timestamp(6)
-  updated_at        DateTime            @default(now()) @db.Timestamp(6)
-  cart_items        cart_items[]
-  customer_profiles customer_profiles   @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  checkout_sessions checkout_sessions[]
+  don_thue_id       String              @unique @db.Uuid
+  nhan_vien_id      String              @db.Uuid
+  ban_giao_luc      DateTime            @default(now()) @db.Timestamptz(6)
+  ghi_chu           String?
+  trang_thai        String              @default("HOAN_THANH") @db.VarChar(50)
+  chi_tiet_ban_giao chi_tiet_ban_giao[]
+  don_thue          don_thue            @relation(fields: [don_thue_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  nguoi_dung        nguoi_dung          @relation(fields: [nhan_vien_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tep_don_thue      tep_don_thue[]
 
-  @@index([customer_id], map: "idx_carts_customer_id")
+  @@index([don_thue_id], map: "idx_phieu_ban_giao_don")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model categories {
-  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name           String           @unique @db.VarChar(100)
-  status         String           @default("ACTIVE") @db.VarChar(50)
-  deleted_at     DateTime?        @db.Timestamp(6)
-  created_at     DateTime         @default(now()) @db.Timestamp(6)
-  product_models product_models[]
-}
+model phieu_bao_tri {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  thiet_bi_id     String          @db.Uuid
+  don_thue_id     String?         @db.Uuid
+  ly_do           String
+  trang_thai      String          @default("DANG_XU_LY") @db.VarChar(50)
+  ket_qua         String?
+  nguoi_tao_id    String?         @db.Uuid
+  bat_dau_luc     DateTime        @default(now()) @db.Timestamptz(6)
+  hoan_thanh_luc  DateTime?       @db.Timestamptz(6)
+  ghi_chu         String?
+  don_thue        don_thue?       @relation(fields: [don_thue_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  nguoi_dung      nguoi_dung?     @relation(fields: [nguoi_tao_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  thiet_bi_vat_ly thiet_bi_vat_ly @relation(fields: [thiet_bi_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
-model checkout_session_items {
-  id                      String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  checkout_session_id     String            @db.Uuid
-  cart_item_id            String?           @db.Uuid
-  product_model_id        String            @db.Uuid
-  start_date              DateTime          @db.Date
-  end_date                DateTime          @db.Date
-  quantity                Int?              @default(1)
-  daily_price_snapshot    Decimal?          @default(0) @db.Decimal(12, 2)
-  deposit_amount_snapshot Decimal?          @default(0) @db.Decimal(12, 2)
-  rental_amount           Decimal?          @default(0) @db.Decimal(12, 2)
-  created_at              DateTime?         @default(now()) @db.Timestamptz(6)
-  cart_items              cart_items?       @relation(fields: [cart_item_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  checkout_sessions       checkout_sessions @relation(fields: [checkout_session_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  product_models          product_models    @relation(fields: [product_model_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
-  @@index([product_model_id], map: "idx_checkout_session_items_product_model_id")
-  @@index([checkout_session_id], map: "idx_checkout_session_items_session_id")
+  @@index([thiet_bi_id], map: "idx_phieu_bao_tri_thiet_bi")
+  @@index([trang_thai], map: "idx_phieu_bao_tri_trang_thai")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
-model checkout_sessions {
-  id                     String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  customer_id            String                   @db.Uuid
-  cart_id                String                   @db.Uuid
-  terms_acceptance_id    String?                  @db.Uuid
-  otp_verified           Boolean?                 @default(false)
-  otp_verification_token String?                  @db.VarChar(255)
-  status                 String?                  @default("READY_FOR_PAYMENT") @db.VarChar(50)
-  rental_amount          Decimal?                 @default(0) @db.Decimal(12, 2)
-  deposit_amount         Decimal?                 @default(0) @db.Decimal(12, 2)
-  total_amount           Decimal?                 @default(0) @db.Decimal(12, 2)
-  expires_at             DateTime?                @db.Timestamptz(6)
-  paid_at                DateTime?                @db.Timestamptz(6)
-  failed_at              DateTime?                @db.Timestamptz(6)
-  created_at             DateTime?                @default(now()) @db.Timestamptz(6)
-  updated_at             DateTime?                @default(now()) @db.Timestamptz(6)
-  checkout_session_items checkout_session_items[]
-  carts                  carts                    @relation(fields: [cart_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  customer_profiles      customer_profiles        @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  term_acceptances       term_acceptances?        @relation(fields: [terms_acceptance_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  payments               payments[]
+model phieu_tra_thiet_bi {
+  id                    String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  don_thue_id           String                  @unique @db.Uuid
+  nhan_vien_id          String                  @db.Uuid
+  tra_luc               DateTime                @default(now()) @db.Timestamptz(6)
+  ket_qua               String                  @default("HOP_LE") @db.VarChar(50)
+  ket_qua_tien_coc      String?                 @db.VarChar(50)
+  so_tien_hoan_coc      Decimal                 @default(0) @db.Decimal(12, 2)
+  so_tien_khau_tru      Decimal                 @default(0) @db.Decimal(12, 2)
+  ghi_chu               String?
+  chi_tiet_tra_thiet_bi chi_tiet_tra_thiet_bi[]
+  phi_phat_sinh         phi_phat_sinh[]
+  don_thue              don_thue                @relation(fields: [don_thue_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  nguoi_dung            nguoi_dung              @relation(fields: [nhan_vien_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tep_don_thue          tep_don_thue[]
 
-  @@index([cart_id], map: "idx_checkout_sessions_cart_id")
-  @@index([created_at], map: "idx_checkout_sessions_created_at")
-  @@index([customer_id], map: "idx_checkout_sessions_customer_id")
-  @@index([status], map: "idx_checkout_sessions_status")
+  @@index([don_thue_id], map: "idx_phieu_tra_thiet_bi_don")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model contract_files {
-  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  contract_id        String           @db.Uuid
-  original_file_name String           @db.VarChar(255)
+model phu_kien {
+  id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ten_phu_kien         String                 @db.VarChar(255)
+  mo_ta                String?
+  tong_so_luong        Int                    @default(0)
+  so_luong_bao_tri     Int                    @default(0)
+  so_luong_mat         Int                    @default(0)
+  vi_tri_kho_id        String?                @db.Uuid
+  trang_thai           String                 @default("HOAT_DONG") @db.VarChar(50)
+  ghi_chu              String?
+  da_xoa_luc           DateTime?              @db.Timestamptz(6)
+  created_at           DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime               @default(now()) @db.Timestamptz(6)
+  bo_di_kem            bo_di_kem[]
+  lich_su_ton_kho      lich_su_ton_kho[]
+  vi_tri_kho           vi_tri_kho?            @relation(fields: [vi_tri_kho_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  phu_kien_gan_voi_don phu_kien_gan_voi_don[]
+
+  @@index([vi_tri_kho_id], map: "idx_phu_kien_vi_tri")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model phu_kien_gan_voi_don {
+  id                    String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  don_thue_id           String                  @db.Uuid
+  chi_tiet_don_thue_id  String                  @db.Uuid
+  bo_di_kem_id          String?                 @db.Uuid
+  phu_kien_id           String                  @db.Uuid
+  so_luong_can_giao     Int                     @default(0)
+  so_luong_da_giao      Int                     @default(0)
+  so_luong_da_tra       Int                     @default(0)
+  trang_thai            String                  @default("DA_CHUAN_BI") @db.VarChar(50)
+  ghi_chu               String?
+  chi_tiet_ban_giao     chi_tiet_ban_giao[]
+  chi_tiet_tra_thiet_bi chi_tiet_tra_thiet_bi[]
+  bo_di_kem             bo_di_kem?              @relation(fields: [bo_di_kem_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  chi_tiet_don_thue     chi_tiet_don_thue       @relation(fields: [chi_tiet_don_thue_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  don_thue              don_thue                @relation(fields: [don_thue_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  phu_kien              phu_kien                @relation(fields: [phu_kien_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([don_thue_id], map: "idx_phu_kien_gan_voi_don_don")
+  @@index([phu_kien_id], map: "idx_phu_kien_gan_voi_don_phu_kien")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tep_don_thue {
+  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  don_thue_id        String              @db.Uuid
+  phieu_ban_giao_id  String?             @db.Uuid
+  phieu_tra_id       String?             @db.Uuid
+  muc_dich           String              @db.VarChar(50)
+  ten_file_goc       String              @db.VarChar(255)
   file_url           String
-  file_type          String?          @db.VarChar(50)
-  file_size          Int?
-  file_hash          String?          @db.VarChar(255)
-  uploaded_by        String?          @db.Uuid
-  uploaded_at        DateTime         @default(now()) @db.Timestamp(6)
-  rental_contracts   rental_contracts @relation(fields: [contract_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  users              users?           @relation(fields: [uploaded_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  loai_file          String?             @db.VarChar(50)
+  kich_thuoc_file    Int?
+  uploaded_by        String?             @db.Uuid
+  uploaded_at        DateTime            @default(now()) @db.Timestamptz(6)
+  don_thue           don_thue            @relation(fields: [don_thue_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  phieu_ban_giao     phieu_ban_giao?     @relation(fields: [phieu_ban_giao_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  phieu_tra_thiet_bi phieu_tra_thiet_bi? @relation(fields: [phieu_tra_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  nguoi_dung         nguoi_dung?         @relation(fields: [uploaded_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
-  @@index([contract_id], map: "idx_contract_files_contract_id")
+  @@index([don_thue_id], map: "idx_tep_don_thue_don")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model customer_profiles {
-  id                     String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id                String                   @unique @db.Uuid
-  address                String?
-  identity_number        String?                  @unique @db.VarChar(50)
-  verification_status    String                   @default("NOT_VERIFIED") @db.VarChar(50)
-  created_at             DateTime                 @default(now()) @db.Timestamp(6)
-  updated_at             DateTime                 @default(now()) @db.Timestamp(6)
-  carts                  carts[]
-  checkout_sessions      checkout_sessions[]
-  users                  users                    @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  customer_verifications customer_verifications[]
-  rental_contracts       rental_contracts[]
-  rental_orders          rental_orders[]
-  term_acceptances       term_acceptances[]
+model tep_hop_dong {
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  hop_dong_id     String        @db.Uuid
+  ten_file_goc    String        @db.VarChar(255)
+  file_url        String
+  loai_file       String?       @db.VarChar(50)
+  kich_thuoc_file Int?
+  uploaded_by     String?       @db.Uuid
+  uploaded_at     DateTime      @default(now()) @db.Timestamptz(6)
+  hop_dong_giay   hop_dong_giay @relation(fields: [hop_dong_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  nguoi_dung      nguoi_dung?   @relation(fields: [uploaded_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
-  @@index([identity_number], map: "idx_customer_profiles_identity")
-  @@index([user_id], map: "idx_customer_profiles_user_id")
+  @@index([hop_dong_id], map: "idx_tep_hop_dong_hop_dong")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model customer_verifications {
-  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  customer_id       String            @db.Uuid
-  identity_number   String            @db.VarChar(50)
-  front_image_url   String?
-  back_image_url    String?
-  status            String            @default("PENDING") @db.VarChar(50)
-  reject_reason     String?
-  reviewed_by       String?           @db.Uuid
-  reviewed_at       DateTime?         @db.Timestamp(6)
-  created_at        DateTime          @default(now()) @db.Timestamp(6)
-  customer_profiles customer_profiles @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  users             users?            @relation(fields: [reviewed_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+model thanh_toan {
+  id                           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phien_thanh_toan_id          String?           @db.Uuid
+  don_thue_id                  String?           @db.Uuid
+  loai_thanh_toan              String            @db.VarChar(50)
+  so_tien                      Decimal           @default(0) @db.Decimal(12, 2)
+  phuong_thuc                  String            @default("THANH_TOAN_ONLINE") @db.VarChar(50)
+  nha_cung_cap                 String?           @db.VarChar(50)
+  trang_thai                   String            @default("CHO_THANH_TOAN") @db.VarChar(50)
+  ma_phien_thanh_toan_provider String?           @unique(map: "idx_thanh_toan_provider_session_unique", where: raw("(ma_phien_thanh_toan_provider IS NOT NULL)")) @db.VarChar(255)
+  ma_giao_dich_provider        String?           @db.VarChar(255)
+  ma_su_kien_provider          String?           @unique(map: "idx_thanh_toan_provider_event_unique", where: raw("(ma_su_kien_provider IS NOT NULL)")) @db.VarChar(255)
+  duong_dan_thanh_toan         String?
+  du_lieu_provider             Json?
+  ip_address                   String?           @db.VarChar(100)
+  user_agent                   String?
+  ghi_chu                      String?
+  da_thanh_toan_luc            DateTime?         @db.Timestamptz(6)
+  created_at                   DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at                   DateTime          @default(now()) @db.Timestamptz(6)
+  don_thue                     don_thue?         @relation(fields: [don_thue_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_thanh_toan_don_thue")
+  phien_thanh_toan             phien_thanh_toan? @relation(fields: [phien_thanh_toan_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
-  @@index([customer_id], map: "idx_customer_verifications_customer_id")
-  @@index([status], map: "idx_customer_verifications_status")
+  @@index([don_thue_id], map: "idx_thanh_toan_don")
+  @@index([phien_thanh_toan_id], map: "idx_thanh_toan_phien")
+  @@index([ma_phien_thanh_toan_provider], map: "idx_thanh_toan_provider_session")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model handover_record_details {
-  id                            String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  handover_record_id            String                       @db.Uuid
-  rental_order_id               String                       @db.Uuid
-  rental_order_asset_id         String?                      @db.Uuid
-  rental_order_quantity_item_id String?                      @db.Uuid
-  delivered_quantity            Int                          @default(1)
-  condition_note                String?
-  note                          String?
-  created_at                    DateTime                     @default(now()) @db.Timestamp(6)
-  rental_orders                 rental_orders                @relation(fields: [rental_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  handover_records              handover_records             @relation(fields: [rental_order_id, handover_record_id], references: [rental_order_id, id], onDelete: NoAction, onUpdate: NoAction)
-  rental_order_assets           rental_order_assets?         @relation(fields: [rental_order_id, rental_order_asset_id], references: [rental_order_id, id], onDelete: NoAction, onUpdate: NoAction)
-  rental_order_quantity_items   rental_order_quantity_items? @relation(fields: [rental_order_id, rental_order_quantity_item_id], references: [rental_order_id, id], onDelete: NoAction, onUpdate: NoAction)
+model thiet_bi_gan_voi_don {
+  id                    String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  don_thue_id           String                  @db.Uuid
+  chi_tiet_don_thue_id  String                  @db.Uuid
+  bo_di_kem_id          String?                 @db.Uuid
+  thiet_bi_id           String                  @db.Uuid
+  ma_tai_san_snapshot   String?                 @db.VarChar(100)
+  so_serial_snapshot    String?                 @db.VarChar(255)
+  tinh_trang_truoc      String?
+  tinh_trang_sau        String?
+  trang_thai            String                  @default("DA_CHUAN_BI") @db.VarChar(50)
+  created_at            DateTime                @default(now()) @db.Timestamptz(6)
+  chi_tiet_ban_giao     chi_tiet_ban_giao[]
+  chi_tiet_tra_thiet_bi chi_tiet_tra_thiet_bi[]
+  bo_di_kem             bo_di_kem?              @relation(fields: [bo_di_kem_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  chi_tiet_don_thue     chi_tiet_don_thue       @relation(fields: [chi_tiet_don_thue_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  don_thue              don_thue                @relation(fields: [don_thue_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  thiet_bi_vat_ly       thiet_bi_vat_ly         @relation(fields: [thiet_bi_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
-  @@index([handover_record_id], map: "idx_handover_details_record_id")
+  @@index([don_thue_id], map: "idx_thiet_bi_gan_voi_don_don")
+  @@index([thiet_bi_id], map: "idx_thiet_bi_gan_voi_don_thiet_bi")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model handover_records {
-  id                      String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  rental_order_id         String                    @unique @db.Uuid
-  staff_id                String                    @db.Uuid
-  rental_fee_payment_id   String?                   @db.Uuid
-  handover_at             DateTime                  @default(now()) @db.Timestamp(6)
-  note                    String?
-  status                  String                    @default("COMPLETED") @db.VarChar(50)
-  handover_record_details handover_record_details[]
-  payments                payments?                 @relation(fields: [rental_fee_payment_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  rental_orders           rental_orders             @relation(fields: [rental_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  users                   users                     @relation(fields: [staff_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  rental_record_files     rental_record_files[]
+model thiet_bi_vat_ly {
+  id                                                        String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ma_tai_san                                                String                       @unique @db.VarChar(100)
+  ten_tai_san                                               String                       @db.VarChar(255)
+  mau_thiet_bi_id                                           String?                      @db.Uuid
+  so_serial                                                 String?                      @unique @db.VarChar(255)
+  ghi_chu_dinh_danh                                         String?
+  vi_tri_mac_dinh_id                                        String?                      @db.Uuid
+  vi_tri_hien_tai_id                                        String?                      @db.Uuid
+  trang_thai                                                String                       @default("SAN_SANG") @db.VarChar(50)
+  ghi_chu_tinh_trang                                        String?
+  so_lan_cho_thue                                           Int                          @default(0)
+  nguong_bao_tri                                            Int?
+  da_xoa_luc                                                DateTime?                    @db.Timestamptz(6)
+  created_at                                                DateTime                     @default(now()) @db.Timestamptz(6)
+  updated_at                                                DateTime                     @default(now()) @db.Timestamptz(6)
+  lich_su_di_chuyen_thiet_bi                                lich_su_di_chuyen_thiet_bi[]
+  phieu_bao_tri                                             phieu_bao_tri[]
+  thiet_bi_gan_voi_don                                      thiet_bi_gan_voi_don[]
+  mau_thiet_bi                                              mau_thiet_bi?                @relation(fields: [mau_thiet_bi_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  vi_tri_kho_thiet_bi_vat_ly_vi_tri_hien_tai_idTovi_tri_kho vi_tri_kho?                  @relation("thiet_bi_vat_ly_vi_tri_hien_tai_idTovi_tri_kho", fields: [vi_tri_hien_tai_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  vi_tri_kho_thiet_bi_vat_ly_vi_tri_mac_dinh_idTovi_tri_kho vi_tri_kho?                  @relation("thiet_bi_vat_ly_vi_tri_mac_dinh_idTovi_tri_kho", fields: [vi_tri_mac_dinh_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
-  @@unique([rental_order_id, id])
-  @@index([rental_order_id], map: "idx_handover_records_order_id")
+  @@index([mau_thiet_bi_id], map: "idx_thiet_bi_vat_ly_mau")
+  @@index([trang_thai], map: "idx_thiet_bi_vat_ly_trang_thai")
+  @@index([vi_tri_hien_tai_id], map: "idx_thiet_bi_vat_ly_vi_tri")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model identified_assets {
-  id                                                                         String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  asset_code                                                                 String                  @unique @db.VarChar(100)
-  asset_name                                                                 String                  @db.VarChar(255)
-  asset_type                                                                 String                  @db.VarChar(50)
-  brand_id                                                                   String?                 @db.Uuid
-  product_model_id                                                           String?                 @db.Uuid
-  serial_number                                                              String?                 @unique @db.VarChar(255)
-  identification_note                                                        String?
-  default_location_id                                                        String?                 @db.Uuid
-  current_location_id                                                        String?                 @db.Uuid
-  status                                                                     String                  @default("AVAILABLE") @db.VarChar(50)
-  condition_note                                                             String?
-  rental_count                                                               Int                     @default(0)
-  maintenance_threshold                                                      Int?
-  deleted_at                                                                 DateTime?               @db.Timestamp(6)
-  created_at                                                                 DateTime                @default(now()) @db.Timestamp(6)
-  updated_at                                                                 DateTime                @default(now()) @db.Timestamp(6)
-  asset_movements                                                            asset_movements[]
-  brands                                                                     brands?                 @relation(fields: [brand_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  storage_locations_identified_assets_current_location_idTostorage_locations storage_locations?      @relation("identified_assets_current_location_idTostorage_locations", fields: [current_location_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  storage_locations_identified_assets_default_location_idTostorage_locations storage_locations?      @relation("identified_assets_default_location_idTostorage_locations", fields: [default_location_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  product_models                                                             product_models?         @relation(fields: [product_model_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  inventory_allocations                                                      inventory_allocations[]
-  maintenance_records                                                        maintenance_records[]
-  rental_order_assets                                                        rental_order_assets[]
+model vi_tri_kho {
+  id                                                                                String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  khu_vuc                                                                           String                       @db.VarChar(100)
+  ke                                                                                String?                      @db.VarChar(50)
+  tang                                                                              String?                      @db.VarChar(50)
+  ngan                                                                              String?                      @db.VarChar(50)
+  loai_vi_tri                                                                       String                       @default("KHO") @db.VarChar(50)
+  trang_thai                                                                        String                       @default("HOAT_DONG") @db.VarChar(50)
+  ghi_chu                                                                           String?
+  created_at                                                                        DateTime                     @default(now()) @db.Timestamptz(6)
+  lich_su_di_chuyen_thiet_bi_lich_su_di_chuyen_thiet_bi_vi_tri_sau_idTovi_tri_kho   lich_su_di_chuyen_thiet_bi[] @relation("lich_su_di_chuyen_thiet_bi_vi_tri_sau_idTovi_tri_kho")
+  lich_su_di_chuyen_thiet_bi_lich_su_di_chuyen_thiet_bi_vi_tri_truoc_idTovi_tri_kho lich_su_di_chuyen_thiet_bi[] @relation("lich_su_di_chuyen_thiet_bi_vi_tri_truoc_idTovi_tri_kho")
+  phu_kien                                                                          phu_kien[]
+  thiet_bi_vat_ly_thiet_bi_vat_ly_vi_tri_hien_tai_idTovi_tri_kho                    thiet_bi_vat_ly[]            @relation("thiet_bi_vat_ly_vi_tri_hien_tai_idTovi_tri_kho")
+  thiet_bi_vat_ly_thiet_bi_vat_ly_vi_tri_mac_dinh_idTovi_tri_kho                    thiet_bi_vat_ly[]            @relation("thiet_bi_vat_ly_vi_tri_mac_dinh_idTovi_tri_kho")
+}
 
-  @@index([asset_code], map: "idx_identified_assets_asset_code")
-  @@index([product_model_id, current_location_id], map: "idx_identified_assets_available", where: raw("((deleted_at IS NULL) AND ((status)::text = 'AVAILABLE'::text))"))
-  @@index([product_model_id], map: "idx_identified_assets_product_model")
-  @@index([status], map: "idx_identified_assets_status")
+model xac_nhan_dieu_khoan {
+  id                       String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  don_thue_id              String?            @db.Uuid
+  khach_hang_id            String             @db.Uuid
+  dieu_khoan_id            String             @db.Uuid
+  dong_y_luc               DateTime           @default(now()) @db.Timestamptz(6)
+  ip_address               String?            @db.VarChar(100)
+  user_agent               String?
+  ma_bam_noi_dung_snapshot String?            @db.VarChar(255)
+  phien_thanh_toan         phien_thanh_toan[]
+  don_thue                 don_thue?          @relation(fields: [don_thue_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_xac_nhan_dieu_khoan_don_thue")
+  dieu_khoan_thue          dieu_khoan_thue    @relation(fields: [dieu_khoan_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  ho_so_khach_hang         ho_so_khach_hang   @relation(fields: [khach_hang_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  xac_thuc_otp             xac_thuc_otp[]
+
+  @@index([don_thue_id], map: "idx_xac_nhan_dieu_khoan_don")
+  @@index([khach_hang_id], map: "idx_xac_nhan_dieu_khoan_khach")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model included_items {
-  id                                                                       String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  product_model_id                                                         String                        @db.Uuid
-  item_name                                                                String                        @db.VarChar(255)
-  quantity                                                                 Int                           @default(1)
-  management_type                                                          String                        @db.VarChar(50)
-  quantity_accessory_id                                                    String?                       @db.Uuid
-  component_product_model_id                                               String?                       @db.Uuid
-  required                                                                 Boolean                       @default(true)
-  note                                                                     String?
-  deleted_at                                                               DateTime?                     @db.Timestamp(6)
-  created_at                                                               DateTime                      @default(now()) @db.Timestamp(6)
-  product_models_included_items_component_product_model_idToproduct_models product_models?               @relation("included_items_component_product_model_idToproduct_models", fields: [component_product_model_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  product_models_included_items_product_model_idToproduct_models           product_models                @relation("included_items_product_model_idToproduct_models", fields: [product_model_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  quantity_accessories                                                     quantity_accessories?         @relation(fields: [quantity_accessory_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  rental_order_assets                                                      rental_order_assets[]
-  rental_order_quantity_items                                              rental_order_quantity_items[]
+model xac_thuc_otp {
+  id                     String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nguoi_dung_id          String               @db.Uuid
+  xac_nhan_dieu_khoan_id String?              @db.Uuid
+  otp_hash               String               @db.VarChar(255)
+  muc_dich               String               @db.VarChar(50)
+  trang_thai             String               @default("CHO_XAC_THUC") @db.VarChar(50)
+  het_han_luc            DateTime             @db.Timestamptz(6)
+  xac_thuc_luc           DateTime?            @db.Timestamptz(6)
+  so_lan_sai             Int                  @default(0)
+  created_at             DateTime             @default(now()) @db.Timestamptz(6)
+  phien_thanh_toan       phien_thanh_toan[]
+  nguoi_dung             nguoi_dung           @relation(fields: [nguoi_dung_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  xac_nhan_dieu_khoan    xac_nhan_dieu_khoan? @relation(fields: [xac_nhan_dieu_khoan_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
-  @@index([component_product_model_id], map: "idx_included_items_component_product_model_id", where: raw("(deleted_at IS NULL)"))
-  @@index([product_model_id], map: "idx_included_items_product_model_id", where: raw("(deleted_at IS NULL)"))
-  @@index([quantity_accessory_id], map: "idx_included_items_quantity_accessory_id", where: raw("(deleted_at IS NULL)"))
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model inventory_allocations {
-  id                    String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  rental_order_id       String                @db.Uuid
-  rental_order_item_id  String                @db.Uuid
-  asset_id              String?               @db.Uuid
-  quantity_accessory_id String?               @db.Uuid
-  allocated_quantity    Int                   @default(1)
-  start_date            DateTime              @db.Date
-  end_date              DateTime              @db.Date
-  status                String                @default("RESERVED") @db.VarChar(50)
-  created_at            DateTime              @default(now()) @db.Timestamp(6)
-  updated_at            DateTime              @default(now()) @db.Timestamp(6)
-  deleted_at            DateTime?             @db.Timestamp(6)
-  identified_assets     identified_assets?    @relation(fields: [asset_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  quantity_accessories  quantity_accessories? @relation(fields: [quantity_accessory_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  rental_orders         rental_orders         @relation(fields: [rental_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  rental_order_items    rental_order_items    @relation(fields: [rental_order_item_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
-  @@index([quantity_accessory_id, start_date, end_date], map: "idx_inventory_allocations_accessory_time", where: raw("((deleted_at IS NULL) AND (quantity_accessory_id IS NOT NULL))"))
-  @@index([asset_id, start_date, end_date], map: "idx_inventory_allocations_asset_time", where: raw("((deleted_at IS NULL) AND (asset_id IS NOT NULL))"))
-  @@index([rental_order_id, rental_order_item_id], map: "idx_inventory_allocations_order")
-  @@index([status], map: "idx_inventory_allocations_status")
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model maintenance_records {
-  id                                            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  asset_id                                      String              @db.Uuid
-  rental_order_id                               String?             @db.Uuid
-  rental_order_item_id                          String?             @db.Uuid
-  reason                                        String
-  status                                        String              @default("IN_PROGRESS") @db.VarChar(50)
-  result                                        String?
-  started_by                                    String?             @db.Uuid
-  started_at                                    DateTime            @default(now()) @db.Timestamp(6)
-  completed_by                                  String?             @db.Uuid
-  completed_at                                  DateTime?           @db.Timestamp(6)
-  note                                          String?
-  identified_assets                             identified_assets   @relation(fields: [asset_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  users_maintenance_records_completed_byTousers users?              @relation("maintenance_records_completed_byTousers", fields: [completed_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  rental_orders                                 rental_orders?      @relation(fields: [rental_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  rental_order_items                            rental_order_items? @relation(fields: [rental_order_item_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  users_maintenance_records_started_byTousers   users?              @relation("maintenance_records_started_byTousers", fields: [started_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
-  @@index([asset_id], map: "idx_maintenance_asset_id")
-  @@index([status], map: "idx_maintenance_status")
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model notifications {
-  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id             String    @db.Uuid
-  title               String    @db.VarChar(255)
-  content             String
-  type                String    @db.VarChar(50)
-  is_read             Boolean   @default(false)
-  related_target_type String?   @db.VarChar(100)
-  related_target_id   String?   @db.Uuid
-  created_at          DateTime  @default(now()) @db.Timestamp(6)
-  read_at             DateTime? @db.Timestamp(6)
-  deleted_at          DateTime? @db.Timestamp(6)
-  users               users     @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
-  @@index([created_at], map: "idx_notifications_created_at")
-  @@index([user_id, is_read], map: "idx_notifications_user_unread", where: raw("(deleted_at IS NULL)"))
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model otp_verifications {
-  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id         String         @db.Uuid
-  rental_order_id String?        @db.Uuid
-  otp_hash        String         @db.VarChar(255)
-  purpose         String         @db.VarChar(50)
-  status          String         @default("PENDING") @db.VarChar(50)
-  expires_at      DateTime       @db.Timestamp(6)
-  verified_at     DateTime?      @db.Timestamp(6)
-  failed_attempts Int            @default(0)
-  created_at      DateTime       @default(now()) @db.Timestamp(6)
-  rental_orders   rental_orders? @relation(fields: [rental_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  users           users          @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
-  @@index([rental_order_id], map: "idx_otp_verifications_order_id")
-  @@index([user_id], map: "idx_otp_verifications_user_id")
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
-model payments {
-  id                                                           String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  rental_order_id                                              String?            @db.Uuid
-  payment_type                                                 String             @db.VarChar(50)
-  amount                                                       Decimal            @default(0) @db.Decimal(12, 2)
-  method                                                       String             @default("CASH") @db.VarChar(50)
-  status                                                       String             @default("PENDING") @db.VarChar(50)
-  transaction_code                                             String?            @db.VarChar(255)
-  paid_by                                                      String?            @db.Uuid
-  paid_at                                                      DateTime?          @db.Timestamp(6)
-  note                                                         String?
-  created_at                                                   DateTime           @default(now()) @db.Timestamp(6)
-  checkout_session_id                                          String?            @db.Uuid
-  handover_records                                             handover_records[]
-  checkout_sessions                                            checkout_sessions? @relation(fields: [checkout_session_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  users                                                        users?             @relation(fields: [paid_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  rental_orders                                                rental_orders?     @relation(fields: [rental_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  return_records_return_records_deduction_payment_idTopayments return_records[]   @relation("return_records_deduction_payment_idTopayments")
-  return_records_return_records_refund_payment_idTopayments    return_records[]   @relation("return_records_refund_payment_idTopayments")
-
-  @@index([rental_order_id], map: "idx_payments_order_id")
-  @@index([payment_type, status], map: "idx_payments_type_status")
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model product_models {
-  id                                                                       String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  category_id                                                              String?                  @db.Uuid
-  brand_id                                                                 String?                  @db.Uuid
-  name                                                                     String                   @db.VarChar(255)
-  description                                                              String?
-  image_url                                                                String?
-  daily_price                                                              Decimal                  @default(0) @db.Decimal(12, 2)
-  deposit_amount                                                           Decimal                  @default(0) @db.Decimal(12, 2)
-  buffer_hours                                                             Int                      @default(2)
-  status                                                                   String                   @default("ACTIVE") @db.VarChar(50)
-  deleted_at                                                               DateTime?                @db.Timestamp(6)
-  created_at                                                               DateTime                 @default(now()) @db.Timestamp(6)
-  updated_at                                                               DateTime                 @default(now()) @db.Timestamp(6)
-  cart_items                                                               cart_items[]
-  checkout_session_items                                                   checkout_session_items[]
-  identified_assets                                                        identified_assets[]
-  included_items_included_items_component_product_model_idToproduct_models included_items[]         @relation("included_items_component_product_model_idToproduct_models")
-  included_items_included_items_product_model_idToproduct_models           included_items[]         @relation("included_items_product_model_idToproduct_models")
-  brands                                                                   brands?                  @relation(fields: [brand_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  categories                                                               categories?              @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  product_pricing                                                          product_pricing[]
-  rental_order_items                                                       rental_order_items[]
-
-  @@index([category_id, brand_id], map: "idx_product_models_active_search", where: raw("((deleted_at IS NULL) AND ((status)::text = 'ACTIVE'::text))"))
-  @@index([status], map: "idx_product_models_status")
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model product_pricing {
-  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  product_model_id String         @db.Uuid
-  daily_price      Decimal        @db.Decimal(12, 2)
-  deposit_amount   Decimal        @db.Decimal(12, 2)
-  effective_from   DateTime       @db.Timestamp(6)
-  effective_to     DateTime?      @db.Timestamp(6)
-  created_at       DateTime       @default(now()) @db.Timestamp(6)
-  deleted_at       DateTime?      @db.Timestamp(6)
-  product_models   product_models @relation(fields: [product_model_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
-  @@index([product_model_id, effective_from, effective_to], map: "idx_product_pricing_model_time", where: raw("(deleted_at IS NULL)"))
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model quantity_accessories {
-  id                          String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name                        String                        @db.VarChar(255)
-  description                 String?
-  total_quantity              Int                           @default(0)
-  maintenance_quantity        Int                           @default(0)
-  lost_quantity               Int                           @default(0)
-  storage_location_id         String?                       @db.Uuid
-  status                      String                        @default("ACTIVE") @db.VarChar(50)
-  note                        String?
-  deleted_at                  DateTime?                     @db.Timestamp(6)
-  created_at                  DateTime                      @default(now()) @db.Timestamp(6)
-  updated_at                  DateTime                      @default(now()) @db.Timestamp(6)
-  included_items              included_items[]
-  inventory_allocations       inventory_allocations[]
-  storage_locations           storage_locations?            @relation(fields: [storage_location_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  rental_order_quantity_items rental_order_quantity_items[]
-  stock_movements             stock_movements[]
-
-  @@index([storage_location_id], map: "idx_quantity_accessories_location", where: raw("(deleted_at IS NULL)"))
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model rental_contracts {
-  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  contract_code     String            @unique @db.VarChar(100)
-  rental_order_id   String            @unique @db.Uuid
-  customer_id       String            @db.Uuid
-  staff_id          String?           @db.Uuid
-  signed_at         DateTime?         @db.Timestamp(6)
-  status            String            @default("CREATED") @db.VarChar(50)
-  note              String?
-  created_at        DateTime          @default(now()) @db.Timestamp(6)
-  updated_at        DateTime          @default(now()) @db.Timestamp(6)
-  contract_files    contract_files[]
-  customer_profiles customer_profiles @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  rental_orders     rental_orders     @relation(fields: [rental_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  users             users?            @relation(fields: [staff_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
-  @@index([contract_code], map: "idx_contracts_code")
-  @@index([rental_order_id], map: "idx_contracts_order_id")
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model rental_order_assets {
-  id                           String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  rental_order_id              String                    @db.Uuid
-  rental_order_item_id         String                    @db.Uuid
-  included_item_id             String?                   @db.Uuid
-  asset_id                     String                    @db.Uuid
-  asset_code_snapshot          String?                   @db.VarChar(100)
-  serial_snapshot              String?                   @db.VarChar(255)
-  identification_note_snapshot String?
-  condition_before             String?
-  condition_after              String?
-  status                       String                    @default("PREPARED") @db.VarChar(50)
-  created_at                   DateTime                  @default(now()) @db.Timestamp(6)
-  handover_record_details      handover_record_details[]
-  identified_assets            identified_assets         @relation(fields: [asset_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  included_items               included_items?           @relation(fields: [included_item_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  rental_orders                rental_orders             @relation(fields: [rental_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  rental_order_items           rental_order_items        @relation(fields: [rental_order_item_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  return_record_details        return_record_details[]
-
-  @@unique([rental_order_id, id])
-  @@index([asset_id], map: "idx_rental_order_assets_asset_id")
-  @@index([included_item_id], map: "idx_rental_order_assets_included_item_id")
-  @@index([rental_order_id], map: "idx_rental_order_assets_order_id")
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model rental_order_items {
-  id                          String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  rental_order_id             String                        @db.Uuid
-  product_model_id            String                        @db.Uuid
-  quantity                    Int                           @default(1)
-  daily_price_snapshot        Decimal                       @default(0) @db.Decimal(12, 2)
-  deposit_amount_snapshot     Decimal                       @default(0) @db.Decimal(12, 2)
-  rental_amount               Decimal                       @default(0) @db.Decimal(12, 2)
-  deposit_amount              Decimal                       @default(0) @db.Decimal(12, 2)
-  status                      String                        @default("PENDING") @db.VarChar(50)
-  created_at                  DateTime                      @default(now()) @db.Timestamp(6)
-  updated_at                  DateTime                      @default(now()) @db.Timestamp(6)
-  inventory_allocations       inventory_allocations[]
-  maintenance_records         maintenance_records[]
-  rental_order_assets         rental_order_assets[]
-  product_models              product_models                @relation(fields: [product_model_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  rental_orders               rental_orders                 @relation(fields: [rental_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  rental_order_quantity_items rental_order_quantity_items[]
-
-  @@index([rental_order_id], map: "idx_rental_order_items_order_id")
-  @@index([product_model_id], map: "idx_rental_order_items_product_model_id")
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model rental_order_quantity_items {
-  id                      String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  rental_order_id         String                    @db.Uuid
-  rental_order_item_id    String                    @db.Uuid
-  included_item_id        String?                   @db.Uuid
-  quantity_accessory_id   String                    @db.Uuid
-  expected_quantity       Int                       @default(0)
-  delivered_quantity      Int                       @default(0)
-  returned_quantity       Int                       @default(0)
-  status                  String                    @default("PREPARED") @db.VarChar(50)
-  note                    String?
-  handover_record_details handover_record_details[]
-  included_items          included_items?           @relation(fields: [included_item_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  quantity_accessories    quantity_accessories      @relation(fields: [quantity_accessory_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  rental_orders           rental_orders             @relation(fields: [rental_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  rental_order_items      rental_order_items        @relation(fields: [rental_order_item_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  return_record_details   return_record_details[]
-
-  @@unique([rental_order_id, id])
-  @@index([quantity_accessory_id], map: "idx_rental_order_quantity_items_accessory_id")
-  @@index([rental_order_id], map: "idx_rental_order_quantity_items_order_id")
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model rental_orders {
-  id                          String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  order_code                  String                        @unique @db.VarChar(100)
-  customer_id                 String                        @db.Uuid
-  start_date                  DateTime                      @db.Date
-  end_date                    DateTime                      @db.Date
-  rental_days                 Int
-  total_rental_amount         Decimal                       @default(0) @db.Decimal(12, 2)
-  total_deposit_amount        Decimal                       @default(0) @db.Decimal(12, 2)
-  status                      String                        @default("PENDING_DEPOSIT") @db.VarChar(50)
-  expired_at                  DateTime?                     @db.Timestamp(6)
-  cancelled_at                DateTime?                     @db.Timestamp(6)
-  cancel_reason               String?
-  created_at                  DateTime                      @default(now()) @db.Timestamp(6)
-  updated_at                  DateTime                      @default(now()) @db.Timestamp(6)
-  asset_movements             asset_movements[]
-  handover_record_details     handover_record_details[]
-  handover_records            handover_records?
-  inventory_allocations       inventory_allocations[]
-  maintenance_records         maintenance_records[]
-  otp_verifications           otp_verifications[]
-  payments                    payments[]
-  rental_contracts            rental_contracts?
-  rental_order_assets         rental_order_assets[]
-  rental_order_items          rental_order_items[]
-  rental_order_quantity_items rental_order_quantity_items[]
-  customer_profiles           customer_profiles             @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  rental_record_files         rental_record_files[]
-  return_record_details       return_record_details[]
-  return_records              return_records?
-  stock_movements             stock_movements[]
-  term_acceptances            term_acceptances[]
-
-  @@index([customer_id], map: "idx_rental_orders_customer_id")
-  @@index([start_date, end_date], map: "idx_rental_orders_date_range")
-  @@index([status], map: "idx_rental_orders_status")
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model rental_record_files {
-  id                 String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  rental_order_id    String            @db.Uuid
-  handover_record_id String?           @db.Uuid
-  return_record_id   String?           @db.Uuid
-  file_purpose       String            @db.VarChar(50)
-  original_file_name String            @db.VarChar(255)
-  file_url           String
-  file_type          String?           @db.VarChar(50)
-  file_size          Int?
-  uploaded_by        String?           @db.Uuid
-  uploaded_at        DateTime          @default(now()) @db.Timestamp(6)
-  handover_records   handover_records? @relation(fields: [handover_record_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  rental_orders      rental_orders     @relation(fields: [rental_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  return_records     return_records?   @relation(fields: [return_record_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  users              users?            @relation(fields: [uploaded_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
-  @@index([rental_order_id], map: "idx_rental_record_files_order_id")
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model rental_terms {
-  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  version          String             @db.VarChar(50)
-  content          String
-  content_hash     String?            @db.VarChar(255)
-  status           String             @default("ACTIVE") @db.VarChar(50)
-  created_by       String?            @db.Uuid
-  created_at       DateTime           @default(now()) @db.Timestamp(6)
-  users            users?             @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  term_acceptances term_acceptances[]
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model return_charges {
-  id                      String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  return_record_id        String                 @db.Uuid
-  return_record_detail_id String?                @db.Uuid
-  charge_type             String                 @db.VarChar(50)
-  description             String?
-  amount                  Decimal                @default(0) @db.Decimal(12, 2)
-  created_by              String?                @db.Uuid
-  created_at              DateTime               @default(now()) @db.Timestamp(6)
-  users                   users?                 @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  return_record_details   return_record_details? @relation(fields: [return_record_detail_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  return_records          return_records         @relation(fields: [return_record_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
-  @@index([return_record_id], map: "idx_return_charges_return_record_id")
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model return_record_details {
-  id                            String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  return_record_id              String                       @db.Uuid
-  rental_order_id               String                       @db.Uuid
-  rental_order_asset_id         String?                      @db.Uuid
-  rental_order_quantity_item_id String?                      @db.Uuid
-  returned_quantity             Int                          @default(0)
-  damaged_quantity              Int                          @default(0)
-  missing_quantity              Int                          @default(0)
-  condition_note                String?
-  is_damaged                    Boolean                      @default(false)
-  is_missing                    Boolean                      @default(false)
-  note                          String?
-  created_at                    DateTime                     @default(now()) @db.Timestamp(6)
-  return_charges                return_charges[]
-  rental_orders                 rental_orders                @relation(fields: [rental_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  rental_order_assets           rental_order_assets?         @relation(fields: [rental_order_id, rental_order_asset_id], references: [rental_order_id, id], onDelete: NoAction, onUpdate: NoAction)
-  rental_order_quantity_items   rental_order_quantity_items? @relation(fields: [rental_order_id, rental_order_quantity_item_id], references: [rental_order_id, id], onDelete: NoAction, onUpdate: NoAction)
-  return_records                return_records               @relation(fields: [rental_order_id, return_record_id], references: [rental_order_id, id], onDelete: NoAction, onUpdate: NoAction)
-
-  @@index([return_record_id], map: "idx_return_details_record_id")
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model return_records {
-  id                                                     String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  rental_order_id                                        String                  @unique @db.Uuid
-  staff_id                                               String                  @db.Uuid
-  returned_at                                            DateTime                @default(now()) @db.Timestamp(6)
-  result                                                 String                  @default("VALID") @db.VarChar(50)
-  deposit_result                                         String?                 @db.VarChar(50)
-  refund_amount                                          Decimal                 @default(0) @db.Decimal(12, 2)
-  deduction_amount                                       Decimal                 @default(0) @db.Decimal(12, 2)
-  refund_payment_id                                      String?                 @db.Uuid
-  deduction_payment_id                                   String?                 @db.Uuid
-  note                                                   String?
-  rental_record_files                                    rental_record_files[]
-  return_charges                                         return_charges[]
-  return_record_details                                  return_record_details[]
-  payments_return_records_deduction_payment_idTopayments payments?               @relation("return_records_deduction_payment_idTopayments", fields: [deduction_payment_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  payments_return_records_refund_payment_idTopayments    payments?               @relation("return_records_refund_payment_idTopayments", fields: [refund_payment_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  rental_orders                                          rental_orders           @relation(fields: [rental_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  users                                                  users                   @relation(fields: [staff_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
-  @@unique([rental_order_id, id])
-  @@index([rental_order_id], map: "idx_return_records_order_id")
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model stock_movements {
-  id                   String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  accessory_id         String               @db.Uuid
-  change_quantity      Int
-  movement_type        String               @db.VarChar(50)
-  reason               String?
-  related_order_id     String?              @db.Uuid
-  created_by           String?              @db.Uuid
-  created_at           DateTime             @default(now()) @db.Timestamp(6)
-  quantity_accessories quantity_accessories @relation(fields: [accessory_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  users                users?               @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  rental_orders        rental_orders?       @relation(fields: [related_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
-  @@index([accessory_id], map: "idx_stock_movements_accessory_id")
-  @@index([related_order_id], map: "idx_stock_movements_related_order_id")
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model storage_locations {
-  id                                                                         String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  area                                                                       String                 @db.VarChar(100)
-  shelf                                                                      String?                @db.VarChar(50)
-  level                                                                      String?                @db.VarChar(50)
-  box                                                                        String?                @db.VarChar(50)
-  tray                                                                       String?                @db.VarChar(50)
-  location_type                                                              String                 @default("STORAGE") @db.VarChar(50)
-  status                                                                     String                 @default("ACTIVE") @db.VarChar(50)
-  note                                                                       String?
-  deleted_at                                                                 DateTime?              @db.Timestamp(6)
-  created_at                                                                 DateTime               @default(now()) @db.Timestamp(6)
-  asset_movements_asset_movements_from_location_idTostorage_locations        asset_movements[]      @relation("asset_movements_from_location_idTostorage_locations")
-  asset_movements_asset_movements_to_location_idTostorage_locations          asset_movements[]      @relation("asset_movements_to_location_idTostorage_locations")
-  identified_assets_identified_assets_current_location_idTostorage_locations identified_assets[]    @relation("identified_assets_current_location_idTostorage_locations")
-  identified_assets_identified_assets_default_location_idTostorage_locations identified_assets[]    @relation("identified_assets_default_location_idTostorage_locations")
-  quantity_accessories                                                       quantity_accessories[]
-
-  @@index([area, shelf, level, box], map: "idx_storage_locations_area", where: raw("(deleted_at IS NULL)"))
-}
-
-model term_acceptances {
-  id                         String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  rental_order_id            String?             @db.Uuid
-  customer_id                String              @db.Uuid
-  rental_term_id             String              @db.Uuid
-  accepted_at                DateTime            @default(now()) @db.Timestamp(6)
-  ip_address                 String?             @db.VarChar(100)
-  user_agent                 String?
-  otp_verified               Boolean             @default(false)
-  snapshot_term_content_hash String?             @db.VarChar(255)
-  checkout_sessions          checkout_sessions[]
-  customer_profiles          customer_profiles   @relation(fields: [customer_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  rental_orders              rental_orders?      @relation(fields: [rental_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  rental_terms               rental_terms        @relation(fields: [rental_term_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
-  @@index([rental_order_id], map: "idx_term_acceptances_order_id")
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model users {
-  id                                                          String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  full_name                                                   String                   @db.VarChar(255)
-  email                                                       String                   @unique @db.VarChar(255)
-  phone                                                       String?                  @db.VarChar(20)
-  password_hash                                               String                   @db.VarChar(255)
-  role                                                        String                   @default("CUSTOMER") @db.VarChar(50)
-  status                                                      String                   @default("ACTIVE") @db.VarChar(50)
-  deleted_at                                                  DateTime?                @db.Timestamp(6)
-  created_at                                                  DateTime                 @default(now()) @db.Timestamp(6)
-  updated_at                                                  DateTime                 @default(now()) @db.Timestamp(6)
-  asset_movements                                             asset_movements[]
-  audit_logs                                                  audit_logs[]
-  contract_files                                              contract_files[]
-  customer_profiles                                           customer_profiles?
-  customer_verifications                                      customer_verifications[]
-  handover_records                                            handover_records[]
-  maintenance_records_maintenance_records_completed_byTousers maintenance_records[]    @relation("maintenance_records_completed_byTousers")
-  maintenance_records_maintenance_records_started_byTousers   maintenance_records[]    @relation("maintenance_records_started_byTousers")
-  notifications                                               notifications[]
-  otp_verifications                                           otp_verifications[]
-  payments                                                    payments[]
-  rental_contracts                                            rental_contracts[]
-  rental_record_files                                         rental_record_files[]
-  rental_terms                                                rental_terms[]
-  return_charges                                              return_charges[]
-  return_records                                              return_records[]
-  stock_movements                                             stock_movements[]
-
-  @@index([email], map: "idx_users_email")
-  @@index([role, status], map: "idx_users_role_status")
+  @@index([xac_nhan_dieu_khoan_id], map: "idx_xac_thuc_otp_dieu_khoan")
+  @@index([nguoi_dung_id], map: "idx_xac_thuc_otp_nguoi_dung")
 }
