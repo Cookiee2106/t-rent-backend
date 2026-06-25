@@ -2,17 +2,26 @@ const jwt = require("jsonwebtoken");
 const { errorResponse } = require("../utils/response");
 
 function authMiddleware(req, res, next) {
-  const authHeader = req.headers.authorization;
+  const tieu_de_xac_thuc = req.headers.authorization;
 
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  if (!tieu_de_xac_thuc || !tieu_de_xac_thuc.startsWith("Bearer ")) {
     return errorResponse(res, 401, "Vui lòng đăng nhập để tiếp tục");
   }
 
-  const token = authHeader.split(" ")[1];
+  const token = tieu_de_xac_thuc.split(" ")[1];
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
+    const du_lieu_token = jwt.verify(token, process.env.JWT_SECRET);
+
+    if (!du_lieu_token.vai_tro) {
+      return errorResponse(res, 401, "Token không hợp lệ");
+    }
+
+    req.user = {
+      id: du_lieu_token.id,
+      email: du_lieu_token.email,
+      vai_tro: du_lieu_token.vai_tro,
+    };
     next();
   } catch (error) {
     if (error.name === "TokenExpiredError") {

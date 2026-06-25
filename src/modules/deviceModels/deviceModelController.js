@@ -2,31 +2,39 @@ const asyncHandler = require("../../utils/asyncHandler");
 const { successResponse } = require("../../utils/response");
 const deviceModelService = require("./deviceModelService");
 
-const getProductModels = asyncHandler(async (req, res) => {
-  const { page, limit, keyword, category, brand } = req.query;
+// ============================================================
+// Lấy danh sách mẫu thiết bị (chỉ HOAT_DONG)
+// ============================================================
+const getDeviceModels = asyncHandler(async (req, res) => {
+  const { trang, gioi_han, tu_khoa, hang_id, danh_muc_id, ten_hang, ten_danh_muc } = req.query;
 
-  const result = await deviceModelService.getProductModels({
-    page: parseInt(page) || 1,
-    limit: parseInt(limit) || 20,
-    keyword,
-    category,
-    brand,
+  const ket_qua = await deviceModelService.getDeviceModels({
+    trang: parseInt(trang) || 1,
+    gioi_han: parseInt(gioi_han) || 20,
+    tu_khoa: tu_khoa || undefined,
+    hang_id: hang_id || undefined,
+    danh_muc_id: danh_muc_id || undefined,
+    ten_hang: ten_hang || undefined,
+    ten_danh_muc: ten_danh_muc || undefined,
   });
 
-  return successResponse(res, 200, "Lấy danh sách mẫu thiết bị thành công", result.productModels, {
-    pagination: result.pagination,
+  return successResponse(res, 200, "Lấy danh sách mẫu thiết bị thành công", ket_qua.danh_sach, {
+    phan_trang: ket_qua.phan_trang,
   });
 });
 
-const getProductModelDetail = asyncHandler(async (req, res) => {
+// ============================================================
+// Lấy chi tiết mẫu thiết bị (chỉ HOAT_DONG)
+// ============================================================
+const getDeviceModelDetail = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
-  const productModel = await deviceModelService.getProductModelDetail(id);
+  const mau_thiet_bi = await deviceModelService.getDeviceModelDetail(id);
 
-  return successResponse(res, 200, "Lấy chi tiết mẫu thiết bị thành công", productModel);
+  return successResponse(res, 200, "Lấy chi tiết mẫu thiết bị thành công", mau_thiet_bi);
 });
 
 module.exports = {
-  getProductModels,
-  getProductModelDetail,
+  getDeviceModels,
+  getDeviceModelDetail,
 };

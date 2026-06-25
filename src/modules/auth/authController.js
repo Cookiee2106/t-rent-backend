@@ -3,37 +3,31 @@ const { successResponse, errorResponse } = require("../../utils/response");
 const authService = require("./authService");
 
 const register = asyncHandler(async (req, res) => {
-  const { fullName, email, phone, password } = req.body;
+  const { ho_ten, email, so_dien_thoai, mat_khau } = req.body;
 
-  if (!fullName || !email || !password) {
+  if (!ho_ten || !email || !mat_khau) {
     return errorResponse(res, 400, "Vui lòng điền đầy đủ họ tên, email và mật khẩu");
   }
 
-  if (password.length < 6) {
+  if (mat_khau.length < 6) {
     return errorResponse(res, 400, "Mật khẩu phải có ít nhất 6 ký tự");
   }
 
-  const user = await authService.register({ fullName, email, phone, password });
+  const nguoi_dung = await authService.register({ ho_ten, email, so_dien_thoai, mat_khau });
 
-  return successResponse(res, 201, "Đăng ký tài khoản thành công", {
-    id: user.id,
-    fullName: user.full_name,
-    email: user.email,
-    phone: user.phone,
-    role: user.role,
-  });
+  return successResponse(res, 201, "Đăng ký tài khoản thành công", nguoi_dung);
 });
 
 const login = asyncHandler(async (req, res) => {
-  const { email, password } = req.body;
+  const { email, mat_khau } = req.body;
 
-  if (!email || !password) {
+  if (!email || !mat_khau) {
     return errorResponse(res, 400, "Vui lòng điền email và mật khẩu");
   }
 
-  const result = await authService.login({ email, password });
+  const ket_qua = await authService.login({ email, mat_khau });
 
-  return successResponse(res, 200, "Đăng nhập thành công", result);
+  return successResponse(res, 200, "Đăng nhập thành công", ket_qua);
 });
 
 module.exports = {
