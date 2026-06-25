@@ -148,10 +148,10 @@ async function createHandover(don_thue_id, nhan_vien_id, du_lieu) {
 
   // Transaction
   const ket_qua = await prisma.$transaction(async (tx) => {
-    // 1. INSERT phieu_ban_giao
+    // 1. INSERT phieu_ban_giao (Không có created_at, updated_at)
     const phieu_moi = await tx.$queryRaw`
-      INSERT INTO phieu_ban_giao (id, don_thue_id, nhan_vien_id, ban_giao_luc, ghi_chu, trang_thai, created_at, updated_at)
-      VALUES (gen_random_uuid(), ${don_thue_id}::uuid, ${nhan_vien_id}::uuid, NOW(), ${ghi_chu || null}, 'HOAN_THANH', NOW(), NOW())
+      INSERT INTO phieu_ban_giao (id, don_thue_id, nhan_vien_id, ban_giao_luc, ghi_chu, trang_thai)
+      VALUES (gen_random_uuid(), ${don_thue_id}::uuid, ${nhan_vien_id}::uuid, NOW(), ${ghi_chu || null}, 'HOAN_THANH')
       RETURNING id
     `;
     const phieu_ban_giao_id = phieu_moi[0].id;
@@ -166,17 +166,17 @@ async function createHandover(don_thue_id, nhan_vien_id, du_lieu) {
       for (const tai_san_id of item.danh_sach_tai_san_id) {
         const thiet_bi = danh_sach_thiet_bi.find((tb) => tb.id === tai_san_id);
 
-        // 2. INSERT thiet_bi_gan_voi_don
+        // 2. INSERT thiet_bi_gan_voi_don (Cột tinh_trang_truoc thay cho ghi_chu_tinh_trang_snapshot, không có updated_at)
         const thiet_bi_gan = await tx.$queryRaw`
-          INSERT INTO thiet_bi_gan_voi_don (id, don_thue_id, chi_tiet_don_thue_id, thiet_bi_id, ma_tai_san_snapshot, so_serial_snapshot, ghi_chu_tinh_trang_snapshot, trang_thai, created_at, updated_at)
-          VALUES (gen_random_uuid(), ${don_thue_id}::uuid, ${chi_tiet?.id || null}::uuid, ${tai_san_id}::uuid, ${thiet_bi.ma_tai_san}, ${thiet_bi.so_serial}, ${thiet_bi.ghi_chu_tinh_trang}, 'DA_GIAO', NOW(), NOW())
+          INSERT INTO thiet_bi_gan_voi_don (id, don_thue_id, chi_tiet_don_thue_id, thiet_bi_id, ma_tai_san_snapshot, so_serial_snapshot, tinh_trang_truoc, trang_thai, created_at)
+          VALUES (gen_random_uuid(), ${don_thue_id}::uuid, ${chi_tiet?.id || null}::uuid, ${tai_san_id}::uuid, ${thiet_bi.ma_tai_san}, ${thiet_bi.so_serial}, ${thiet_bi.ghi_chu_tinh_trang}, 'DA_GIAO', NOW())
           RETURNING id
         `;
 
-        // 3. INSERT chi_tiet_ban_giao
+        // 3. INSERT chi_tiet_ban_giao (Không có don_thue_id, thiet_bi_gan_voi_don_id thay cho thiet_bi_gan_id, tinh_trang thay cho ghi_chu_tinh_trang)
         await tx.$executeRaw`
-          INSERT INTO chi_tiet_ban_giao (id, phieu_ban_giao_id, don_thue_id, thiet_bi_gan_id, so_luong_giao, ghi_chu_tinh_trang, created_at)
-          VALUES (gen_random_uuid(), ${phieu_ban_giao_id}::uuid, ${don_thue_id}::uuid, ${thiet_bi_gan[0].id}::uuid, 1, ${item.tinh_trang || null}, NOW())
+          INSERT INTO chi_tiet_ban_giao (id, phieu_ban_giao_id, thiet_bi_gan_voi_don_id, so_luong_giao, tinh_trang, created_at)
+          VALUES (gen_random_uuid(), ${phieu_ban_giao_id}::uuid, ${thiet_bi_gan[0].id}::uuid, 1, ${item.tinh_trang || null}, NOW())
         `;
 
         // 4. INSERT lich_su_di_chuyen_thiet_bi
@@ -210,15 +210,15 @@ async function createHandover(don_thue_id, nhan_vien_id, du_lieu) {
       WHERE id = ANY(${tat_ca_tai_san_id}::uuid[])
     `;
 
-    // 8. INSERT tep_don_thue (ảnh bàn giao) nếu có
+    // 8. INSERT tep_don_thue (ảnh bàn giao) nếu có (Thêm phieu_ban_giao_id)
     if (danh_sach_anh_url && danh_sach_anh_url.length > 0) {
       for (const anh_url of danh_sach_anh_url) {
         const ten_file = typeof anh_url === "string" ? "handover-image" : anh_url.ten_file_goc || "handover-image";
         const url = typeof anh_url === "string" ? anh_url : anh_url.file_url;
 
         await tx.$executeRaw`
-          INSERT INTO tep_don_thue (id, don_thue_id, muc_dich, ten_file_goc, file_url, uploaded_by, uploaded_at)
-          VALUES (gen_random_uuid(), ${don_thue_id}::uuid, 'ANH_BAN_GIAO', ${ten_file}, ${url}, ${nhan_vien_id}::uuid, NOW())
+          INSERT INTO tep_don_thue (id, don_thue_id, phieu_ban_giao_id, muc_dich, ten_file_goc, file_url, uploaded_by, uploaded_at)
+          VALUES (gen_random_uuid(), ${don_thue_id}::uuid, ${phieu_ban_giao_id}::uuid, 'ANH_BAN_GIAO', ${ten_file}, ${url}, ${nhan_vien_id}::uuid, NOW())
         `;
       }
     }

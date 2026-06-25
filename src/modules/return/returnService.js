@@ -366,10 +366,10 @@ async function createReturnInspection(don_thue_id, nhan_vien_id, du_lieu) {
 
   // Transaction
   const ket_qua_db = await prisma.$transaction(async (tx) => {
-    // 1. INSERT phieu_tra_thiet_bi
+    // 1. INSERT phieu_tra_thiet_bi (Không có created_at, updated_at)
     const phieu_tra_moi = await tx.$queryRaw`
-      INSERT INTO phieu_tra_thiet_bi (id, don_thue_id, nhan_vien_id, tra_luc, ket_qua, ghi_chu, created_at, updated_at)
-      VALUES (gen_random_uuid(), ${don_thue_id}::uuid, ${nhan_vien_id}::uuid, NOW(), ${ket_qua || "HOP_LE"}, ${ghi_chu || null}, NOW(), NOW())
+      INSERT INTO phieu_tra_thiet_bi (id, don_thue_id, nhan_vien_id, tra_luc, ket_qua, ghi_chu)
+      VALUES (gen_random_uuid(), ${don_thue_id}::uuid, ${nhan_vien_id}::uuid, NOW(), ${ket_qua || "HOP_LE"}, ${ghi_chu || null})
       RETURNING id
     `;
     const phieu_tra_id = phieu_tra_moi[0].id;
@@ -384,16 +384,16 @@ async function createReturnInspection(don_thue_id, nhan_vien_id, du_lieu) {
       const bi_hu_hong = item.bi_hu_hong || false;
       const bi_mat = item.bi_mat || false;
 
-      // 2. INSERT chi_tiet_tra_thiet_bi
+      // 2. INSERT chi_tiet_tra_thiet_bi (Không có don_thue_id, thiet_bi_gan_voi_don_id thay cho thiet_bi_gan_id, tinh_trang thay cho ghi_chu_tinh_trang, không có bi_hu_hong/bi_mat)
       await tx.$executeRaw`
-        INSERT INTO chi_tiet_tra_thiet_bi (id, phieu_tra_id, don_thue_id, thiet_bi_gan_id, so_luong_tra, so_luong_hu, so_luong_mat, ghi_chu_tinh_trang, bi_hu_hong, bi_mat, ghi_chu, created_at)
-        VALUES (gen_random_uuid(), ${phieu_tra_id}::uuid, ${don_thue_id}::uuid, ${item.thiet_bi_gan_voi_don_id}::uuid, ${bi_mat ? 0 : 1}, ${bi_hu_hong ? 1 : 0}, ${bi_mat ? 1 : 0}, ${item.tinh_trang || null}, ${bi_hu_hong}, ${bi_mat}, ${item.ghi_chu || null}, NOW())
+        INSERT INTO chi_tiet_tra_thiet_bi (id, phieu_tra_id, thiet_bi_gan_voi_don_id, so_luong_tra, so_luong_hu, so_luong_mat, tinh_trang, ghi_chu, created_at)
+        VALUES (gen_random_uuid(), ${phieu_tra_id}::uuid, ${item.thiet_bi_gan_voi_don_id}::uuid, ${bi_mat ? 0 : 1}, ${bi_hu_hong ? 1 : 0}, ${bi_mat ? 1 : 0}, ${item.tinh_trang || null}, ${item.ghi_chu || null}, NOW())
       `;
 
-      // 3. UPDATE thiet_bi_gan_voi_don SET tinh_trang_sau
+      // 3. UPDATE thiet_bi_gan_voi_don SET tinh_trang_sau (Không có updated_at)
       await tx.$executeRaw`
         UPDATE thiet_bi_gan_voi_don
-        SET tinh_trang_sau = ${item.tinh_trang || null}, updated_at = NOW()
+        SET tinh_trang_sau = ${item.tinh_trang || null}
         WHERE id = ${item.thiet_bi_gan_voi_don_id}::uuid
       `;
 
@@ -444,15 +444,15 @@ async function createReturnInspection(don_thue_id, nhan_vien_id, du_lieu) {
       WHERE don_thue_id = ${don_thue_id}::uuid
     `;
 
-    // 8. INSERT tep_don_thue (ảnh khi trả)
+    // 8. INSERT tep_don_thue (ảnh khi trả) (Thêm phieu_tra_id)
     if (danh_sach_anh_url && danh_sach_anh_url.length > 0) {
       for (const anh_url of danh_sach_anh_url) {
         const ten_file = typeof anh_url === "string" ? "return-image" : anh_url.ten_file_goc || "return-image";
         const url = typeof anh_url === "string" ? anh_url : anh_url.file_url;
 
         await tx.$executeRaw`
-          INSERT INTO tep_don_thue (id, don_thue_id, muc_dich, ten_file_goc, file_url, uploaded_by, uploaded_at)
-          VALUES (gen_random_uuid(), ${don_thue_id}::uuid, 'ANH_KHI_TRA', ${ten_file}, ${url}, ${nhan_vien_id}::uuid, NOW())
+          INSERT INTO tep_don_thue (id, don_thue_id, phieu_tra_id, muc_dich, ten_file_goc, file_url, uploaded_by, uploaded_at)
+          VALUES (gen_random_uuid(), ${don_thue_id}::uuid, ${phieu_tra_id}::uuid, 'ANH_KHI_TRA', ${ten_file}, ${url}, ${nhan_vien_id}::uuid, NOW())
         `;
       }
     }
@@ -492,8 +492,8 @@ async function processRefundDeposit(don_thue_id, nhan_vien_id, du_lieu) {
     throw error;
   }
 
-  if (don.ket_qua_tien_coc === "HOAN_COC") {
-    const error = new Error("Tiền cọc đã được hoàn trả");
+  if (don.ket_qua_tien_coc) {
+    const error = new Error("Tiền cọc của đơn thuê này đã được xử lý (hoàn cọc hoặc khấu trừ)");
     error.statusCode = 400;
     throw error;
   }
@@ -501,19 +501,18 @@ async function processRefundDeposit(don_thue_id, nhan_vien_id, du_lieu) {
   const so_tien_hoan = so_tien || don.tong_tien_coc;
 
   const ket_qua_db = await prisma.$transaction(async (tx) => {
-    // INSERT thanh_toan
+    // INSERT thanh_toan (Sửa ma_giao_dich_provider, bỏ nguoi_thanh_toan_id)
     const thanh_toan_moi = await tx.$queryRaw`
-      INSERT INTO thanh_toan (id, don_thue_id, loai_thanh_toan, so_tien, phuong_thuc, trang_thai, ma_giao_dich, nguoi_thanh_toan_id, da_thanh_toan_luc, ghi_chu, created_at, updated_at)
-      VALUES (gen_random_uuid(), ${don_thue_id}::uuid, 'HOAN_COC', ${so_tien_hoan}, 'TIEN_MAT', 'DA_THANH_TOAN', ${ma_giao_dich || null}, ${nhan_vien_id}::uuid, NOW(), ${ghi_chu || null}, NOW(), NOW())
+      INSERT INTO thanh_toan (id, don_thue_id, loai_thanh_toan, so_tien, phuong_thuc, trang_thai, ma_giao_dich_provider, da_thanh_toan_luc, ghi_chu, created_at, updated_at)
+      VALUES (gen_random_uuid(), ${don_thue_id}::uuid, 'HOAN_COC', ${so_tien_hoan}, 'TIEN_MAT', 'DA_THANH_TOAN', ${ma_giao_dich || null}, NOW(), ${ghi_chu || null}, NOW(), NOW())
       RETURNING id, so_tien
     `;
 
-    // UPDATE phieu_tra_thiet_bi
+    // UPDATE phieu_tra_thiet_bi (Bỏ updated_at)
     await tx.$executeRaw`
       UPDATE phieu_tra_thiet_bi
       SET ket_qua_tien_coc = 'HOAN_COC',
-          so_tien_hoan_coc = ${so_tien_hoan},
-          updated_at = NOW()
+          so_tien_hoan_coc = ${so_tien_hoan}
       WHERE don_thue_id = ${don_thue_id}::uuid
     `;
 
@@ -555,8 +554,8 @@ async function processDeductDeposit(don_thue_id, nhan_vien_id, du_lieu) {
     throw error;
   }
 
-  if (don.ket_qua_tien_coc === "KHAU_TRU") {
-    const error = new Error("Tiền cọc đã được khấu trừ");
+  if (don.ket_qua_tien_coc) {
+    const error = new Error("Tiền cọc của đơn thuê này đã được xử lý (hoàn cọc hoặc khấu trừ)");
     error.statusCode = 400;
     throw error;
   }
@@ -570,10 +569,10 @@ async function processDeductDeposit(don_thue_id, nhan_vien_id, du_lieu) {
   const tong_tien_khau_tru = danh_sach_phi.reduce((tong, p) => tong + Number(p.so_tien), 0);
 
   const ket_qua_db = await prisma.$transaction(async (tx) => {
-    // INSERT thanh_toan
+    // INSERT thanh_toan (Sửa ma_giao_dich_provider, bỏ nguoi_thanh_toan_id)
     const thanh_toan_moi = await tx.$queryRaw`
-      INSERT INTO thanh_toan (id, don_thue_id, loai_thanh_toan, so_tien, phuong_thuc, trang_thai, ma_giao_dich, nguoi_thanh_toan_id, da_thanh_toan_luc, ghi_chu, created_at, updated_at)
-      VALUES (gen_random_uuid(), ${don_thue_id}::uuid, 'KHAU_TRU_COC', ${tong_tien_khau_tru}, 'TIEN_MAT', 'DA_THANH_TOAN', ${ma_giao_dich || null}, ${nhan_vien_id}::uuid, NOW(), ${ghi_chu || null}, NOW(), NOW())
+      INSERT INTO thanh_toan (id, don_thue_id, loai_thanh_toan, so_tien, phuong_thuc, trang_thai, ma_giao_dich_provider, da_thanh_toan_luc, ghi_chu, created_at, updated_at)
+      VALUES (gen_random_uuid(), ${don_thue_id}::uuid, 'KHAU_TRU_COC', ${tong_tien_khau_tru}, 'TIEN_MAT', 'DA_THANH_TOAN', ${ma_giao_dich || null}, NOW(), ${ghi_chu || null}, NOW(), NOW())
       RETURNING id
     `;
 
@@ -585,12 +584,11 @@ async function processDeductDeposit(don_thue_id, nhan_vien_id, du_lieu) {
       `;
     }
 
-    // UPDATE phieu_tra_thiet_bi
+    // UPDATE phieu_tra_thiet_bi (Bỏ updated_at)
     await tx.$executeRaw`
       UPDATE phieu_tra_thiet_bi
       SET ket_qua_tien_coc = 'KHAU_TRU',
-          so_tien_khau_tru = ${tong_tien_khau_tru},
-          updated_at = NOW()
+          so_tien_khau_tru = ${tong_tien_khau_tru}
       WHERE don_thue_id = ${don_thue_id}::uuid
     `;
 
