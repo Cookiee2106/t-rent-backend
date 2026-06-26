@@ -58,9 +58,46 @@ const rejectVerification = asyncHandler(async (req, res) => {
   });
 });
 
+// ============================================================
+// API #7: Lấy danh sách đơn thuê (Admin)
+// ============================================================
+const getOrders = asyncHandler(async (req, res) => {
+  const { trang, gioi_han, trang_thai, tu_khoa } = req.query;
+
+  const ket_qua = await adminService.getAdminOrders({
+    trang: parseInt(trang) || 1,
+    gioi_han: parseInt(gioi_han) || 20,
+    trang_thai: trang_thai || undefined,
+    tu_khoa: tu_khoa || undefined,
+  });
+
+  return successResponse(res, 200, "Lấy danh sách đơn thuê thành công", ket_qua);
+});
+
+// ============================================================
+// API #8: Lấy chi tiết đơn thuê (Admin)
+// ============================================================
+const getOrderDetail = asyncHandler(async (req, res) => {
+  const don_thue_id = req.params.id;
+  const ket_qua = await adminService.getAdminOrderDetail(don_thue_id);
+  return successResponse(res, 200, "Lấy chi tiết đơn thuê thành công", ket_qua);
+});
+
+// ============================================================
+// API #9: Lấy danh sách tài sản sẵn sàng cho đơn thuê
+// ============================================================
+const getAvailableAssets = asyncHandler(async (req, res) => {
+  const don_thue_id = req.params.id;
+  const ket_qua = await adminService.getAvailableAssets(don_thue_id);
+  return successResponse(res, 200, "Lấy danh sách tài sản sẵn sàng thành công", ket_qua);
+});
+
 module.exports = {
   getCustomerAccounts,
   getCustomerAccountDetail,
   approveVerification,
   rejectVerification,
+  getOrders,
+  getOrderDetail,
+  getAvailableAssets,
 };

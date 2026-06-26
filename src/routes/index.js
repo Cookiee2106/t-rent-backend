@@ -16,5 +16,6 @@ router.use("/checkout-sessions", require("../modules/checkout/checkoutRoutes"));
 router.use("/payments", require("../modules/payments/paymentRoutes"));
 router.use("/uploads", require("../modules/uploads/upload"));
 router.use("/rental-otp", require("../modules/rentalOtp/rentalOtp.routes"));
+router.use("/admin/maintenance", require("../modules/maintenance/maintenanceRoutes"));
 
 module.exports = router;
