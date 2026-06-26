@@ -58,8 +58,38 @@ const submitVerification = asyncHandler(async (req, res) => {
   return successResponse(res, 201, "Gửi hồ sơ xác minh thành công, đang chờ duyệt", ket_qua);
 });
 
+// ============================================================
+// API #4: Lấy danh sách đơn thuê của khách hàng
+// ============================================================
+const getOrders = asyncHandler(async (req, res) => {
+  const { trang, gioi_han } = req.query;
+  const ket_qua = await customerService.getCustomerOrders(req.user.id, { trang, gioi_han });
+  return successResponse(res, 200, "Lấy danh sách đơn thuê thành công", ket_qua);
+});
+
+// ============================================================
+// API #5: Lấy chi tiết đơn thuê
+// ============================================================
+const getOrderDetail = asyncHandler(async (req, res) => {
+  const don_thue_id = req.params.id;
+  const ket_qua = await customerService.getCustomerOrderDetail(req.user.id, don_thue_id);
+  return successResponse(res, 200, "Lấy chi tiết đơn thuê thành công", ket_qua);
+});
+
+// ============================================================
+// API #6: Hủy đơn thuê
+// ============================================================
+const cancelOrder = asyncHandler(async (req, res) => {
+  const don_thue_id = req.params.id;
+  const ket_qua = await customerService.cancelOrderCustomer(req.user.id, don_thue_id);
+  return successResponse(res, 200, "Hủy đơn thuê thành công", ket_qua);
+});
+
 module.exports = {
   getAccount,
   updateProfile,
   submitVerification,
+  getOrders,
+  getOrderDetail,
+  cancelOrder,
 };
