@@ -18,3 +18,8 @@ coverage
 
 # Prisma generated client nếu bạn dùng output custom
 /generated/prisma
+
+
+nul
+server.log
+test_api.md
