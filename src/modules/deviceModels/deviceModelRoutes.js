@@ -1,10 +1,11 @@
-const router = require("express").Router();
-const deviceModelController = require("./deviceModelController");
+const express = require("express");
 
-// ============================================================
-// Public API: Danh sách & chi tiết mẫu thiết bị (chỉ HOAT_DONG)
-// ============================================================
-router.get("/", deviceModelController.getDeviceModels);
-router.get("/:id", deviceModelController.getDeviceModelDetail);
+const {
+  layDanhSachMauThietBi,
+} = require("./deviceModelController");
+
+const router = express.Router();
+
+router.get("/", layDanhSachMauThietBi);
 
 module.exports = router;

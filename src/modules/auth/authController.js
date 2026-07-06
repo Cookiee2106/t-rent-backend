@@ -1,36 +1,92 @@
-const asyncHandler = require("../../utils/asyncHandler");
-const { successResponse, errorResponse } = require("../../utils/response");
-const authService = require("./authService");
+const {
+  dangKyService,
+  dangNhapService,
+  layNguoiDungHienTaiService,
+} = require("./authService");
 
-const register = asyncHandler(async (req, res) => {
-  const { ho_ten, email, so_dien_thoai, mat_khau } = req.body;
+// Đăng ký khách hàng
+async function dangKy(req, res) {
+  try {
+    const { ho_ten, email, so_dien_thoai, mat_khau, xac_nhan_mat_khau } =
+      req.body;
 
-  if (!ho_ten || !email || !mat_khau) {
-    return errorResponse(res, 400, "Vui lòng điền đầy đủ họ tên, email và mật khẩu");
+    if (!ho_ten || !email || !so_dien_thoai || !mat_khau || !xac_nhan_mat_khau) {
+      return res.status(400).json({
+        success: false,
+        message: "Vui lòng nhập đầy đủ thông tin",
+      });
+    }
+
+    if (mat_khau !== xac_nhan_mat_khau) {
+      return res.status(400).json({
+        success: false,
+        message: "Xác nhận mật khẩu không khớp",
+      });
+    }
+
+    const nguoiDung = await dangKyService(req.body);
+
+    res.json({
+      success: true,
+      message: "Đăng ký thành công",
+      data: nguoiDung,
+    });
+  } catch (loi) {
+    res.status(400).json({
+      success: false,
+      message: loi.message,
+    });
   }
+}
 
-  if (mat_khau.length < 6) {
-    return errorResponse(res, 400, "Mật khẩu phải có ít nhất 6 ký tự");
+// Đăng nhập
+async function dangNhap(req, res) {
+  try {
+    const { email, mat_khau } = req.body;
+
+    if (!email || !mat_khau) {
+      return res.status(400).json({
+        success: false,
+        message: "Vui lòng nhập email và mật khẩu",
+      });
+    }
+
+    const ketQua = await dangNhapService(req.body);
+
+    res.json({
+      success: true,
+      message: "Đăng nhập thành công",
+      token: ketQua.token,
+      data: ketQua.nguoiDung,
+    });
+  } catch (loi) {
+    res.status(400).json({
+      success: false,
+      message: loi.message,
+    });
   }
+}
 
-  const nguoi_dung = await authService.register({ ho_ten, email, so_dien_thoai, mat_khau });
+// Lấy thông tin người dùng hiện tại
+async function layNguoiDungHienTai(req, res) {
+  try {
+    const nguoiDung = await layNguoiDungHienTaiService(req.nguoiDung.id);
 
-  return successResponse(res, 201, "Đăng ký tài khoản thành công", nguoi_dung);
-});
-
-const login = asyncHandler(async (req, res) => {
-  const { email, mat_khau } = req.body;
-
-  if (!email || !mat_khau) {
-    return errorResponse(res, 400, "Vui lòng điền email và mật khẩu");
+    res.json({
+      success: true,
+      message: "Lấy thông tin thành công",
+      data: nguoiDung,
+    });
+  } catch (loi) {
+    res.status(400).json({
+      success: false,
+      message: loi.message,
+    });
   }
-
-  const ket_qua = await authService.login({ email, mat_khau });
-
-  return successResponse(res, 200, "Đăng nhập thành công", ket_qua);
-});
+}
 
 module.exports = {
-  register,
-  login,
+  dangKy,
+  dangNhap,
+  layNguoiDungHienTai,
 };
