@@ -4,7 +4,6 @@ const {
   layNguoiDungHienTaiService,
 } = require("./authService");
 
-// Đăng ký khách hàng
 async function dangKy(req, res) {
   try {
     const { ho_ten, email, so_dien_thoai, mat_khau, xac_nhan_mat_khau } =
@@ -39,7 +38,6 @@ async function dangKy(req, res) {
   }
 }
 
-// Đăng nhập
 async function dangNhap(req, res) {
   try {
     const { email, mat_khau } = req.body;
@@ -67,7 +65,6 @@ async function dangNhap(req, res) {
   }
 }
 
-// Lấy thông tin người dùng hiện tại
 async function layNguoiDungHienTai(req, res) {
   try {
     const nguoiDung = await layNguoiDungHienTaiService(req.nguoiDung.id);

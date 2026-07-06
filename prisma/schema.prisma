@@ -1,11 +1,10 @@
 generator client {
-  provider = "prisma-client-js"
-  output   = "../node_modules/.prisma/client"
+  provider        = "prisma-client-js"
+  previewFeatures = ["partialIndexes"]
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 model ban_giao_vat_pham {
@@ -26,6 +25,7 @@ model ban_giao_vat_pham {
   phu_kien              phu_kien?         @relation(fields: [phu_kien_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   thiet_bi_vat_ly       thiet_bi_vat_ly?  @relation(fields: [thiet_bi_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
+  @@unique([chi_tiet_don_thue_id, thiet_bi_id], map: "uq_ban_giao_vat_pham_chi_tiet_thiet_bi", where: raw("(thiet_bi_id IS NOT NULL)"))
   @@index([chi_tiet_don_thue_id], map: "idx_ban_giao_vat_pham_chi_tiet")
   @@index([phu_kien_id], map: "idx_ban_giao_vat_pham_phu_kien")
   @@index([thiet_bi_id], map: "idx_ban_giao_vat_pham_thiet_bi")
@@ -44,6 +44,8 @@ model bo_di_kem {
   mau_thiet_bi_bo_di_kem_mau_thiet_bi_phu_idTomau_thiet_bi   mau_thiet_bi?       @relation("bo_di_kem_mau_thiet_bi_phu_idTomau_thiet_bi", fields: [mau_thiet_bi_phu_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   phu_kien                                                   phu_kien?           @relation(fields: [phu_kien_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
+  @@unique([mau_thiet_bi_chinh_id, mau_thiet_bi_phu_id], map: "uq_bo_di_kem_mau_phu", where: raw("(mau_thiet_bi_phu_id IS NOT NULL)"))
+  @@unique([mau_thiet_bi_chinh_id, phu_kien_id], map: "uq_bo_di_kem_phu_kien", where: raw("(phu_kien_id IS NOT NULL)"))
   @@index([mau_thiet_bi_chinh_id], map: "idx_bo_di_kem_mau_chinh")
 }
 
@@ -184,7 +186,7 @@ model gio_hang {
 model ho_so_xac_minh {
   id                                                   String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   khach_hang_id                                        String              @db.Uuid
-  so_cccd                                              String              @db.VarChar(50)
+  so_cccd                                              String              @unique(map: "idx_ho_so_xac_minh_so_cccd_da_duyet", where: raw("(trang_thai = 203)")) @db.VarChar(50)
   anh_mat_truoc_url                                    String
   anh_mat_sau_url                                      String
   anh_cam_cccd_url                                     String
@@ -359,7 +361,7 @@ model thanh_toan {
   phien_thanh_toan_id String?           @db.Uuid
   so_tien             BigInt            @default(0)
   loai_dong_tien_id   Int
-  ma_giao_dich        String?           @db.VarChar(255)
+  ma_giao_dich        String?           @unique(map: "idx_thanh_toan_ma_giao_dich_unique", where: raw("(ma_giao_dich IS NOT NULL)")) @db.VarChar(255)
   nguoi_thuc_hien_id  String?           @db.Uuid
   ghi_chu             String?
   created_at          DateTime          @default(now()) @db.Timestamptz(6)
