@@ -1,13 +1,19 @@
+// Import các service auth
 const {
   dangKyService,
   dangNhapService,
-  layNguoiDungHienTaiService,
+  layThongTinCuaToiService,
 } = require("./authService");
 
 async function dangKy(req, res) {
   try {
-    const { ho_ten, email, so_dien_thoai, mat_khau, xac_nhan_mat_khau } =
-      req.body;
+    const {
+      ho_ten,
+      email,
+      so_dien_thoai,
+      mat_khau,
+      xac_nhan_mat_khau,
+    } = req.body;
 
     if (!ho_ten || !email || !so_dien_thoai || !mat_khau || !xac_nhan_mat_khau) {
       return res.status(400).json({
@@ -23,8 +29,14 @@ async function dangKy(req, res) {
       });
     }
 
-    const nguoiDung = await dangKyService(req.body);
+    if (!/^0[0-9]{9}$/.test(so_dien_thoai)) {
+      return res.status(400).json({
+        success: false,
+        message: "Số điện thoại không hợp lệ",
+      });
+    }
 
+    const nguoiDung = await dangKyService(req.body);
     res.json({
       success: true,
       message: "Đăng ký thành công",
@@ -41,7 +53,6 @@ async function dangKy(req, res) {
 async function dangNhap(req, res) {
   try {
     const { email, mat_khau } = req.body;
-
     if (!email || !mat_khau) {
       return res.status(400).json({
         success: false,
@@ -49,13 +60,11 @@ async function dangNhap(req, res) {
       });
     }
 
-    const ketQua = await dangNhapService(req.body);
-
+    const ketQua = await dangNhapService(email, mat_khau);
     res.json({
       success: true,
       message: "Đăng nhập thành công",
-      token: ketQua.token,
-      data: ketQua.nguoiDung,
+      data: ketQua,
     });
   } catch (loi) {
     res.status(400).json({
@@ -65,13 +74,12 @@ async function dangNhap(req, res) {
   }
 }
 
-async function layNguoiDungHienTai(req, res) {
+async function layThongTinCuaToi(req, res) {
   try {
-    const nguoiDung = await layNguoiDungHienTaiService(req.nguoiDung.id);
-
+    const nguoiDung = await layThongTinCuaToiService(req.nguoiDung.id);
     res.json({
       success: true,
-      message: "Lấy thông tin thành công",
+      message: "Lấy thông tin tài khoản thành công",
       data: nguoiDung,
     });
   } catch (loi) {
@@ -85,5 +93,5 @@ async function layNguoiDungHienTai(req, res) {
 module.exports = {
   dangKy,
   dangNhap,
-  layNguoiDungHienTai,
+  layThongTinCuaToi,
 };

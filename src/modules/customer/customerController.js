@@ -4,7 +4,6 @@ const {
   guiHoSoXacMinhService,
 } = require("./customerService");
 
-// Cập nhật thông tin cá nhân
 async function capNhatThongTinCaNhan(req, res) {
   try {
     const { ho_ten, so_dien_thoai, dia_chi } = req.body;
@@ -41,7 +40,6 @@ async function capNhatThongTinCaNhan(req, res) {
   }
 }
 
-// Lấy hồ sơ xác minh của tôi
 async function layHoSoXacMinhCuaToi(req, res) {
   try {
     const hoSo = await layHoSoXacMinhCuaToiService(req.nguoiDung.id);
@@ -59,13 +57,14 @@ async function layHoSoXacMinhCuaToi(req, res) {
   }
 }
 
-// Gửi hồ sơ xác minh
 async function guiHoSoXacMinh(req, res) {
   try {
     const { so_cccd } = req.body;
 
     const anhMatTruoc = req.files?.anh_mat_truoc?.[0];
+
     const anhMatSau = req.files?.anh_mat_sau?.[0];
+
     const anhCamCccd = req.files?.anh_cam_cccd?.[0];
 
     if (!so_cccd || !anhMatTruoc || !anhMatSau || !anhCamCccd) {

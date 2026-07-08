@@ -1,5 +1,4 @@
 const express = require("express");
-
 const authRoutes = require("../modules/auth/authRoutes");
 const deviceModelRoutes = require("../modules/deviceModels/deviceModelRoutes");
 const customerRoutes = require("../modules/customer/customerRoutes");

@@ -1,9 +1,10 @@
 const prisma = require("../../config/prisma");
 
-// Lấy danh sách hồ sơ xác minh
 async function layDanhSachHoSoXacMinhService(query) {
   const tuKhoa = query.tu_khoa || "";
+
   const mauTimKiem = `%${tuKhoa}%`;
+
   const trangThai = Number(query.trang_thai) || 0;
 
   const danhSachHoSo = await prisma.$queryRaw`
@@ -31,6 +32,7 @@ async function layDanhSachHoSoXacMinhService(query) {
       ON tt.id = hs.trang_thai
 
     WHERE nd.da_xoa_luc IS NULL
+      AND nd.vai_tro = 'KHACH_HANG'
       AND (
         ${tuKhoa} = ''
         OR nd.ho_ten ILIKE ${mauTimKiem}
@@ -48,7 +50,6 @@ async function layDanhSachHoSoXacMinhService(query) {
   return danhSachHoSo;
 }
 
-// Lấy chi tiết hồ sơ xác minh
 async function layChiTietHoSoXacMinhService(hoSoId) {
   const danhSachHoSo = await prisma.$queryRaw`
     SELECT
@@ -94,14 +95,12 @@ async function layChiTietHoSoXacMinhService(hoSoId) {
   return danhSachHoSo[0];
 }
 
-// Duyệt hồ sơ xác minh
 async function duyetHoSoXacMinhService(hoSoId, nguoiDuyetId) {
   const hoSo = await layChiTietHoSoXacMinhService(hoSoId);
 
   if (hoSo.trang_thai !== 202) {
     throw new Error("Hồ sơ đã được xử lý");
   }
-
   await prisma.$transaction(async (tx) => {
     await tx.$executeRaw`
       UPDATE ho_so_xac_minh
@@ -124,7 +123,6 @@ async function duyetHoSoXacMinhService(hoSoId, nguoiDuyetId) {
   return await layChiTietHoSoXacMinhService(hoSoId);
 }
 
-// Từ chối hồ sơ xác minh
 async function tuChoiHoSoXacMinhService(hoSoId, nguoiDuyetId, lyDoTuChoi) {
   const lyDo = lyDoTuChoi ? lyDoTuChoi.trim() : "";
 
