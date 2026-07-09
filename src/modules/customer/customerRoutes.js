@@ -1,16 +1,12 @@
 const express = require("express");
 const multer = require("multer");
-
 const {
   capNhatThongTinCaNhan,
   layHoSoXacMinhCuaToi,
   guiHoSoXacMinh,
 } = require("./customerController");
-
 const xacThucDangNhap = require("../../middlewares/authMiddleware");
-
 const router = express.Router();
-
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
@@ -19,9 +15,7 @@ const upload = multer({
 });
 
 router.put("/profile", xacThucDangNhap, capNhatThongTinCaNhan);
-
 router.get("/verification", xacThucDangNhap, layHoSoXacMinhCuaToi);
-
 router.post(
   "/verification",
   xacThucDangNhap,

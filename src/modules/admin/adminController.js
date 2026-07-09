@@ -5,7 +5,6 @@ const {
   tuChoiHoSoXacMinhService,
 } = require("./adminService");
 
-// Lấy danh sách hồ sơ xác minh
 async function layDanhSachHoSoXacMinh(req, res) {
   try {
     const danhSachHoSo = await layDanhSachHoSoXacMinhService(req.query);
@@ -23,7 +22,6 @@ async function layDanhSachHoSoXacMinh(req, res) {
   }
 }
 
-// Lấy chi tiết hồ sơ xác minh
 async function layChiTietHoSoXacMinh(req, res) {
   try {
     const hoSo = await layChiTietHoSoXacMinhService(req.params.id);
@@ -41,14 +39,12 @@ async function layChiTietHoSoXacMinh(req, res) {
   }
 }
 
-// Duyệt hồ sơ xác minh
 async function duyetHoSoXacMinh(req, res) {
   try {
     const hoSo = await duyetHoSoXacMinhService(
       req.params.id,
       req.nguoiDung.id
     );
-
     res.json({
       success: true,
       message: "Duyệt hồ sơ xác minh thành công",
@@ -62,7 +58,6 @@ async function duyetHoSoXacMinh(req, res) {
   }
 }
 
-// Từ chối hồ sơ xác minh
 async function tuChoiHoSoXacMinh(req, res) {
   try {
     const { ly_do_tu_choi } = req.body;

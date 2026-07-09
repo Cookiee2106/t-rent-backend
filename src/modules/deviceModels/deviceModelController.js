@@ -4,19 +4,16 @@ const {
 
 async function layDanhSachMauThietBi(req, res) {
   try {
-    const gioiHan = req.query.limit || 4;
-
-    const danhSachMauThietBi = await layDanhSachMauThietBiService(gioiHan);
-
+    const danhSach = await layDanhSachMauThietBiService();
     res.json({
       success: true,
       message: "Lấy danh sách mẫu thiết bị thành công",
-      data: danhSachMauThietBi,
+      data: danhSach,
     });
   } catch (loi) {
-    res.status(500).json({
+    res.status(400).json({
       success: false,
-      message: "Lỗi lấy danh sách mẫu thiết bị",
+      message: loi.message,
     });
   }
 }

@@ -1,10 +1,8 @@
 const prisma = require("../../config/prisma");
 
-async function layDanhSachMauThietBiService(gioiHan) {
-  const soLuong = Number(gioiHan) || 4;
-
-  const danhSachMauThietBi = await prisma.$queryRaw`
-    SELECT 
+async function layDanhSachMauThietBiService() {
+  const danhSach = await prisma.$queryRaw`
+    SELECT
       mtb.id,
       mtb.ten_hang,
       mtb.ten_mau,
@@ -13,15 +11,18 @@ async function layDanhSachMauThietBiService(gioiHan) {
       mtb.tien_coc::text AS tien_coc,
       dmtb.ten_danh_muc
     FROM mau_thiet_bi mtb
-    JOIN danh_muc_thiet_bi dmtb 
+
+    LEFT JOIN danh_muc_thiet_bi dmtb
       ON dmtb.id = mtb.danh_muc_id
+
     WHERE mtb.da_xoa_luc IS NULL
-      AND dmtb.da_xoa_luc IS NULL
+
     ORDER BY mtb.created_at DESC
-    LIMIT ${soLuong}
+
+    LIMIT 8
   `;
 
-  return danhSachMauThietBi;
+  return danhSach;
 }
 
 module.exports = {

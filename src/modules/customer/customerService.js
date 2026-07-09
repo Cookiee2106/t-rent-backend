@@ -1,10 +1,8 @@
 const prisma = require("../../config/prisma");
-
 const {
   taiAnhLenCloudinaryService,
 } = require("../uploads/uploadService");
 
-// Cập nhật thông tin cá nhân
 async function capNhatThongTinCaNhanService(nguoiDungId, duLieu) {
   const { ho_ten, so_dien_thoai, dia_chi } = duLieu;
 
@@ -53,8 +51,10 @@ async function capNhatThongTinCaNhanService(nguoiDungId, duLieu) {
       nd.trang_thai_xac_minh,
       tt_xm.ten_trang_thai AS ten_trang_thai_xac_minh
     FROM nguoi_dung_cap_nhat nd
+
     LEFT JOIN trang_thai_he_thong tt_tk
       ON tt_tk.id = nd.trang_thai
+
     LEFT JOIN trang_thai_he_thong tt_xm
       ON tt_xm.id = nd.trang_thai_xac_minh
   `;
@@ -66,7 +66,6 @@ async function capNhatThongTinCaNhanService(nguoiDungId, duLieu) {
   return danhSachNguoiDung[0];
 }
 
-// Lấy hồ sơ xác minh của tôi
 async function layHoSoXacMinhCuaToiService(nguoiDungId) {
   const danhSachHoSo = await prisma.$queryRaw`
     SELECT
@@ -114,6 +113,7 @@ async function layHoSoXacMinhCuaToiService(nguoiDungId) {
 
     WHERE nd.id = ${nguoiDungId}::uuid
       AND nd.da_xoa_luc IS NULL
+
     LIMIT 1
   `;
 
@@ -124,7 +124,6 @@ async function layHoSoXacMinhCuaToiService(nguoiDungId) {
   return danhSachHoSo[0];
 }
 
-// Gửi hồ sơ xác minh
 async function guiHoSoXacMinhService(nguoiDungId, duLieu) {
   const { so_cccd, anh_mat_truoc, anh_mat_sau, anh_cam_cccd } = duLieu;
 
