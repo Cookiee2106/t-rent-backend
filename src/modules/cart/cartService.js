@@ -29,7 +29,7 @@ async function checkAvailability(mauThietBiId, ngayNhan, ngayTra, requestedQty) 
 }
 
 // 1. View Cart
-async function getCartService(khachHangId) {
+async function layGioHangService(khachHangId) {
   // Find or create cart
   let cart = await prisma.$queryRaw`
     SELECT id FROM gio_hang WHERE khach_hang_id = ${khachHangId}::uuid LIMIT 1
@@ -79,7 +79,7 @@ async function getCartService(khachHangId) {
 }
 
 // 2. Add to Cart
-async function addToCartService(khachHangId, { mau_thiet_bi_id, so_luong, ngay_nhan, ngay_tra }) {
+async function themVaoGioHangService(khachHangId, { mau_thiet_bi_id, so_luong, ngay_nhan, ngay_tra }) {
   if (!mau_thiet_bi_id || !so_luong || !ngay_nhan || !ngay_tra) {
     throw new Error("Vui lòng cung cấp đầy đủ thông tin");
   }
@@ -96,7 +96,7 @@ async function addToCartService(khachHangId, { mau_thiet_bi_id, so_luong, ngay_n
   }
 
   // Find or create cart
-  const cartInfo = await getCartService(khachHangId);
+  const cartInfo = await layGioHangService(khachHangId);
   const gioHangId = cartInfo.gio_hang_id;
 
   // Check if equipment model exists and get price/deposit snapshots
@@ -156,7 +156,7 @@ async function addToCartService(khachHangId, { mau_thiet_bi_id, so_luong, ngay_n
 }
 
 // 3. Update Cart Item
-async function updateCartItemService(khachHangId, itemId, { so_luong, ngay_nhan, ngay_tra }) {
+async function capNhatSanPhamService(khachHangId, itemId, { so_luong, ngay_nhan, ngay_tra }) {
   // Verify item ownership
   const itemResult = await prisma.$queryRaw`
     SELECT ctgh.id, ctgh.mau_thiet_bi_id, ctgh.so_luong, ctgh.ngay_nhan, ctgh.ngay_tra, mtb.ten_mau
@@ -203,7 +203,7 @@ async function updateCartItemService(khachHangId, itemId, { so_luong, ngay_nhan,
 }
 
 // 4. Delete Cart Item
-async function deleteCartItemService(khachHangId, itemId) {
+async function xoaSanPhamService(khachHangId, itemId) {
   // Verify ownership before delete
   const itemResult = await prisma.$queryRaw`
     SELECT ctgh.id
@@ -225,7 +225,7 @@ async function deleteCartItemService(khachHangId, itemId) {
 }
 
 // 5. Checkout Cart Items
-async function checkoutService(khachHangId, { item_ids }) {
+async function datHangService(khachHangId, { item_ids }) {
   if (!item_ids || !Array.isArray(item_ids) || item_ids.length === 0) {
     throw new Error("Vui lòng chọn ít nhất một sản phẩm để đặt hàng");
   }
@@ -347,9 +347,9 @@ async function checkoutService(khachHangId, { item_ids }) {
 }
 
 module.exports = {
-  getCartService,
-  addToCartService,
-  updateCartItemService,
-  deleteCartItemService,
-  checkoutService
+  layGioHangService,
+  themVaoGioHangService,
+  capNhatSanPhamService,
+  xoaSanPhamService,
+  datHangService,
 };
