@@ -4,33 +4,54 @@ const {
   layChiTietHoSoXacMinh,
   duyetHoSoXacMinh,
   tuChoiHoSoXacMinh,
+  layDanhSachKhachHang,
+  layChiTietKhachHang,
 } = require("./adminController");
 const xacThucDangNhap = require("../../middlewares/authMiddleware");
 const kiemTraVaiTro = require("../../middlewares/roleMiddleware");
 const router = express.Router();
 
+const vaiTroNoiBo = ["NHAN_VIEN", "QUAN_TRI", "QUAN_TRI_VIEN"];
+
+router.get(
+  "/customers",
+  xacThucDangNhap,
+  kiemTraVaiTro(vaiTroNoiBo),
+  layDanhSachKhachHang
+);
+
+router.get(
+  "/customers/:id",
+  xacThucDangNhap,
+  kiemTraVaiTro(vaiTroNoiBo),
+  layChiTietKhachHang
+);
+
 router.get(
   "/verifications",
   xacThucDangNhap,
-  kiemTraVaiTro(["NHAN_VIEN", "QUAN_TRI_VIEN"]),
+  kiemTraVaiTro(vaiTroNoiBo),
   layDanhSachHoSoXacMinh
 );
+
 router.get(
   "/verifications/:id",
   xacThucDangNhap,
-  kiemTraVaiTro(["NHAN_VIEN", "QUAN_TRI_VIEN"]),
+  kiemTraVaiTro(vaiTroNoiBo),
   layChiTietHoSoXacMinh
 );
+
 router.put(
   "/verifications/:id/approve",
   xacThucDangNhap,
-  kiemTraVaiTro(["NHAN_VIEN", "QUAN_TRI_VIEN"]),
+  kiemTraVaiTro(vaiTroNoiBo),
   duyetHoSoXacMinh
 );
+
 router.put(
   "/verifications/:id/reject",
   xacThucDangNhap,
-  kiemTraVaiTro(["NHAN_VIEN", "QUAN_TRI_VIEN"]),
+  kiemTraVaiTro(vaiTroNoiBo),
   tuChoiHoSoXacMinh
 );
 

@@ -4,8 +4,10 @@ const routes = require("./routes");
 
 const app = express();
 
+app.set("trust proxy", 1);
+
 const danhSachCors = process.env.CORS_ORIGINS
-  ? process.env.CORS_ORIGINS.split(",")
+  ? process.env.CORS_ORIGINS.split(",").map((origin) => origin.trim())
   : ["http://localhost:5173"];
 
 app.use(
@@ -16,6 +18,7 @@ app.use(
 );
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 app.get("/", (req, res) => {
   res.json({
