@@ -18,8 +18,6 @@ async function layDanhSachMauThietBiService() {
     WHERE mtb.da_xoa_luc IS NULL
 
     ORDER BY mtb.created_at DESC
-
-    LIMIT 8
   `;
 
   return danhSach;
