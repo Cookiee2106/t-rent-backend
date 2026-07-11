@@ -117,6 +117,7 @@ model danh_muc_he_thong {
   thu_tu            Int                 @default(1)
   created_at        DateTime            @default(now()) @db.Timestamptz(6)
   danh_muc_thiet_bi danh_muc_thiet_bi[]
+  tep_don_thue      tep_don_thue[]
   thanh_toan        thanh_toan[]
 
   @@unique([nhom_danh_muc, ma_danh_muc], map: "uq_danh_muc_he_thong_nhom_ma")
@@ -337,21 +338,22 @@ model phu_kien {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model tep_don_thue {
-  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  don_thue_id     String      @db.Uuid
-  muc_dich        String      @db.VarChar(50)
-  ten_file_goc    String      @db.VarChar(255)
-  file_url        String
-  loai_file       String?     @db.VarChar(100)
-  kich_thuoc_file BigInt?
-  uploaded_by     String?     @db.Uuid
-  uploaded_at     DateTime    @default(now()) @db.Timestamptz(6)
-  updated_at      DateTime    @default(now()) @db.Timestamptz(6)
-  don_thue        don_thue    @relation(fields: [don_thue_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  nguoi_dung      nguoi_dung? @relation(fields: [uploaded_by], references: [id], onUpdate: NoAction)
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  don_thue_id       String            @db.Uuid
+  ten_file_goc      String            @db.VarChar(255)
+  file_url          String
+  loai_file         String?           @db.VarChar(100)
+  kich_thuoc_file   BigInt?
+  uploaded_by       String?           @db.Uuid
+  uploaded_at       DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime          @default(now()) @db.Timestamptz(6)
+  muc_dich_id       Int
+  danh_muc_he_thong danh_muc_he_thong @relation(fields: [muc_dich_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_tep_don_thue_muc_dich")
+  don_thue          don_thue          @relation(fields: [don_thue_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  nguoi_dung        nguoi_dung?       @relation(fields: [uploaded_by], references: [id], onUpdate: NoAction)
 
   @@index([don_thue_id], map: "idx_tep_don_thue_don")
-  @@index([muc_dich], map: "idx_tep_don_thue_muc_dich")
+  @@index([muc_dich_id], map: "idx_tep_don_thue_muc_dich_id")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.

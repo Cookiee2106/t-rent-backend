@@ -4,6 +4,8 @@ const deviceModelRoutes = require("../modules/deviceModels/deviceModelRoutes");
 const customerRoutes = require("../modules/customer/customerRoutes");
 const adminRoutes = require("../modules/admin/adminRoutes");
 const paymentRoutes = require("../modules/payments/paymentRoutes");
+const customerOrderRoutes = require("../modules/customerOrders/customerOrderRoutes");
+const settlementRoutes = require("../modules/settlements/settlementRoutes");
 
 const router = express.Router();
 
@@ -17,5 +19,7 @@ router.use("/admin", adminRoutes);
 // GET  /api/payment-sessions/:id
 // GET  /api/payment-return/vnpay
 router.use("/", paymentRoutes);
+router.use("/me/orders", customerOrderRoutes);
+router.use("/admin/settlements", settlementRoutes);
 
 module.exports = router;
