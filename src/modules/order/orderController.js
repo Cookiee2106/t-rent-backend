@@ -3,7 +3,6 @@ const {
   layChiTietDonThueService,
   layThietBiSanSangService,
   lapPhieuBanGiaoService,
-  layFileDonThueService,
 } = require("./orderService");
 
 // GET /api/admin/orders
@@ -58,22 +57,9 @@ async function lapPhieuBanGiao(req, res) {
   }
 }
 
-// GET /api/admin/orders/:id/files
-async function layFileDonThue(req, res) {
-  try {
-    const { muc_dich } = req.query;
-    const ketQua = await layFileDonThueService(req.params.id, muc_dich || null);
-
-    res.json({ success: true, message: "Lấy file đơn thuê thành công", data: ketQua });
-  } catch (loi) {
-    res.status(400).json({ success: false, message: loi.message });
-  }
-}
-
 module.exports = {
   layDanhSachDonThue,
   layChiTietDonThue,
   layThietBiSanSang,
   lapPhieuBanGiao,
-  layFileDonThue,
 };

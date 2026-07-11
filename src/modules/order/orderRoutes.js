@@ -7,7 +7,6 @@ const {
   layChiTietDonThue,
   layThietBiSanSang,
   lapPhieuBanGiao,
-  layFileDonThue,
 } = require("./orderController");
 
 const router = express.Router();
@@ -39,8 +38,5 @@ router.post(
   ]),
   lapPhieuBanGiao
 );
-
-// GET /api/admin/orders/:id/files
-router.get("/admin/orders/:id/files", xacThucDangNhap, kiemTraVaiTro(VAI_TRO_NHAN_VIEN), layFileDonThue);
 
 module.exports = router;

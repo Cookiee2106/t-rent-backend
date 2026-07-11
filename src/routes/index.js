@@ -5,7 +5,7 @@ const deviceModelRoutes = require("../modules/deviceModels/deviceModelRoutes");
 const cartRouter = require("../modules/cart/cartRoutes");
 const customerRoutes = require("../modules/customer/customerRoutes");
 const adminRoutes = require("../modules/admin/adminRoutes");
-const paymentRouter = require("../modules/payment/paymentRoutes");
+const paymentRouter = require("../modules/payments/paymentRoutes");
 const orderRouter = require("../modules/order/orderRoutes");
 
 const router = express.Router();

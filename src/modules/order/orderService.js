@@ -181,6 +181,17 @@ async function layChiTietDonThueService(donThueId) {
     ORDER BY tt.created_at ASC
   `;
 
+  const files = await prisma.$queryRaw`
+    SELECT
+      tdt.id, tdt.muc_dich_id, tdt.ten_file_goc, tdt.file_url,
+      tdt.loai_file, tdt.kich_thuoc_file::text,
+      nd.ho_ten AS ten_nguoi_upload, tdt.uploaded_at
+    FROM tep_don_thue tdt
+    LEFT JOIN nguoi_dung nd ON nd.id = tdt.uploaded_by
+    WHERE tdt.don_thue_id = ${donThueId}::uuid
+    ORDER BY tdt.uploaded_at DESC
+  `;
+
   return {
     ...don,
     tong_tien_thue: Number(don.tong_tien_thue),
@@ -201,6 +212,10 @@ async function layChiTietDonThueService(donThueId) {
     thanh_toan: thanhToan.map((t) => ({
       ...t,
       so_tien: Number(t.so_tien),
+    })),
+    tep_don_thue: files.map((f) => ({
+      ...f,
+      kich_thuoc_file: f.kich_thuoc_file ? Number(f.kich_thuoc_file) : null,
     })),
   };
 }
@@ -356,8 +371,8 @@ async function lapPhieuBanGiaoService(nhanVienId, donThueId, { ghi_chu_ban_giao,
       const r = hopDongUrls[i];
       const f = hopDongFiles[i];
       await tx.$executeRaw`
-        INSERT INTO tep_don_thue (id, don_thue_id, muc_dich, ten_file_goc, file_url, loai_file, kich_thuoc_file, uploaded_by, uploaded_at, updated_at)
-        VALUES (gen_random_uuid(), ${donThueId}::uuid, 'HOP_DONG_GIAY', ${f.originalname}, ${r.secure_url}, ${f.mimetype}, ${f.size}, ${nhanVienId}::uuid, NOW(), NOW())
+        INSERT INTO tep_don_thue (id, don_thue_id, muc_dich_id, ten_file_goc, file_url, loai_file, kich_thuoc_file, uploaded_by, uploaded_at, updated_at)
+        VALUES (gen_random_uuid(), ${donThueId}::uuid, 2601, ${f.originalname}, ${r.secure_url}, ${f.mimetype}, ${f.size}, ${nhanVienId}::uuid, NOW(), NOW())
       `;
     }
 
@@ -366,8 +381,8 @@ async function lapPhieuBanGiaoService(nhanVienId, donThueId, { ghi_chu_ban_giao,
       const r = anhBanGiaoUrls[i];
       const f = anhBanGiaoFiles[i];
       await tx.$executeRaw`
-        INSERT INTO tep_don_thue (id, don_thue_id, muc_dich, ten_file_goc, file_url, loai_file, kich_thuoc_file, uploaded_by, uploaded_at, updated_at)
-        VALUES (gen_random_uuid(), ${donThueId}::uuid, 'ANH_BAN_GIAO', ${f.originalname}, ${r.secure_url}, ${f.mimetype}, ${f.size}, ${nhanVienId}::uuid, NOW(), NOW())
+        INSERT INTO tep_don_thue (id, don_thue_id, muc_dich_id, ten_file_goc, file_url, loai_file, kich_thuoc_file, uploaded_by, uploaded_at, updated_at)
+        VALUES (gen_random_uuid(), ${donThueId}::uuid, 2602, ${f.originalname}, ${r.secure_url}, ${f.mimetype}, ${f.size}, ${nhanVienId}::uuid, NOW(), NOW())
       `;
     }
 
@@ -400,53 +415,9 @@ async function lapPhieuBanGiaoService(nhanVienId, donThueId, { ghi_chu_ban_giao,
   return { message: "Lập phiếu bàn giao thành công, đơn thuê chuyển sang ĐANG THUÊ" };
 }
 
-// -------------------------------------------------------
-// 5. GET /admin/orders/:id/files — Xem file của đơn thuê
-// -------------------------------------------------------
-async function layFileDonThueService(donThueId, muc_dich) {
-  const donTonTai = await prisma.$queryRaw`
-    SELECT id FROM don_thue WHERE id = ${donThueId}::uuid LIMIT 1
-  `;
-  if (donTonTai.length === 0) {
-    throw new Error("Đơn thuê không tồn tại");
-  }
-
-  let files;
-  if (muc_dich) {
-    files = await prisma.$queryRaw`
-      SELECT
-        tdt.id, tdt.muc_dich, tdt.ten_file_goc, tdt.file_url,
-        tdt.loai_file, tdt.kich_thuoc_file::text,
-        nd.ho_ten AS ten_nguoi_upload, tdt.uploaded_at
-      FROM tep_don_thue tdt
-      LEFT JOIN nguoi_dung nd ON nd.id = tdt.uploaded_by
-      WHERE tdt.don_thue_id = ${donThueId}::uuid
-        AND tdt.muc_dich = ${muc_dich}
-      ORDER BY tdt.uploaded_at DESC
-    `;
-  } else {
-    files = await prisma.$queryRaw`
-      SELECT
-        tdt.id, tdt.muc_dich, tdt.ten_file_goc, tdt.file_url,
-        tdt.loai_file, tdt.kich_thuoc_file::text,
-        nd.ho_ten AS ten_nguoi_upload, tdt.uploaded_at
-      FROM tep_don_thue tdt
-      LEFT JOIN nguoi_dung nd ON nd.id = tdt.uploaded_by
-      WHERE tdt.don_thue_id = ${donThueId}::uuid
-      ORDER BY tdt.uploaded_at DESC
-    `;
-  }
-
-  return files.map((f) => ({
-    ...f,
-    kich_thuoc_file: f.kich_thuoc_file ? Number(f.kich_thuoc_file) : null,
-  }));
-}
-
 module.exports = {
   layDanhSachDonThueService,
   layChiTietDonThueService,
   layThietBiSanSangService,
   lapPhieuBanGiaoService,
-  layFileDonThueService,
 };
