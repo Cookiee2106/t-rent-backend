@@ -146,12 +146,26 @@ function taoMaDon() {
   return `DT-${ngay}-${random}`;
 }
 
+// Tính số ngày thuê theo ngày, bỏ phần giờ.
+// Ví dụ: 13/7 đến 16/7 = 3 ngày.
 function tinhSoNgayThue(ngayNhan, ngayTra) {
   const batDau = new Date(ngayNhan);
   const ketThuc = new Date(ngayTra);
 
-  const soMs = ketThuc.getTime() - batDau.getTime();
-  const soNgay = Math.ceil(soMs / (1000 * 60 * 60 * 24));
+  const mocBatDau = new Date(
+    batDau.getFullYear(),
+    batDau.getMonth(),
+    batDau.getDate()
+  );
+
+  const mocKetThuc = new Date(
+    ketThuc.getFullYear(),
+    ketThuc.getMonth(),
+    ketThuc.getDate()
+  );
+
+  const soMsMotNgay = 24 * 60 * 60 * 1000;
+  const soNgay = Math.round((mocKetThuc - mocBatDau) / soMsMotNgay);
 
   return soNgay < 1 ? 1 : soNgay;
 }

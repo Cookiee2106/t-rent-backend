@@ -5,8 +5,10 @@ const deviceModelRoutes = require("../modules/deviceModels/deviceModelRoutes");
 const cartRouter = require("../modules/cart/cartRoutes");
 const customerRoutes = require("../modules/customer/customerRoutes");
 const adminRoutes = require("../modules/admin/adminRoutes");
-const paymentRouter = require("../modules/payments/paymentRoutes");
+const paymentRoutes = require("../modules/payments/paymentRoutes");
 const orderRouter = require("../modules/order/orderRoutes");
+const customerOrderRoutes = require("../modules/customerOrders/customerOrderRoutes");
+const settlementRoutes = require("../modules/settlements/settlementRoutes");
 
 const router = express.Router();
 
@@ -15,9 +17,17 @@ router.use("/equipment-models", deviceModelRoutes);
 router.use("/cart", cartRouter);
 router.use("/me", customerRoutes);
 router.use("/admin", adminRoutes);
-// Payment: /api/payment-sessions/:id & /api/payment-webhooks
-router.use("/", paymentRouter);
+
+// Payment:
+// POST /api/cart/checkout
+// GET  /api/payment-sessions/:id
+// GET  /api/payment-return/vnpay
+router.use("/", paymentRoutes);
+
 // Order management: /api/admin/orders, /api/admin/assets/available, etc.
 router.use("/", orderRouter);
+
+router.use("/me/orders", customerOrderRoutes);
+router.use("/admin/settlements", settlementRoutes);
 
 module.exports = router;
