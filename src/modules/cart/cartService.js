@@ -1,31 +1,110 @@
 const prisma = require("../../config/prisma");
 
-// Helper to check device model availability
-async function checkAvailability(mauThietBiId, ngayNhan, ngayTra, requestedQty) {
-  // 1. Get total usable physical devices (not deleted, not lost 505)
-  const physicalDevicesResult = await prisma.$queryRaw`
+// Helper to calculate available quantity of an equipment model
+async function tinhSoLuongKhaDungCuaMau(mauThietBiId, ngayNhan, ngayTra) {
+  // 1. Get total physical devices in state 501 (Sẵn sàng) and not deleted
+  const poolResult = await prisma.$queryRaw`
     SELECT COUNT(*)::int AS total
     FROM thiet_bi_vat_ly
     WHERE mau_thiet_bi_id = ${mauThietBiId}::uuid
+      AND trang_thai = 501
       AND da_xoa_luc IS NULL
-      AND trang_thai <> 505
   `;
-  const totalPhysical = physicalDevicesResult[0]?.total || 0;
+  const totalPhysical = poolResult[0]?.total || 0;
 
-  // 2. Sum the quantity of this model booked in overlapping active orders
-  const bookedQtyResult = await prisma.$queryRaw`
-    SELECT COALESCE(SUM(ctdt.so_luong), 0)::int AS total_booked
+  // 2. Get overlapping booked quantity from orders in state 1102 (Đã giữ chỗ)
+  // Both as main equipment model and secondary equipment model in bo_di_kem
+  const bookedResult = await prisma.$queryRaw`
+    SELECT (
+      SELECT COALESCE(SUM(ctdt.so_luong), 0)::int
+      FROM chi_tiet_don_thue ctdt
+      JOIN don_thue dt ON dt.id = ctdt.don_thue_id
+      WHERE ctdt.mau_thiet_bi_id = ${mauThietBiId}::uuid
+        AND dt.trang_thai = 1102
+        AND dt.ngay_nhan < ${ngayTra}::timestamptz
+        AND dt.ngay_tra > ${ngayNhan}::timestamptz
+    ) + (
+      SELECT COALESCE(SUM(ctdt.so_luong * bdk.so_luong), 0)::int
+      FROM chi_tiet_don_thue ctdt
+      JOIN don_thue dt ON dt.id = ctdt.don_thue_id
+      JOIN bo_di_kem bdk ON bdk.mau_thiet_bi_chinh_id = ctdt.mau_thiet_bi_id
+      WHERE bdk.mau_thiet_bi_phu_id = ${mauThietBiId}::uuid
+        AND dt.trang_thai = 1102
+        AND dt.ngay_nhan < ${ngayTra}::timestamptz
+        AND dt.ngay_tra > ${ngayNhan}::timestamptz
+    ) AS da_dat
+  `;
+  const totalBooked = bookedResult[0]?.da_dat || 0;
+
+  const available = totalPhysical - totalBooked;
+  return available > 0 ? available : 0;
+}
+
+// Helper to calculate available quantity of an accessory
+async function tinhSoLuongKhaDungCuaPhuKien(phuKienId, ngayNhan, ngayTra) {
+  // 1. Get total accessory quantity
+  const poolResult = await prisma.$queryRaw`
+    SELECT COALESCE(tong_so_luong, 0)::int AS total
+    FROM phu_kien
+    WHERE id = ${phuKienId}::uuid
+      AND da_xoa_luc IS NULL
+    LIMIT 1
+  `;
+  if (poolResult.length === 0) {
+    return 0;
+  }
+  const totalPhysical = poolResult[0].total;
+
+  // 2. Get overlapping booked quantity from bo_di_kem orders in state 1102
+  const bookedResult = await prisma.$queryRaw`
+    SELECT COALESCE(SUM(ctdt.so_luong * bdk.so_luong), 0)::int AS da_dat
     FROM chi_tiet_don_thue ctdt
     JOIN don_thue dt ON dt.id = ctdt.don_thue_id
-    WHERE ctdt.mau_thiet_bi_id = ${mauThietBiId}::uuid
-      AND dt.trang_thai IN (1102, 1103, 1105)
+    JOIN bo_di_kem bdk ON bdk.mau_thiet_bi_chinh_id = ctdt.mau_thiet_bi_id
+    WHERE bdk.phu_kien_id = ${phuKienId}::uuid
+      AND dt.trang_thai = 1102
       AND dt.ngay_nhan < ${ngayTra}::timestamptz
       AND dt.ngay_tra > ${ngayNhan}::timestamptz
   `;
-  const totalBooked = bookedQtyResult[0]?.total_booked || 0;
+  const totalBooked = bookedResult[0]?.da_dat || 0;
 
   const available = totalPhysical - totalBooked;
-  return available >= requestedQty;
+  return available > 0 ? available : 0;
+}
+
+// Helper to check main equipment model and its bo_di_kem availability
+async function checkAvailability(mauThietBiId, ngayNhan, ngayTra, requestedQty) {
+  // 1. Check main model availability
+  const mainAvailable = await tinhSoLuongKhaDungCuaMau(mauThietBiId, ngayNhan, ngayTra);
+  if (mainAvailable < requestedQty) {
+    return false;
+  }
+
+  // 2. Get bo_di_kem configured for this main model
+  const boDiKem = await prisma.$queryRaw`
+    SELECT id, so_luong, mau_thiet_bi_phu_id, phu_kien_id
+    FROM bo_di_kem
+    WHERE mau_thiet_bi_chinh_id = ${mauThietBiId}::uuid
+  `;
+
+  // 3. Verify each component in bo_di_kem is available
+  for (const item of boDiKem) {
+    const requiredQty = Number(item.so_luong) * requestedQty;
+    if (item.mau_thiet_bi_phu_id) {
+      const phuAvailable = await tinhSoLuongKhaDungCuaMau(item.mau_thiet_bi_phu_id, ngayNhan, ngayTra);
+      if (phuAvailable < requiredQty) {
+        return false;
+      }
+    }
+    if (item.phu_kien_id) {
+      const pkAvailable = await tinhSoLuongKhaDungCuaPhuKien(item.phu_kien_id, ngayNhan, ngayTra);
+      if (pkAvailable < requiredQty) {
+        return false;
+      }
+    }
+  }
+
+  return true;
 }
 
 // 1. View Cart
