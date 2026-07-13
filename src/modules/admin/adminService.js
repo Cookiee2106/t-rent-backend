@@ -156,6 +156,11 @@ async function layDanhSachKhachHangService(query) {
   const tuKhoa = query.tu_khoa || "";
   const mauTimKiem = `%${tuKhoa}%`;
   const trangThai = Number(query.trang_thai) || 0;
+
+  const tuNgayGui = query.tu_ngay_gui || null;
+  const denNgayGui = query.den_ngay_gui || null;
+  const sapXepNgayGui = query.sap_xep_ngay_gui || "moi_nhat";
+
   const danhSachKhachHang = await prisma.$queryRaw`
     SELECT
       nd.id,
@@ -200,13 +205,13 @@ async function layDanhSachKhachHangService(query) {
 
     WHERE nd.vai_tro = 'KHACH_HANG'
       AND nd.da_xoa_luc IS NULL
-      -- AND hs.id IS NOT NULL
 
       AND (
         ${tuKhoa} = ''
         OR nd.ho_ten ILIKE ${mauTimKiem}
         OR nd.email ILIKE ${mauTimKiem}
         OR nd.so_dien_thoai ILIKE ${mauTimKiem}
+        OR hs.so_cccd ILIKE ${mauTimKiem}
       )
 
       AND (
@@ -214,7 +219,26 @@ async function layDanhSachKhachHangService(query) {
         OR nd.trang_thai_xac_minh = ${trangThai}::int
       )
 
-    ORDER BY COALESCE(hs.created_at, nd.created_at) DESC
+      AND (
+        ${tuNgayGui}::date IS NULL
+        OR hs.created_at::date >= ${tuNgayGui}::date
+      )
+
+      AND (
+        ${denNgayGui}::date IS NULL
+        OR hs.created_at::date <= ${denNgayGui}::date
+      )
+
+    ORDER BY
+      CASE 
+        WHEN ${sapXepNgayGui} = 'cu_nhat'
+        THEN COALESCE(hs.created_at, nd.created_at)
+      END ASC,
+
+      CASE 
+        WHEN ${sapXepNgayGui} <> 'cu_nhat'
+        THEN COALESCE(hs.created_at, nd.created_at)
+      END DESC
   `;
 
   return danhSachKhachHang;
@@ -278,6 +302,87 @@ async function layChiTietKhachHangService(khachHangId) {
   return danhSachKhachHang[0];
 }
 
+/*
+  KHÓA / MỞ KHÓA TÀI KHOẢN KHÁCH HÀNG
+*/
+
+/*
+async function capNhatTrangThaiKhachHangService(khachHangId, trangThaiMoi) {
+  const TRANG_THAI_HOAT_DONG = 101;
+  const TRANG_THAI_BI_KHOA = 102;
+
+  const trangThai = Number(trangThaiMoi);
+
+  if (
+    trangThai !== TRANG_THAI_HOAT_DONG &&
+    trangThai !== TRANG_THAI_BI_KHOA
+  ) {
+    throw new Error("Trạng thái tài khoản không hợp lệ");
+  }
+
+  const danhSachKhachHang = await prisma.$queryRaw`
+    UPDATE nguoi_dung
+    SET
+      trang_thai = ${trangThai},
+      updated_at = NOW()
+    WHERE id = ${khachHangId}::uuid
+      AND vai_tro = 'KHACH_HANG'
+      AND da_xoa_luc IS NULL
+    RETURNING
+      id,
+      ho_ten,
+      email,
+      so_dien_thoai,
+      dia_chi,
+      trang_thai
+  `;
+
+  if (danhSachKhachHang.length === 0) {
+    throw new Error("Không tìm thấy khách hàng");
+  }
+
+  return danhSachKhachHang[0];
+}
+*/
+
+/*
+  XEM LỊCH SỬ HỒ SƠ XÁC MINH
+*/
+
+/*
+async function layLichSuHoSoXacMinhService(khachHangId) {
+  const danhSachHoSo = await prisma.$queryRaw`
+    SELECT
+      hs.id,
+      hs.khach_hang_id,
+      hs.so_cccd,
+      hs.anh_mat_truoc_url,
+      hs.anh_mat_sau_url,
+      hs.anh_cam_cccd_url,
+      hs.trang_thai AS trang_thai_ho_so,
+      tt.ten_trang_thai AS ten_trang_thai_ho_so,
+      hs.ly_do_tu_choi,
+      hs.nguoi_duyet_id,
+      nd.ho_ten AS ten_nguoi_duyet,
+      hs.duyet_luc,
+      hs.created_at AS ngay_gui
+    FROM ho_so_xac_minh hs
+
+    LEFT JOIN trang_thai_he_thong tt
+      ON tt.id = hs.trang_thai
+
+    LEFT JOIN nguoi_dung nd
+      ON nd.id = hs.nguoi_duyet_id
+
+    WHERE hs.khach_hang_id = ${khachHangId}::uuid
+
+    ORDER BY hs.created_at DESC
+  `;
+
+  return danhSachHoSo;
+}
+*/
+
 module.exports = {
   layDanhSachHoSoXacMinhService,
   layChiTietHoSoXacMinhService,
@@ -285,4 +390,10 @@ module.exports = {
   tuChoiHoSoXacMinhService,
   layDanhSachKhachHangService,
   layChiTietKhachHangService,
+
+  // KHÓA / MỞ KHÓA TÀI KHOẢN
+  // capNhatTrangThaiKhachHangService,
+
+  // XEM LỊCH SỬ HỒ SƠ XÁC MINH
+  // layLichSuHoSoXacMinhService,
 };

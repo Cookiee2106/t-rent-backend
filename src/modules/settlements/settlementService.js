@@ -1,57 +1,26 @@
-// Import prisma để query PostgreSQL bằng raw SQL.
 const prisma = require("../../config/prisma");
-
-// Import cấu hình Cloudinary.
 const cloudinaryConfig = require("../../config/cloudinary");
 
-// Lấy object cloudinary.
-// Dòng này hỗ trợ cả kiểu export trực tiếp và export { cloudinary }.
 const cloudinary = cloudinaryConfig.uploader
   ? cloudinaryConfig
   : cloudinaryConfig.cloudinary;
 
-// ================= TRẠNG THÁI ĐƠN THUÊ =================
-
-// 1103 = Đang thuê.
 const TRANG_THAI_DANG_THUE = 1103;
-
-// 1104 = Hoàn thành.
 const TRANG_THAI_HOAN_THANH = 1104;
-
-// 1105 = Quá hạn.
 const TRANG_THAI_QUA_HAN = 1105;
 
-// ================= TRẠNG THÁI THIẾT BỊ =================
-
-// 501 = Sẵn sàng.
 const THIET_BI_SAN_SANG = 501;
+const THIET_BI_DANG_THUE = 502;
 
-// ================= LOẠI DÒNG TIỀN =================
-
-// 2301 = Tiền cọc khách đã thanh toán online.
 const LOAI_TIEN_COC = 2301;
-
-// 2303 = Hoàn cọc.
 const LOAI_HOAN_COC = 2303;
-
-// 2304 = Khấu trừ cọc.
 const LOAI_KHAU_TRU_COC = 2304;
-
-// 2305 = Phụ thu.
 const LOAI_PHU_THU = 2305;
 
-// ================= MỤC ĐÍCH FILE ĐƠN THUÊ =================
-
-// 2601 = Hợp đồng giấy.
 const MUC_DICH_HOP_DONG_GIAY = 2601;
-
-// 2602 = Ảnh bàn giao.
 const MUC_DICH_ANH_BAN_GIAO = 2602;
-
-// 2603 = Ảnh khi trả.
 const MUC_DICH_ANH_KHI_TRA = 2603;
 
-// Tự cập nhật đơn đang thuê thành quá hạn nếu đã quá ngày trả.
 async function capNhatDonQuaHanNoiBo() {
   await prisma.$executeRaw`
     UPDATE don_thue
@@ -64,36 +33,28 @@ async function capNhatDonQuaHanNoiBo() {
   `;
 }
 
-// Upload ảnh khi trả lên Cloudinary.
 async function uploadAnhKhiTra(file) {
-  // Cloudinary upload_stream dùng callback, nên bọc bằng Promise.
   return new Promise((resolve, reject) => {
-    // Tạo stream upload ảnh.
     const stream = cloudinary.uploader.upload_stream(
       {
         folder: "t-rent/orders/returns",
         resource_type: "image",
       },
       (loi, ketQua) => {
-        // Nếu upload lỗi thì reject.
         if (loi) {
           reject(loi);
           return;
         }
 
-        // Nếu upload thành công thì resolve kết quả.
         resolve(ketQua);
       }
     );
 
-    // Đẩy file buffer từ multer vào stream.
     stream.end(file.buffer);
   });
 }
 
-// Lấy tiền cọc đã thanh toán online của đúng đơn.
 async function layTienCocDaThanhToan(tx, donThueId) {
-  // Chỉ lấy tiền cọc của đúng don_thue_id và đúng loại 2301.
   const ketQua = await tx.$queryRaw`
     SELECT COALESCE(SUM(so_tien), 0)::text AS tong_tien_coc
     FROM thanh_toan
@@ -101,13 +62,10 @@ async function layTienCocDaThanhToan(tx, donThueId) {
       AND loai_dong_tien_id = ${LOAI_TIEN_COC}
   `;
 
-  // Trả số tiền cọc dạng number.
   return Number(ketQua[0].tong_tien_coc || 0);
 }
 
-// Kiểm tra đơn đã có dòng tiền thanh lý chưa.
 async function kiemTraDaCoThanhLy(tx, donThueId) {
-  // Nếu đã có hoàn cọc/khấu trừ/phụ thu thì không cho thanh lý lại.
   const ketQua = await tx.$queryRaw`
     SELECT COUNT(*)::int AS so_dong
     FROM thanh_toan
@@ -119,18 +77,21 @@ async function kiemTraDaCoThanhLy(tx, donThueId) {
       )
   `;
 
-  // true nghĩa là đã có dòng tiền thanh lý.
   return Number(ketQua[0].so_dong || 0) > 0;
 }
 
-// Ghi một dòng tiền vào bảng thanh_toan.
-async function taoDongTien(tx, donThue, nguoiDungId, soTien, loaiDongTienId, ghiChu) {
-  // Nếu số tiền <= 0 thì không cần insert.
-  if (soTien <= 0) {
-    return;
-  }
+async function taoDongTien(
+  tx,
+  donThue,
+  nguoiDungId,
+  soTien,
+  loaiDongTienId,
+  ghiChu
+) {
+  if (soTien <= 0) return;
 
-  // Insert dòng tiền hoàn cọc/khấu trừ/phụ thu.
+  const phienThanhToanId = donThue.phien_thanh_toan_id || null;
+
   await tx.$executeRaw`
     INSERT INTO thanh_toan (
       don_thue_id,
@@ -142,7 +103,7 @@ async function taoDongTien(tx, donThue, nguoiDungId, soTien, loaiDongTienId, ghi
     )
     VALUES (
       ${donThue.id}::uuid,
-      ${donThue.phien_thanh_toan_id}::uuid,
+      ${phienThanhToanId}::uuid,
       ${soTien},
       ${loaiDongTienId},
       ${nguoiDungId}::uuid,
@@ -151,35 +112,23 @@ async function taoDongTien(tx, donThue, nguoiDungId, soTien, loaiDongTienId, ghi
   `;
 }
 
-// Tạo object vật phẩm bàn giao.
-// Giữ đúng tên cột trong DB: ten_vat_pham_snapshot, so_serial_snapshot...
 function taoVatPhamBanGiao(dong) {
   return {
     ten_vat_pham_snapshot: dong.ten_vat_pham_snapshot,
     ma_tai_san_snapshot: dong.ma_tai_san_snapshot,
     so_serial_snapshot: dong.so_serial_snapshot,
     so_luong_giao: Number(dong.so_luong_giao || 1),
-    tinh_trang_truoc: dong.tinh_trang_truoc,
-    ghi_chu_ban_giao: dong.ghi_chu_ban_giao,
+    vi_tri_luu_tru: dong.vi_tri_luu_tru || null,
+    //tinh_trang_truoc: dong.tinh_trang_truoc,
   };
 }
 
-// Gom dữ liệu bàn giao theo mẫu thiết bị.
-// Cách mặc định:
-// - 1 mẫu thiết bị = 1 object.
-// - Nếu Canon thuê số lượng 2 thì vẫn trả 1 object Canon.
-// - thiet_bi_chinh là mảng, có thể có 2 thiết bị chính.
-// - bo_di_kem là mảng bộ đi kèm của mẫu đó.
 function gomSanPhamKemSerial(danhSachBanGiao) {
-  // Map dùng để gom theo chi_tiet_don_thue_id.
   const mapMau = new Map();
 
-  // Duyệt từng dòng bàn giao.
   for (const dong of danhSachBanGiao) {
-    // Mỗi chi_tiet_don_thue_id là một mẫu thiết bị trong đơn.
     const key = dong.chi_tiet_don_thue_id;
 
-    // Nếu chưa có mẫu này thì tạo mới.
     if (!mapMau.has(key)) {
       mapMau.set(key, {
         chi_tiet_don_thue_id: dong.chi_tiet_don_thue_id,
@@ -192,46 +141,28 @@ function gomSanPhamKemSerial(danhSachBanGiao) {
       });
     }
 
-    // Lấy mẫu hiện tại trong map.
     const mau = mapMau.get(key);
-
-    // Thiết bị chính là dòng có thiet_bi_id và không có bo_di_kem_id.
     const laThietBiChinh = dong.thiet_bi_id && !dong.bo_di_kem_id;
 
-    // Nếu là thiết bị chính thì thêm vào mảng thiet_bi_chinh.
     if (laThietBiChinh) {
       mau.thiet_bi_chinh.push(taoVatPhamBanGiao(dong));
     } else {
-      // Còn lại là bộ đi kèm.
       mau.bo_di_kem.push(taoVatPhamBanGiao(dong));
     }
   }
 
-  // Trả về mảng mẫu thiết bị đã gom.
   return Array.from(mapMau.values());
 }
 
-// Hàm phụ: tách từng thiết bị chính thành từng object riêng.
-// Hiện tại KHÔNG dùng mặc định.
-// Khi thầy yêu cầu:
-// Canon EOS R6 Mark II thuê số lượng 2
-// thì API trả:
-// - Canon EOS R6 Mark II #1
-// - Canon EOS R6 Mark II #2
-//
-// Muốn dùng thì đổi dòng gọi hàm trong layChiTietThanhLyService.
-function gomSanPhamKemSerialTachTungThietBi(danhSachBanGiao) {
-  // Map dùng để gom dữ liệu thô theo chi_tiet_don_thue_id.
-  const mapMau = new Map();
+//GOM THEO TỪNG THIẾT BỊ 
+function gomTheoTungThietBi(danhSachBanGiao) {
+  const mapChiTiet = new Map();
 
-  // Duyệt từng dòng bàn giao.
   for (const dong of danhSachBanGiao) {
-    // Mỗi chi_tiet_don_thue_id là một mẫu thiết bị trong đơn.
     const key = dong.chi_tiet_don_thue_id;
 
-    // Nếu mẫu chưa tồn tại thì tạo mới.
-    if (!mapMau.has(key)) {
-      mapMau.set(key, {
+    if (!mapChiTiet.has(key)) {
+      mapChiTiet.set(key, {
         chi_tiet_don_thue_id: dong.chi_tiet_don_thue_id,
         ten_hang: dong.ten_hang,
         ten_mau: dong.ten_mau,
@@ -242,137 +173,67 @@ function gomSanPhamKemSerialTachTungThietBi(danhSachBanGiao) {
       });
     }
 
-    // Lấy mẫu hiện tại.
-    const mau = mapMau.get(key);
-
-    // Thiết bị chính là dòng có thiet_bi_id và không có bo_di_kem_id.
+    const nhom = mapChiTiet.get(key);
     const laThietBiChinh = dong.thiet_bi_id && !dong.bo_di_kem_id;
 
-    // Nếu là thiết bị chính thì lưu vào thiet_bi_chinh.
     if (laThietBiChinh) {
-      mau.thiet_bi_chinh.push(dong);
+      nhom.thiet_bi_chinh.push(taoVatPhamBanGiao(dong));
     } else {
-      // Còn lại là bộ đi kèm.
-      mau.bo_di_kem.push(dong);
+      nhom.bo_di_kem.push(taoVatPhamBanGiao(dong));
     }
   }
 
-  // Mảng kết quả sau khi tách.
   const ketQua = [];
 
-  // Duyệt từng mẫu thiết bị.
-  for (const mau of mapMau.values()) {
-    // Số bảng/card cần tạo.
-    // Nếu có 2 thiết bị chính thì tạo 2 bảng/card.
-    const soBang = Math.max(mau.thiet_bi_chinh.length, mau.so_luong_dat);
+  for (const nhom of mapChiTiet.values()) {
+    const danhSachThietBiChinh = nhom.thiet_bi_chinh;
+    const danhSachBoDiKem = nhom.bo_di_kem;
 
-    // Gom bộ đi kèm theo từng loại.
-    const mapBoDiKem = new Map();
+    if (danhSachThietBiChinh.length === 0) {
+      ketQua.push({
+        chi_tiet_don_thue_id: nhom.chi_tiet_don_thue_id,
+        ten_hang: nhom.ten_hang,
+        ten_mau: nhom.ten_mau,
+        ten_danh_muc: nhom.ten_danh_muc,
+        so_luong_dat: nhom.so_luong_dat,
+        so_thu_tu_thiet_bi: null,
+        ten_hien_thi: `${nhom.ten_hang || ""} ${nhom.ten_mau || ""}`.trim(),
+        thiet_bi_chinh: [],
+        bo_di_kem: danhSachBoDiKem,
+      });
 
-    // Duyệt các dòng bộ đi kèm.
-    for (const dong of mau.bo_di_kem) {
-      // Ưu tiên gom theo bo_di_kem_id.
-      // Nếu không có thì gom theo phu_kien_id.
-      // Nếu vẫn không có thì gom theo tên snapshot.
-      const key =
-        dong.bo_di_kem_id ||
-        dong.phu_kien_id ||
-        dong.ten_vat_pham_snapshot;
-
-      // Nếu chưa có nhóm này thì tạo mảng.
-      if (!mapBoDiKem.has(key)) {
-        mapBoDiKem.set(key, []);
-      }
-
-      // Thêm dòng bộ đi kèm vào nhóm.
-      mapBoDiKem.get(key).push(dong);
+      continue;
     }
 
-    // Tạo từng bảng/card.
-    for (let i = 0; i < soBang; i++) {
-      // Lấy thiết bị chính theo vị trí.
-      const thietBiChinhDong = mau.thiet_bi_chinh[i];
+    for (let i = 0; i < danhSachThietBiChinh.length; i++) {
+      const thietBiChinh = danhSachThietBiChinh[i];
 
-      // Mảng bộ đi kèm của bảng/card hiện tại.
-      const boDiKemCuaBang = [];
+      const boDiKemCuaThietBi = danhSachBoDiKem.filter((_, index) => {
+        return index % danhSachThietBiChinh.length === i;
+      });
 
-      // Duyệt từng nhóm bộ đi kèm.
-      for (const nhomBoDiKem of mapBoDiKem.values()) {
-        // Kiểm tra nhóm này có serial hoặc mã tài sản không.
-        const coSerial = nhomBoDiKem.some(
-          (item) => item.so_serial_snapshot || item.ma_tai_san_snapshot
-        );
-
-        // Nếu có serial/mã tài sản thì lấy theo đúng vị trí bảng.
-        // Ví dụ lens #1 vào Canon #1, lens #2 vào Canon #2.
-        if (coSerial) {
-          const dongTheoBang = nhomBoDiKem[i];
-
-          // Nếu có item cho bảng này thì thêm vào.
-          if (dongTheoBang) {
-            boDiKemCuaBang.push(taoVatPhamBanGiao(dongTheoBang));
-          }
-        } else {
-          // Nếu không có serial thì là phụ kiện số lượng.
-          // Ví dụ 2 túi cho 2 Canon thì mỗi bảng hiện 1 túi.
-          const dongDaiDien = nhomBoDiKem[0];
-
-          // Tính tổng số lượng của phụ kiện này.
-          const tongSoLuong = nhomBoDiKem.reduce((tong, item) => {
-            return tong + Number(item.so_luong_giao || 0);
-          }, 0);
-
-          // Chia số lượng phụ kiện cho từng bảng.
-          const soLuongMoiBang =
-            tongSoLuong >= soBang
-              ? Math.ceil(tongSoLuong / soBang)
-              : tongSoLuong;
-
-          // Tạo object phụ kiện.
-          const vatPham = taoVatPhamBanGiao(dongDaiDien);
-
-          // Gán lại số lượng đã chia.
-          vatPham.so_luong_giao = soLuongMoiBang;
-
-          // Thêm phụ kiện vào bảng/card hiện tại.
-          boDiKemCuaBang.push(vatPham);
-        }
-      }
-
-      // Thêm một object đã tách vào kết quả.
       ketQua.push({
-        chi_tiet_don_thue_id: mau.chi_tiet_don_thue_id,
-        ten_hang: mau.ten_hang,
-        ten_mau: mau.ten_mau,
-        ten_danh_muc: mau.ten_danh_muc,
-
-        // Sau khi tách thì mỗi object đại diện cho 1 thiết bị chính.
-        so_luong_dat: 1,
-
-        // FE có thể dùng dòng này làm tiêu đề bảng/card.
-        ten_hien_thi: `${mau.ten_mau} #${i + 1}`,
-
-        // Sau khi tách thì thiet_bi_chinh vẫn để dạng mảng cho FE ít phải sửa.
-        thiet_bi_chinh: thietBiChinhDong
-          ? [taoVatPhamBanGiao(thietBiChinhDong)]
-          : [],
-
-        // Bộ đi kèm tương ứng với thiết bị chính này.
-        bo_di_kem: boDiKemCuaBang,
+        chi_tiet_don_thue_id: nhom.chi_tiet_don_thue_id,
+        ten_hang: nhom.ten_hang,
+        ten_mau: nhom.ten_mau,
+        ten_danh_muc: nhom.ten_danh_muc,
+        so_luong_dat: nhom.so_luong_dat,
+        so_thu_tu_thiet_bi: i + 1,
+        ten_hien_thi: `${nhom.ten_hang || ""} ${nhom.ten_mau || ""} #${
+          i + 1
+        }`.trim(),
+        thiet_bi_chinh: [thietBiChinh],
+        bo_di_kem: boDiKemCuaThietBi,
       });
     }
   }
 
-  // Trả kết quả đã tách.
   return ketQua;
 }
 
-// Lấy danh sách đơn thanh lý.
 async function layDanhSachThanhLyService() {
-  // Cập nhật đơn quá hạn trước khi lấy danh sách.
   await capNhatDonQuaHanNoiBo();
 
-  // Lấy danh sách đơn đang thuê, quá hạn và hoàn thành.
   const danhSach = await prisma.$queryRaw`
     SELECT
       dt.id,
@@ -416,16 +277,12 @@ async function layDanhSachThanhLyService() {
     ORDER BY dt.created_at DESC
   `;
 
-  // Trả danh sách cho controller.
   return danhSach;
 }
 
-// Lấy chi tiết đơn thanh lý.
 async function layChiTietThanhLyService(donThueId) {
-  // Cập nhật quá hạn trước khi xem chi tiết.
   await capNhatDonQuaHanNoiBo();
 
-  // Lấy thông tin đơn, khách hàng, bàn giao, thanh lý và các tổng tiền.
   const danhSachDon = await prisma.$queryRaw`
     SELECT
       dt.id,
@@ -503,15 +360,12 @@ async function layChiTietThanhLyService(donThueId) {
     LIMIT 1
   `;
 
-  // Nếu không tìm thấy đơn thì báo lỗi.
   if (danhSachDon.length === 0) {
     throw new Error("Không tìm thấy đơn thuê");
   }
 
-  // Lấy đơn đầu tiên.
   const donThue = danhSachDon[0];
 
-  // Chỉ đơn đã bàn giao mới được xem ở chức năng thanh lý.
   if (
     donThue.trang_thai !== TRANG_THAI_DANG_THUE &&
     donThue.trang_thai !== TRANG_THAI_QUA_HAN &&
@@ -520,7 +374,6 @@ async function layChiTietThanhLyService(donThueId) {
     throw new Error("Đơn này chưa bàn giao nên chưa thể thanh lý");
   }
 
-  // Lấy chi tiết mẫu thiết bị trong đơn.
   const chiTietDon = await prisma.$queryRaw`
     SELECT
       ctdt.id,
@@ -545,7 +398,6 @@ async function layChiTietThanhLyService(donThueId) {
     ORDER BY ctdt.created_at ASC
   `;
 
-  // Lấy vật phẩm đã bàn giao theo đúng tên cột DB.
   const danhSachBanGiao = await prisma.$queryRaw`
     SELECT
       ctdt.id AS chi_tiet_don_thue_id,
@@ -562,8 +414,14 @@ async function layChiTietThanhLyService(donThueId) {
       bgvp.ma_tai_san_snapshot,
       bgvp.so_serial_snapshot,
       bgvp.so_luong_giao,
-      bgvp.tinh_trang_truoc,
-      bgvp.ghi_chu_ban_giao,
+
+      -- CODE CŨ - ĐÃ BỎ TÌNH TRẠNG
+      -- Trước đây thanh lý lấy tình trạng bàn giao từ dòng này.
+      -- Hiện tại không dùng nữa, chỉ dùng ghi chú bàn giao chung.
+      -- bgvp.tinh_trang_truoc,
+
+      tbvl.vi_tri_luu_tru,
+
       bgvp.created_at
     FROM ban_giao_vat_pham bgvp
 
@@ -576,6 +434,9 @@ async function layChiTietThanhLyService(donThueId) {
     LEFT JOIN danh_muc_thiet_bi dmtb
       ON dmtb.id = mtb.danh_muc_id
 
+    LEFT JOIN thiet_bi_vat_ly tbvl
+      ON tbvl.id = bgvp.thiet_bi_id
+
     WHERE ctdt.don_thue_id = ${donThueId}::uuid
 
     ORDER BY
@@ -583,27 +444,12 @@ async function layChiTietThanhLyService(donThueId) {
       bgvp.created_at ASC
   `;
 
-  // ================= CÁCH GOM MẶC ĐỊNH =================
-  // Mặc định: 1 mẫu thiết bị = 1 object.
-  // Ví dụ Canon thuê số lượng 2 thì Canon vẫn là 1 object,
-  // bên trong thiet_bi_chinh có 2 dòng.
+  // Gom theo mẫu thiết bị.
   const sanPhamKemSerial = gomSanPhamKemSerial(danhSachBanGiao);
 
-  // ================= CÁCH GOM PHỤ KHI THẦY YÊU CẦU =================
-  // Nếu thầy yêu cầu tách từng thiết bị chính thành từng bảng/card riêng,
-  // thì comment dòng mặc định ở trên lại và mở dòng dưới ra.
-  //
-  // Ví dụ:
-  // Canon EOS R6 Mark II #1
-  // Canon EOS R6 Mark II #2
-  // Sony A7 IV #1
-  //
-  // const sanPhamKemSerial = gomSanPhamKemSerialTachTungThietBi(danhSachBanGiao);
+  // Gom theo từng thiết bị.
+  //const sanPhamKemSerial = gomTheoTungThietBi(danhSachBanGiao);
 
-  // Lấy file/ảnh của đơn thuê:
-  // 2601 = Hợp đồng giấy.
-  // 2602 = Ảnh bàn giao.
-  // 2603 = Ảnh khi trả.
   const tepDonThue = await prisma.$queryRaw`
     SELECT
       tdt.id,
@@ -634,7 +480,6 @@ async function layChiTietThanhLyService(donThueId) {
     ORDER BY tdt.muc_dich_id ASC, tdt.uploaded_at ASC
   `;
 
-  // Lấy toàn bộ dòng tiền của đúng đơn.
   const thanhToan = await prisma.$queryRaw`
     SELECT
       tt.id,
@@ -659,7 +504,6 @@ async function layChiTietThanhLyService(donThueId) {
     ORDER BY tt.created_at ASC
   `;
 
-  // Trả dữ liệu chi tiết cho FE.
   return {
     don_thue: donThue,
     chi_tiet_don: chiTietDon,
@@ -669,12 +513,9 @@ async function layChiTietThanhLyService(donThueId) {
   };
 }
 
-// Lập phiếu trả / thanh lý đơn.
 async function lapPhieuTraService(nguoiDungId, donThueId, body, files) {
-  // Cập nhật quá hạn trước khi xử lý.
   await capNhatDonQuaHanNoiBo();
 
-  // Lấy đơn cần thanh lý.
   const danhSachDon = await prisma.$queryRaw`
     SELECT
       id,
@@ -686,20 +527,16 @@ async function lapPhieuTraService(nguoiDungId, donThueId, body, files) {
     LIMIT 1
   `;
 
-  // Nếu không có đơn thì báo lỗi.
   if (danhSachDon.length === 0) {
     throw new Error("Không tìm thấy đơn thuê");
   }
 
-  // Lấy đơn đầu tiên.
   const donThue = danhSachDon[0];
 
-  // Nếu đơn đã hoàn thành thì không cho thanh lý lại.
   if (donThue.trang_thai === TRANG_THAI_HOAN_THANH) {
     throw new Error("Đơn thuê đã thanh lý trước đó");
   }
 
-  // Chỉ đơn đang thuê hoặc quá hạn mới được thanh lý.
   if (
     donThue.trang_thai !== TRANG_THAI_DANG_THUE &&
     donThue.trang_thai !== TRANG_THAI_QUA_HAN
@@ -707,33 +544,25 @@ async function lapPhieuTraService(nguoiDungId, donThueId, body, files) {
     throw new Error("Chỉ được thanh lý đơn đang thuê hoặc quá hạn");
   }
 
-  // Bắt buộc upload ít nhất 1 ảnh khi trả.
   if (!files || files.length === 0) {
     throw new Error("Vui lòng upload ít nhất 1 ảnh khi trả");
   }
 
-  // Lấy hình thức xử lý cọc từ body.
   const hinhThuc = body.hinh_thuc_xu_ly_coc;
-
-  // Lấy số tiền nhập từ body.
   const soTienNhap = Number(body.so_tien || 0);
 
-  // Lấy lý do phát sinh nếu có.
   const lyDoPhatSinh = body.phi_phat_sinh_ly_do
     ? body.phi_phat_sinh_ly_do.trim()
     : null;
 
-  // Lấy ghi chú thanh lý.
   const ghiChuThanhLy = body.ghi_chu_thanh_ly
     ? body.ghi_chu_thanh_ly.trim()
     : "";
 
-  // Ghi chú thanh lý bắt buộc nhập.
   if (!ghiChuThanhLy) {
     throw new Error("Vui lòng nhập ghi chú thanh lý");
   }
 
-  // Hình thức xử lý cọc phải hợp lệ.
   if (
     hinhThuc !== "HOAN_COC" &&
     hinhThuc !== "KHAU_TRU_COC" &&
@@ -742,7 +571,6 @@ async function lapPhieuTraService(nguoiDungId, donThueId, body, files) {
     throw new Error("Vui lòng chọn hình thức xử lý cọc");
   }
 
-  // Nếu là khấu trừ hoặc phụ thu thì bắt buộc nhập số tiền và lý do.
   if (hinhThuc !== "HOAN_COC") {
     if (soTienNhap <= 0) {
       throw new Error("Vui lòng nhập số tiền khấu trừ/phụ thu");
@@ -753,15 +581,11 @@ async function lapPhieuTraService(nguoiDungId, donThueId, body, files) {
     }
   }
 
-  // Mảng lưu ảnh sau khi upload Cloudinary.
   const danhSachAnh = [];
 
-  // Upload từng ảnh khi trả.
   for (const file of files) {
-    // Upload ảnh lên Cloudinary.
     const upload = await uploadAnhKhiTra(file);
 
-    // Lưu thông tin ảnh đã upload.
     danhSachAnh.push({
       ten_file_goc: file.originalname,
       file_url: upload.secure_url,
@@ -770,42 +594,28 @@ async function lapPhieuTraService(nguoiDungId, donThueId, body, files) {
     });
   }
 
-  // Dùng transaction để đảm bảo dữ liệu đồng bộ.
   const ketQua = await prisma.$transaction(async (tx) => {
-    // Lấy tiền cọc thật đã thanh toán của đúng đơn.
     const tienCocDaThanhToan = await layTienCocDaThanhToan(tx, donThueId);
 
-    // Nếu không có tiền cọc thì không thể thanh lý.
     if (tienCocDaThanhToan <= 0) {
       throw new Error("Đơn này chưa có tiền cọc đã thanh toán");
     }
 
-    // Kiểm tra đơn đã có dòng tiền thanh lý chưa.
     const daThanhLy = await kiemTraDaCoThanhLy(tx, donThueId);
 
-    // Nếu đã thanh lý rồi thì không cho thanh lý lại.
     if (daThanhLy) {
       throw new Error("Đơn này đã có dòng tiền thanh lý");
     }
 
-    // Khởi tạo tiền hoàn cọc.
     let tienHoanCoc = 0;
-
-    // Khởi tạo tiền khấu trừ.
     let tienKhauTru = 0;
-
-    // Khởi tạo tiền phụ thu.
     let tienPhuThu = 0;
-
-    // Khởi tạo tổng phí phát sinh.
     let tongPhiPhatSinh = 0;
 
-    // Hoàn cọc: hoàn toàn bộ tiền cọc đã thanh toán.
     if (hinhThuc === "HOAN_COC") {
       tienHoanCoc = tienCocDaThanhToan;
     }
 
-    // Khấu trừ cọc: trừ một phần, phần còn lại hoàn.
     if (hinhThuc === "KHAU_TRU_COC") {
       if (soTienNhap > tienCocDaThanhToan) {
         throw new Error(
@@ -818,14 +628,12 @@ async function lapPhieuTraService(nguoiDungId, donThueId, body, files) {
       tongPhiPhatSinh = tienKhauTru;
     }
 
-    // Phụ thu: giữ toàn bộ cọc và thu thêm số tiền nhập.
     if (hinhThuc === "PHU_THU") {
       tienKhauTru = tienCocDaThanhToan;
       tienPhuThu = soTienNhap;
       tongPhiPhatSinh = tienCocDaThanhToan + soTienNhap;
     }
 
-    // Cập nhật thông tin thanh lý vào đơn thuê.
     const donCapNhat = await tx.$queryRaw`
       UPDATE don_thue
       SET
@@ -847,7 +655,6 @@ async function lapPhieuTraService(nguoiDungId, donThueId, body, files) {
         phi_phat_sinh_ly_do
     `;
 
-    // Ghi dòng tiền khấu trừ nếu có.
     await taoDongTien(
       tx,
       donThue,
@@ -857,7 +664,6 @@ async function lapPhieuTraService(nguoiDungId, donThueId, body, files) {
       lyDoPhatSinh || "Khấu trừ tiền cọc"
     );
 
-    // Ghi dòng tiền hoàn cọc nếu có.
     await taoDongTien(
       tx,
       donThue,
@@ -867,7 +673,6 @@ async function lapPhieuTraService(nguoiDungId, donThueId, body, files) {
       ghiChuThanhLy
     );
 
-    // Ghi dòng tiền phụ thu nếu có.
     await taoDongTien(
       tx,
       donThue,
@@ -877,7 +682,6 @@ async function lapPhieuTraService(nguoiDungId, donThueId, body, files) {
       lyDoPhatSinh || "Phụ thu khi thanh lý"
     );
 
-    // Lưu từng ảnh khi trả vào bảng tep_don_thue.
     for (const anh of danhSachAnh) {
       await tx.$executeRaw`
         INSERT INTO tep_don_thue (
@@ -888,8 +692,7 @@ async function lapPhieuTraService(nguoiDungId, donThueId, body, files) {
           loai_file,
           kich_thuoc_file,
           uploaded_by,
-          uploaded_at,
-          updated_at
+          uploaded_at
         )
         VALUES (
           ${donThueId}::uuid,
@@ -899,14 +702,11 @@ async function lapPhieuTraService(nguoiDungId, donThueId, body, files) {
           ${anh.loai_file},
           ${anh.kich_thuoc_file},
           ${nguoiDungId}::uuid,
-          NOW(),
           NOW()
         )
       `;
     }
 
-    // Cập nhật thiết bị vật lý đã trả về sẵn sàng.
-    // Phần hư hỏng/bảo trì sẽ làm sau.
     await tx.$executeRaw`
       UPDATE thiet_bi_vat_ly
       SET
@@ -924,7 +724,6 @@ async function lapPhieuTraService(nguoiDungId, donThueId, body, files) {
       )
     `;
 
-    // Trả kết quả sau khi thanh lý.
     return {
       don_thue: donCapNhat[0],
       tien_coc_da_thanh_toan: tienCocDaThanhToan,
@@ -936,13 +735,287 @@ async function lapPhieuTraService(nguoiDungId, donThueId, body, files) {
     };
   });
 
-  // Trả kết quả transaction.
   return ketQua;
 }
 
-// Export service cho controller dùng.
+/*
+  CẬP NHẬT THANH LÝ
+
+  Có 2 kiểu dùng:
+  1. Chỉ sửa ghi chú / lý do:
+     body = {
+       ghi_chu_thanh_ly,
+       phi_phat_sinh_ly_do
+     }
+
+  2. Sửa lại tiền xử lý cọc:
+     body = {
+       hinh_thuc_xu_ly_coc,
+       so_tien,
+       phi_phat_sinh_ly_do
+     }
+*/
+
+/*
+async function capNhatThanhLyService(nguoiDungId, donThueId, body) {
+  const danhSachDon = await prisma.$queryRaw`
+    SELECT
+      id,
+      ma_don,
+      phien_thanh_toan_id,
+      trang_thai
+    FROM don_thue
+    WHERE id = ${donThueId}::uuid
+    LIMIT 1
+  `;
+
+  if (danhSachDon.length === 0) {
+    throw new Error("Không tìm thấy đơn thuê");
+  }
+
+  const donThue = danhSachDon[0];
+
+  if (Number(donThue.trang_thai) !== TRANG_THAI_HOAN_THANH) {
+    throw new Error("Chỉ được cập nhật đơn đã thanh lý");
+  }
+
+  const coSuaTien = !!body.hinh_thuc_xu_ly_coc;
+
+  if (!coSuaTien) {
+    const ghiChuThanhLy = body.ghi_chu_thanh_ly
+      ? body.ghi_chu_thanh_ly.trim()
+      : "";
+
+    const lyDoPhatSinh = body.phi_phat_sinh_ly_do
+      ? body.phi_phat_sinh_ly_do.trim()
+      : null;
+
+    await prisma.$executeRaw`
+      UPDATE don_thue
+      SET
+        ghi_chu_thanh_ly = ${ghiChuThanhLy},
+        phi_phat_sinh_ly_do = ${lyDoPhatSinh},
+        updated_at = NOW()
+      WHERE id = ${donThueId}::uuid
+    `;
+
+    return {
+      message: "Cập nhật ghi chú thanh lý thành công",
+    };
+  }
+
+  const hinhThuc = body.hinh_thuc_xu_ly_coc;
+  const soTienNhap = Number(body.so_tien || 0);
+
+  const lyDoPhatSinh = body.phi_phat_sinh_ly_do
+    ? body.phi_phat_sinh_ly_do.trim()
+    : null;
+
+  if (
+    hinhThuc !== "HOAN_COC" &&
+    hinhThuc !== "KHAU_TRU_COC" &&
+    hinhThuc !== "PHU_THU"
+  ) {
+    throw new Error("Vui lòng chọn hình thức xử lý cọc");
+  }
+
+  if (hinhThuc !== "HOAN_COC") {
+    if (soTienNhap <= 0) {
+      throw new Error("Vui lòng nhập số tiền khấu trừ/phụ thu");
+    }
+
+    if (!lyDoPhatSinh) {
+      throw new Error("Vui lòng nhập lý do phát sinh");
+    }
+  }
+
+  const ketQua = await prisma.$transaction(async (tx) => {
+    const tienCocDaThanhToan = await layTienCocDaThanhToan(tx, donThueId);
+
+    if (tienCocDaThanhToan <= 0) {
+      throw new Error("Đơn này chưa có tiền cọc đã thanh toán");
+    }
+
+    let tienHoanCoc = 0;
+    let tienKhauTru = 0;
+    let tienPhuThu = 0;
+    let tongPhiPhatSinh = 0;
+
+    if (hinhThuc === "HOAN_COC") {
+      tienHoanCoc = tienCocDaThanhToan;
+    }
+
+    if (hinhThuc === "KHAU_TRU_COC") {
+      if (soTienNhap > tienCocDaThanhToan) {
+        throw new Error(
+          "Số tiền khấu trừ không được lớn hơn tiền cọc. Nếu vượt cọc thì chọn phụ thu"
+        );
+      }
+
+      tienKhauTru = soTienNhap;
+      tienHoanCoc = tienCocDaThanhToan - soTienNhap;
+      tongPhiPhatSinh = tienKhauTru;
+    }
+
+    if (hinhThuc === "PHU_THU") {
+      tienKhauTru = tienCocDaThanhToan;
+      tienPhuThu = soTienNhap;
+      tongPhiPhatSinh = tienCocDaThanhToan + soTienNhap;
+    }
+
+    await tx.$executeRaw`
+      DELETE FROM thanh_toan
+      WHERE don_thue_id = ${donThueId}::uuid
+        AND loai_dong_tien_id IN (
+          ${LOAI_HOAN_COC},
+          ${LOAI_KHAU_TRU_COC},
+          ${LOAI_PHU_THU}
+        )
+    `;
+
+    await taoDongTien(
+      tx,
+      donThue,
+      nguoiDungId,
+      tienKhauTru,
+      LOAI_KHAU_TRU_COC,
+      lyDoPhatSinh || "Khấu trừ tiền cọc"
+    );
+
+    await taoDongTien(
+      tx,
+      donThue,
+      nguoiDungId,
+      tienHoanCoc,
+      LOAI_HOAN_COC,
+      "Cập nhật hoàn cọc"
+    );
+
+    await taoDongTien(
+      tx,
+      donThue,
+      nguoiDungId,
+      tienPhuThu,
+      LOAI_PHU_THU,
+      lyDoPhatSinh || "Phụ thu khi thanh lý"
+    );
+
+    await tx.$executeRaw`
+      UPDATE don_thue
+      SET
+        phi_phat_sinh_tien = ${tongPhiPhatSinh},
+        phi_phat_sinh_ly_do = ${lyDoPhatSinh},
+        updated_at = NOW()
+      WHERE id = ${donThueId}::uuid
+    `;
+
+    return {
+      tien_coc_da_thanh_toan: tienCocDaThanhToan,
+      tien_hoan_coc: tienHoanCoc,
+      tien_khau_tru: tienKhauTru,
+      tien_phu_thu: tienPhuThu,
+      tong_phi_phat_sinh: tongPhiPhatSinh,
+    };
+  });
+
+  return {
+    message: "Cập nhật thanh lý thành công",
+    data: ketQua,
+  };
+}
+*/
+
+/*
+  HỦY THANH LÝ
+
+  Khi hủy:
+  - Xóa dòng tiền hoàn cọc / khấu trừ / phụ thu.
+  - Xóa ảnh khi trả.
+  - Đưa đơn từ Hoàn thành về Đang thuê.
+  - Đưa thiết bị vật lý từ Sẵn sàng về Đang thuê.
+*/
+
+/*
+async function huyThanhLyService(donThueId) {
+  const danhSachDon = await prisma.$queryRaw`
+    SELECT
+      id,
+      ma_don,
+      trang_thai
+    FROM don_thue
+    WHERE id = ${donThueId}::uuid
+    LIMIT 1
+  `;
+
+  if (danhSachDon.length === 0) {
+    throw new Error("Không tìm thấy đơn thuê");
+  }
+
+  const donThue = danhSachDon[0];
+
+  if (Number(donThue.trang_thai) !== TRANG_THAI_HOAN_THANH) {
+    throw new Error("Chỉ được hủy thanh lý với đơn đã hoàn thành");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`
+      DELETE FROM thanh_toan
+      WHERE don_thue_id = ${donThueId}::uuid
+        AND loai_dong_tien_id IN (
+          ${LOAI_HOAN_COC},
+          ${LOAI_KHAU_TRU_COC},
+          ${LOAI_PHU_THU}
+        )
+    `;
+
+    await tx.$executeRaw`
+      DELETE FROM tep_don_thue
+      WHERE don_thue_id = ${donThueId}::uuid
+        AND muc_dich_id = ${MUC_DICH_ANH_KHI_TRA}
+    `;
+
+    await tx.$executeRaw`
+      UPDATE don_thue
+      SET
+        tra_luc = NULL,
+        nguoi_nhan_tra_id = NULL,
+        ghi_chu_thanh_ly = NULL,
+        phi_phat_sinh_tien = 0,
+        phi_phat_sinh_ly_do = NULL,
+        trang_thai = ${TRANG_THAI_DANG_THUE},
+        updated_at = NOW()
+      WHERE id = ${donThueId}::uuid
+    `;
+
+    await tx.$executeRaw`
+      UPDATE thiet_bi_vat_ly
+      SET
+        trang_thai = ${THIET_BI_DANG_THUE},
+        updated_at = NOW()
+      WHERE id IN (
+        SELECT bgvp.thiet_bi_id
+        FROM ban_giao_vat_pham bgvp
+
+        JOIN chi_tiet_don_thue ctdt
+          ON ctdt.id = bgvp.chi_tiet_don_thue_id
+
+        WHERE ctdt.don_thue_id = ${donThueId}::uuid
+          AND bgvp.thiet_bi_id IS NOT NULL
+      )
+    `;
+  });
+
+  return {
+    message: "Hủy thanh lý thành công",
+  };
+}
+*/
+
 module.exports = {
   layDanhSachThanhLyService,
   layChiTietThanhLyService,
   lapPhieuTraService,
+
+  // capNhatThanhLyService,
+  // huyThanhLyService,
 };

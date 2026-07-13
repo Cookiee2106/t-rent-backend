@@ -5,6 +5,13 @@ const {
   tuChoiHoSoXacMinhService,
   layDanhSachKhachHangService,
   layChiTietKhachHangService,
+
+  //KHÓA / MỞ KHÓA TÀI KHOẢN
+  // capNhatTrangThaiKhachHangService,
+
+  // XEM LỊCH SỬ HỒ SƠ XÁC MINH
+  // layLichSuHoSoXacMinhService,
+
 } = require("./adminService");
 
 async function layDanhSachHoSoXacMinh(req, res) {
@@ -111,6 +118,55 @@ async function layChiTietKhachHang(req, res) {
   }
 }
 
+/*
+  KHÓA / MỞ KHÓA TÀI KHOẢN KHÁCH HÀNG
+*/
+
+/*
+async function capNhatTrangThaiKhachHang(req, res) {
+  try {
+    const khachHang = await capNhatTrangThaiKhachHangService(
+      req.params.id,
+      req.body.trang_thai
+    );
+
+    res.json({
+      success: true,
+      message: "Cập nhật trạng thái tài khoản khách hàng thành công",
+      data: khachHang,
+    });
+  } catch (loi) {
+    res.status(400).json({
+      success: false,
+      message: loi.message,
+    });
+  }
+}
+*/
+
+/*
+ XEM LỊCH SỬ HỒ SƠ XÁC MINH
+*/
+
+/*
+async function layLichSuHoSoXacMinh(req, res) {
+  try {
+    const danhSachHoSo = await layLichSuHoSoXacMinhService(req.params.id);
+
+    res.json({
+      success: true,
+      message: "Lấy lịch sử hồ sơ xác minh thành công",
+      data: danhSachHoSo,
+    });
+  } catch (loi) {
+    res.status(400).json({
+      success: false,
+      message: loi.message,
+    });
+  }
+}
+*/
+
 module.exports = {
   layDanhSachHoSoXacMinh,
   layChiTietHoSoXacMinh,
@@ -118,4 +174,10 @@ module.exports = {
   tuChoiHoSoXacMinh,
   layDanhSachKhachHang,
   layChiTietKhachHang,
+
+  // KHÓA / MỞ KHÓA TÀI KHOẢN
+  // capNhatTrangThaiKhachHang,
+
+  // LỊCH SỬ HỒ SƠ XÁC MINH
+  // layLichSuHoSoXacMinh,
 };

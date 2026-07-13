@@ -6,29 +6,24 @@ function kiemTraNgayHopLe(ngay) {
 
 // Hàm kiểm tra ngày nhận và ngày trả.
 function kiemTraNgayThue(ngayNhan, ngayTra) {
-  // Nếu thiếu một trong hai ngày thì báo lỗi.
   if (!ngayNhan || !ngayTra) {
     throw new Error("Vui lòng chọn đủ ngày nhận và ngày trả");
   }
 
-  // Nếu ngày nhận hoặc ngày trả không hợp lệ thì báo lỗi.
   if (!kiemTraNgayHopLe(ngayNhan) || !kiemTraNgayHopLe(ngayTra)) {
     throw new Error("Ngày nhận hoặc ngày trả không hợp lệ");
   }
 
-  // Lấy ngày hôm nay theo dạng yyyy-mm-dd.
   const homNay = new Date();
   const nam = homNay.getFullYear();
   const thang = String(homNay.getMonth() + 1).padStart(2, "0");
   const ngay = String(homNay.getDate()).padStart(2, "0");
   const ngayHomNay = `${nam}-${thang}-${ngay}`;
 
-  // Nếu ngày nhận hoặc ngày trả nhỏ hơn hôm nay thì báo lỗi.
   if (ngayNhan < ngayHomNay || ngayTra < ngayHomNay) {
     throw new Error("Ngày nhận và ngày trả không được là ngày trong quá khứ");
   }
 
-  // Nếu ngày trả nhỏ hơn hoặc bằng ngày nhận thì báo lỗi.
   if (new Date(ngayTra) <= new Date(ngayNhan)) {
     throw new Error("Ngày trả phải sau ngày nhận");
   }
@@ -45,7 +40,7 @@ async function tinhSoLuongDaDatCuaMau(mauThietBiId, ngayNhan, ngayTra) {
           ON dt.id = ctdt.don_thue_id
 
         WHERE ctdt.mau_thiet_bi_id = ${mauThietBiId}::uuid
-          AND dt.trang_thai IN (1102, 1103, 1105)
+          AND dt.trang_thai = 1102
           AND dt.ngay_nhan < ${ngayTra}::timestamptz
           AND dt.ngay_tra > ${ngayNhan}::timestamptz
       )
@@ -61,7 +56,7 @@ async function tinhSoLuongDaDatCuaMau(mauThietBiId, ngayNhan, ngayTra) {
           ON bdk.mau_thiet_bi_chinh_id = ctdt.mau_thiet_bi_id
 
         WHERE bdk.mau_thiet_bi_phu_id = ${mauThietBiId}::uuid
-          AND dt.trang_thai IN (1102, 1103, 1105)
+          AND dt.trang_thai = 1102
           AND dt.ngay_nhan < ${ngayTra}::timestamptz
           AND dt.ngay_tra > ${ngayNhan}::timestamptz
       ) AS da_dat
@@ -75,17 +70,17 @@ async function tinhSoLuongKhaDungCuaMau(mauThietBiId, ngayNhan, ngayTra) {
     SELECT COUNT(*)::int AS tong
     FROM thiet_bi_vat_ly
     WHERE mau_thiet_bi_id = ${mauThietBiId}::uuid
-      AND trang_thai IN (501, 502)
+      AND trang_thai = 501
       AND da_xoa_luc IS NULL
   `;
 
-  const soLuongDaDat = await tinhSoLuongDaDatCuaMau(
+  const soLuongDaGiuCho = await tinhSoLuongDaDatCuaMau(
     mauThietBiId,
     ngayNhan,
     ngayTra
   );
 
-  const soLuongConLai = Number(tongThietBi[0].tong) - soLuongDaDat;
+  const soLuongConLai = Number(tongThietBi[0].tong) - soLuongDaGiuCho;
 
   return soLuongConLai > 0 ? soLuongConLai : 0;
 }

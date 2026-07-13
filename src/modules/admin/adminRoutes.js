@@ -6,6 +6,12 @@ const {
   tuChoiHoSoXacMinh,
   layDanhSachKhachHang,
   layChiTietKhachHang,
+
+  // KHÓA / MỞ KHÓA TÀI KHOẢN
+  // capNhatTrangThaiKhachHang,
+
+  // XEM LỊCH SỬ HỒ SƠ XÁC MINH
+  // layLichSuHoSoXacMinh,
 } = require("./adminController");
 const xacThucDangNhap = require("../../middlewares/authMiddleware");
 const kiemTraVaiTro = require("../../middlewares/roleMiddleware");
@@ -54,5 +60,31 @@ router.put(
   kiemTraVaiTro(vaiTroNoiBo),
   tuChoiHoSoXacMinh
 );
+
+/*
+  XEM LỊCH SỬ HỒ SƠ XÁC MINH
+*/
+
+/*
+router.get(
+  "/customers/:id/verification-history",
+  xacThucDangNhap,
+  kiemTraVaiTro(vaiTroNoiBo),
+  layLichSuHoSoXacMinh
+);
+*/
+
+/*
+  KHÓA / MỞ KHÓA TÀI KHOẢN KHÁCH HÀNG
+*/
+
+/*
+router.put(
+  "/customers/:id/status",
+  xacThucDangNhap,
+  kiemTraVaiTro(vaiTroNoiBo),
+  capNhatTrangThaiKhachHang
+);
+*/
 
 module.exports = router;
