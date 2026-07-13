@@ -156,8 +156,7 @@ async function layChiTietDonThueService(donThueId) {
       bgvp.ten_vat_pham_snapshot,
       bgvp.ma_tai_san_snapshot,
       bgvp.so_serial_snapshot,
-      bgvp.so_luong_giao,
-      bgvp.tinh_trang_truoc
+      bgvp.so_luong_giao
     FROM ban_giao_vat_pham bgvp
     LEFT JOIN thiet_bi_vat_ly tbvl ON tbvl.id = bgvp.thiet_bi_id
     LEFT JOIN phu_kien pk ON pk.id = bgvp.phu_kien_id
@@ -237,7 +236,6 @@ async function layThietBiSanSangService({ mau_thiet_bi_id, ngay_nhan, ngay_tra }
         tbvl.id,
         tbvl.ma_tai_san,
         tbvl.so_serial,
-        tbvl.tinh_trang,
         tbvl.vi_tri_luu_tru,
         tbvl.trang_thai,
         tths.ten_trang_thai
@@ -265,7 +263,6 @@ async function layThietBiSanSangService({ mau_thiet_bi_id, ngay_nhan, ngay_tra }
       tbvl.id,
       tbvl.ma_tai_san,
       tbvl.so_serial,
-      tbvl.tinh_trang,
       tbvl.vi_tri_luu_tru,
       tbvl.trang_thai,
       tths.ten_trang_thai
@@ -390,7 +387,7 @@ async function lapPhieuBanGiaoService(nhanVienId, donThueId, { ghi_chu_ban_giao,
 
       // Query database để kiểm tra mẫu mã và trạng thái thiết bị vật lý (Không tin snapshot FE)
       const tbResult = await prisma.$queryRaw`
-        SELECT tb.id, tb.mau_thiet_bi_id, tb.ma_tai_san, tb.so_serial, tb.tinh_trang, tb.trang_thai,
+        SELECT tb.id, tb.mau_thiet_bi_id, tb.ma_tai_san, tb.so_serial, tb.trang_thai,
                mtb.ten_hang, mtb.ten_mau
         FROM thiet_bi_vat_ly tb
         JOIN mau_thiet_bi mtb ON mtb.id = tb.mau_thiet_bi_id
@@ -424,8 +421,7 @@ async function lapPhieuBanGiaoService(nhanVienId, donThueId, { ghi_chu_ban_giao,
         ten_vat_pham_snapshot: `${tb.ten_hang || ""} ${tb.ten_mau}`.trim(),
         ma_tai_san_snapshot: tb.ma_tai_san,
         so_serial_snapshot: tb.so_serial,
-        so_luong_giao: 1,
-        tinh_trang_truoc: vp.tinh_trang_truoc || tb.tinh_trang || null
+        so_luong_giao: 1
       });
 
       physicalDevicesToUpdate.push(thietBiId);
@@ -451,7 +447,7 @@ async function lapPhieuBanGiaoService(nhanVienId, donThueId, { ghi_chu_ban_giao,
         usedPhysicalDevices.add(thietBiId);
 
         const tbResult = await prisma.$queryRaw`
-          SELECT tb.id, tb.mau_thiet_bi_id, tb.ma_tai_san, tb.so_serial, tb.tinh_trang, tb.trang_thai,
+          SELECT tb.id, tb.mau_thiet_bi_id, tb.ma_tai_san, tb.so_serial, tb.trang_thai,
                  mtb.ten_hang, mtb.ten_mau
           FROM thiet_bi_vat_ly tb
           JOIN mau_thiet_bi mtb ON mtb.id = tb.mau_thiet_bi_id
@@ -486,8 +482,7 @@ async function lapPhieuBanGiaoService(nhanVienId, donThueId, { ghi_chu_ban_giao,
           ten_vat_pham_snapshot: `${tb.ten_hang || ""} ${tb.ten_mau}`.trim(),
           ma_tai_san_snapshot: tb.ma_tai_san,
           so_serial_snapshot: tb.so_serial,
-          so_luong_giao: 1,
-          tinh_trang_truoc: vp.tinh_trang_truoc || tb.tinh_trang || null
+          so_luong_giao: 1
         });
 
         physicalDevicesToUpdate.push(thietBiId);
@@ -526,8 +521,7 @@ async function lapPhieuBanGiaoService(nhanVienId, donThueId, { ghi_chu_ban_giao,
           ten_vat_pham_snapshot: pk.ten_phu_kien,
           ma_tai_san_snapshot: null,
           so_serial_snapshot: null,
-          so_luong_giao: soLuongGiao,
-          tinh_trang_truoc: vp.tinh_trang_truoc || null
+          so_luong_giao: soLuongGiao
         });
       }
     }
@@ -574,12 +568,12 @@ async function lapPhieuBanGiaoService(nhanVienId, donThueId, { ghi_chu_ban_giao,
         INSERT INTO ban_giao_vat_pham (
           id, chi_tiet_don_thue_id, bo_di_kem_id, thiet_bi_id, phu_kien_id,
           ten_vat_pham_snapshot, ma_tai_san_snapshot, so_serial_snapshot,
-          so_luong_giao, tinh_trang_truoc, ghi_chu_ban_giao, created_at
+          so_luong_giao, ghi_chu_ban_giao, created_at
         ) VALUES (
           gen_random_uuid(), ${item.chi_tiet_don_thue_id}::uuid, ${item.bo_di_kem_id ? item.bo_di_kem_id : null}::uuid,
           ${item.thiet_bi_id ? item.thiet_bi_id : null}::uuid, ${item.phu_kien_id ? item.phu_kien_id : null}::uuid,
           ${item.ten_vat_pham_snapshot}, ${item.ma_tai_san_snapshot}, ${item.so_serial_snapshot},
-          ${item.so_luong_giao}, ${item.tinh_trang_truoc}, ${ghi_chu_ban_giao || null}, NOW()
+          ${item.so_luong_giao}, ${ghi_chu_ban_giao || null}, NOW()
         )
       `;
     }

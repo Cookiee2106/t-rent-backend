@@ -159,7 +159,6 @@ function taoVatPhamBanGiao(dong) {
     ma_tai_san_snapshot: dong.ma_tai_san_snapshot,
     so_serial_snapshot: dong.so_serial_snapshot,
     so_luong_giao: Number(dong.so_luong_giao || 1),
-    tinh_trang_truoc: dong.tinh_trang_truoc,
     ghi_chu_ban_giao: dong.ghi_chu_ban_giao,
   };
 }
@@ -562,7 +561,6 @@ async function layChiTietThanhLyService(donThueId) {
       bgvp.ma_tai_san_snapshot,
       bgvp.so_serial_snapshot,
       bgvp.so_luong_giao,
-      bgvp.tinh_trang_truoc,
       bgvp.ghi_chu_ban_giao,
       bgvp.created_at
     FROM ban_giao_vat_pham bgvp
