@@ -1,41 +1,30 @@
-// Import express để tạo router.
 const express = require("express");
-
-// Import multer để nhận file ảnh khi trả từ form-data.
 const multer = require("multer");
 
-// Import các controller của module thanh lý.
 const {
   layDanhSachThanhLy,
   layChiTietThanhLy,
   lapPhieuTra,
+
+  // capNhatThanhLy,
+  // huyThanhLy,
 } = require("./settlementController");
 
-// Import middleware xác thực đăng nhập.
 const xacThucDangNhap = require("../../middlewares/authMiddleware");
-
-// Import middleware kiểm tra vai trò.
 const kiemTraVaiTro = require("../../middlewares/roleMiddleware");
 
-// Tạo router cho module thanh lý.
 const router = express.Router();
 
-// Danh sách vai trò nội bộ được phép dùng chức năng thanh lý.
 const vaiTroNoiBo = ["NHAN_VIEN", "QUAN_TRI", "QUAN_TRI_VIEN"];
 
-// Cấu hình multer lưu file trong RAM.
-// Sau đó service sẽ upload file.buffer lên Cloudinary.
 const upload = multer({
   storage: multer.memoryStorage(),
-
-  // Giới hạn mỗi ảnh tối đa 5MB.
   limits: {
     fileSize: 5 * 1024 * 1024,
   },
 });
 
-// Lấy danh sách đơn thanh lý.
-// URL đầy đủ: GET /api/admin/settlements
+// Lấy danh sách hợp đồng cần thanh lý.
 router.get(
   "/",
   xacThucDangNhap,
@@ -43,9 +32,7 @@ router.get(
   layDanhSachThanhLy
 );
 
-// Lập phiếu trả / thanh lý.
-// URL đầy đủ: POST /api/admin/settlements/:orderId/return
-// Field file trong form-data là: anh_khi_tra
+// Lập phiếu trả / xác nhận thanh lý.
 router.post(
   "/:orderId/return",
   xacThucDangNhap,
@@ -55,7 +42,6 @@ router.post(
 );
 
 // Xem chi tiết thanh lý.
-// URL đầy đủ: GET /api/admin/settlements/:orderId
 router.get(
   "/:orderId",
   xacThucDangNhap,
@@ -63,5 +49,34 @@ router.get(
   layChiTietThanhLy
 );
 
-// Export router để routes/index.js dùng.
+/*
+  CẬP NHẬT THANH LÝ - ĐANG COMMENT
+
+  Mở nếu thầy yêu cầu:
+  - Sửa ghi chú thanh lý
+  - Sửa lý do phát sinh
+  - Sửa tiền hoàn cọc / khấu trừ / phụ thu
+
+router.put(
+  "/:orderId",
+  xacThucDangNhap,
+  kiemTraVaiTro(vaiTroNoiBo),
+  capNhatThanhLy
+);
+*/
+
+/*
+  HỦY THANH LÝ - ĐANG COMMENT
+
+  Khác với "xóa khỏi giao diện".
+  Hủy thanh lý là hoàn tác dữ liệu thanh lý trong DB.
+
+router.patch(
+  "/:orderId/cancel",
+  xacThucDangNhap,
+  kiemTraVaiTro(vaiTroNoiBo),
+  huyThanhLy
+);
+*/
+
 module.exports = router;

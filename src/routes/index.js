@@ -17,16 +17,8 @@ router.use("/equipment-models", deviceModelRoutes);
 router.use("/cart", cartRouter);
 router.use("/me", customerRoutes);
 router.use("/admin", adminRoutes);
-
-// Payment:
-// POST /api/cart/checkout
-// GET  /api/payment-sessions/:id
-// GET  /api/payment-return/vnpay
 router.use("/", paymentRoutes);
-
-// Order management: /api/admin/orders, /api/admin/assets/available, etc.
 router.use("/", orderRouter);
-
 router.use("/me/orders", customerOrderRoutes);
 router.use("/admin/settlements", settlementRoutes);
 

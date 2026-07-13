@@ -170,6 +170,40 @@ function tinhSoNgayThue(ngayNhan, ngayTra) {
   return soNgay < 1 ? 1 : soNgay;
 }
 
+// Lấy ngày dạng yyyy-mm-dd để so sánh ngày nhận/ngày trả.
+function layNgayDangChuoi(ngay) {
+  if (!ngay) return "";
+
+  return new Date(ngay).toISOString().slice(0, 10);
+}
+
+// Một đơn thuê chỉ được có một khoảng ngày thuê.
+// Vì bảng don_thue chỉ có 1 ngày nhận và 1 ngày trả.
+function kiemTraCungNgayThue(danhSachItem) {
+  if (!danhSachItem || danhSachItem.length === 0) {
+    throw new Error("Không có sản phẩm nào để đặt hàng");
+  }
+
+  const ngayNhanDau = layNgayDangChuoi(danhSachItem[0].ngay_nhan);
+  const ngayTraDau = layNgayDangChuoi(danhSachItem[0].ngay_tra);
+
+  for (const item of danhSachItem) {
+    const ngayNhan = layNgayDangChuoi(item.ngay_nhan);
+    const ngayTra = layNgayDangChuoi(item.ngay_tra);
+
+    if (ngayNhan !== ngayNhanDau || ngayTra !== ngayTraDau) {
+      throw new Error(
+        "Các sản phẩm trong cùng một đơn thuê phải có cùng ngày nhận và ngày trả"
+      );
+    }
+  }
+
+  return {
+    ngay_nhan: danhSachItem[0].ngay_nhan,
+    ngay_tra: danhSachItem[0].ngay_tra,
+  };
+}
+
 function laThanhToanThanhCong(query) {
   return (
     query.vnp_ResponseCode === "00" &&
@@ -266,18 +300,34 @@ async function kiemTraSoTienVnpay(maThamChieu, vnpAmount) {
 async function kiemTraThietBiKhaDung(danhSachItem) {
   for (const item of danhSachItem) {
     const ketQua = await prisma.$queryRaw`
-      SELECT COUNT(*)::int AS so_luong_san_sang
-      FROM thiet_bi_vat_ly
-      WHERE mau_thiet_bi_id = ${item.mau_thiet_bi_id}::uuid
-        AND trang_thai = ${TRANG_THAI_THIET_BI_SAN_SANG}
-        AND da_xoa_luc IS NULL
+      SELECT
+        (
+          SELECT COUNT(*)::int
+          FROM thiet_bi_vat_ly tbvl
+          WHERE tbvl.mau_thiet_bi_id = ${item.mau_thiet_bi_id}::uuid
+            AND tbvl.trang_thai = ${TRANG_THAI_THIET_BI_SAN_SANG}
+            AND tbvl.da_xoa_luc IS NULL
+        )
+        -
+        (
+          SELECT COALESCE(SUM(ctdt.so_luong), 0)::int
+          FROM chi_tiet_don_thue ctdt
+
+          JOIN don_thue dt
+            ON dt.id = ctdt.don_thue_id
+
+          WHERE ctdt.mau_thiet_bi_id = ${item.mau_thiet_bi_id}::uuid
+            AND dt.trang_thai = ${DON_DA_GIU_CHO}
+            AND dt.ngay_nhan < ${item.ngay_tra}::timestamptz
+            AND dt.ngay_tra > ${item.ngay_nhan}::timestamptz
+        ) AS so_luong_san_sang
     `;
 
-    const soLuongSanSang = Number(ketQua[0].so_luong_san_sang);
+    const soLuongSanSang = Number(ketQua[0].so_luong_san_sang || 0);
 
     if (soLuongSanSang < Number(item.so_luong)) {
       throw new Error(
-        `Mẫu thiết bị ${item.ten_hang || ""} ${item.ten_mau} không đủ số lượng sẵn sàng`
+        `Mẫu thiết bị ${item.ten_hang || ""} ${item.ten_mau} không đủ số lượng sẵn sàng trong khoảng ngày đã chọn`
       );
     }
   }
@@ -433,18 +483,15 @@ async function xuLyThanhToanThanhCong({
         throw new Error("Phiên thanh toán không có chi tiết");
       }
 
-      let ngayNhan = new Date(danhSachChiTiet[0].ngay_nhan);
-      let ngayTra = new Date(danhSachChiTiet[0].ngay_tra);
+      // Kiểm tra lại lần nữa khi VNPay trả về.
+      // Không lấy ngày nhỏ nhất/lớn nhất nữa vì như vậy sẽ gộp sai đơn.
+      const ngayThue = kiemTraCungNgayThue(danhSachChiTiet);
 
-      for (const item of danhSachChiTiet) {
-        const nn = new Date(item.ngay_nhan);
-        const nt = new Date(item.ngay_tra);
-
-        if (nn < ngayNhan) ngayNhan = nn;
-        if (nt > ngayTra) ngayTra = nt;
-      }
+      const ngayNhan = new Date(ngayThue.ngay_nhan);
+      const ngayTra = new Date(ngayThue.ngay_tra);
 
       const soNgayThue = tinhSoNgayThue(ngayNhan, ngayTra);
+      
       const maDon = taoMaDon();
 
       const donMoi = await tx.$queryRaw`
@@ -744,6 +791,10 @@ async function taoPhienThanhToanCocService(nguoiDungId, body, ip) {
   if (danhSachItem.length === 0) {
     throw new Error("Giỏ hàng trống hoặc sản phẩm không hợp lệ");
   }
+
+  // Chặn trường hợp khách tick nhiều sản phẩm nhưng ngày thuê khác nhau.
+  // Một đơn thuê chỉ có một ngày nhận và một ngày trả.
+  kiemTraCungNgayThue(danhSachItem);
 
   await kiemTraThietBiKhaDung(danhSachItem);
 
