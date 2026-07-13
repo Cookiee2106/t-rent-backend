@@ -118,8 +118,8 @@ function taoVatPhamBanGiao(dong) {
     ma_tai_san_snapshot: dong.ma_tai_san_snapshot,
     so_serial_snapshot: dong.so_serial_snapshot,
     so_luong_giao: Number(dong.so_luong_giao || 1),
+    ghi_chu_ban_giao: dong.ghi_chu_ban_giao,
     vi_tri_luu_tru: dong.vi_tri_luu_tru || null,
-    //tinh_trang_truoc: dong.tinh_trang_truoc,
   };
 }
 
@@ -414,14 +414,8 @@ async function layChiTietThanhLyService(donThueId) {
       bgvp.ma_tai_san_snapshot,
       bgvp.so_serial_snapshot,
       bgvp.so_luong_giao,
-
-      -- CODE CŨ - ĐÃ BỎ TÌNH TRẠNG
-      -- Trước đây thanh lý lấy tình trạng bàn giao từ dòng này.
-      -- Hiện tại không dùng nữa, chỉ dùng ghi chú bàn giao chung.
-      -- bgvp.tinh_trang_truoc,
-
+      bgvp.ghi_chu_ban_giao,
       tbvl.vi_tri_luu_tru,
-
       bgvp.created_at
     FROM ban_giao_vat_pham bgvp
 
