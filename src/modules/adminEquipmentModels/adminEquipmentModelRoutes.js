@@ -5,6 +5,10 @@ const {
   taoMauThietBiAdmin,
   capNhatMauThietBiAdmin,
   capNhatTrangThaiMauThietBiAdmin,
+  layDanhSachBoDiKemAdmin,
+  layGoiYBoDiKemAdmin,
+  taoBoDiKemAdmin,
+  xoaBoDiKemAdmin,
 } = require("./adminEquipmentModelController");
 
 const router = express.Router();
@@ -17,5 +21,9 @@ router.use(kiemTraVaiTro(vaiTroNoiBo));
 router.post("/", taoMauThietBiAdmin);
 router.patch("/:id", capNhatMauThietBiAdmin);
 router.patch("/:id/status", capNhatTrangThaiMauThietBiAdmin);
+router.get("/:id/bundles", layDanhSachBoDiKemAdmin);
+router.get("/:id/bundle-options", layGoiYBoDiKemAdmin);
+router.post("/:id/bundles", taoBoDiKemAdmin);
+router.delete("/:id/bundles/:bundleId", xoaBoDiKemAdmin);
 
 module.exports = router;

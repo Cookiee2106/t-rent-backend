@@ -265,8 +265,306 @@ async function capNhatTrangThaiMauThietBiAdminService(id, body = {}) {
   return layMauThietBiAdminTheoId(id);
 }
 
+function docSoLuongBoDiKem(giaTri) {
+  const so = Number(giaTri);
+
+  if (!Number.isInteger(so) || so <= 0) {
+    throw new Error("so_luong phải là số nguyên lớn hơn 0");
+  }
+
+  return so;
+}
+
+async function layThongTinMauThietBiChinh(id) {
+  const danhSach = await prisma.$queryRaw`
+    SELECT
+      mtb.id,
+      mtb.ten_hang,
+      mtb.ten_mau,
+      mtb.danh_muc_id,
+      dmtb.ten_danh_muc
+    FROM mau_thiet_bi mtb
+    JOIN danh_muc_thiet_bi dmtb ON dmtb.id = mtb.danh_muc_id
+    WHERE mtb.id = ${id}::uuid
+      AND mtb.da_xoa_luc IS NULL
+    LIMIT 1
+  `;
+
+  if (danhSach.length === 0) {
+    throw new Error("Không tìm thấy mẫu thiết bị");
+  }
+
+  return danhSach[0];
+}
+
+async function layDanhSachBoDiKemAdminService(mauThietBiChinhId) {
+  await layThongTinMauThietBiChinh(mauThietBiChinhId);
+
+  const danhSach = await prisma.$queryRaw`
+    SELECT
+      bdk.id,
+      bdk.so_luong,
+      bdk.created_at,
+      mtb_phu.id AS mau_thiet_bi_phu_id,
+      mtb_phu.ten_hang AS ten_hang_thiet_bi_phu,
+      mtb_phu.ten_mau AS ten_mau_thiet_bi_phu,
+      dmtb_phu.ten_danh_muc AS ten_danh_muc_thiet_bi_phu,
+      pk.id AS phu_kien_id,
+      pk.ten_phu_kien,
+      pk.tong_so_luong
+    FROM bo_di_kem bdk
+    LEFT JOIN mau_thiet_bi mtb_phu
+      ON mtb_phu.id = bdk.mau_thiet_bi_phu_id
+    LEFT JOIN danh_muc_thiet_bi dmtb_phu
+      ON dmtb_phu.id = mtb_phu.danh_muc_id
+    LEFT JOIN phu_kien pk
+      ON pk.id = bdk.phu_kien_id
+    WHERE bdk.mau_thiet_bi_chinh_id = ${mauThietBiChinhId}::uuid
+    ORDER BY bdk.created_at ASC
+  `;
+
+  return danhSach.map((item) => ({
+    ...item,
+    so_luong: Number(item.so_luong),
+    tong_so_luong: item.tong_so_luong === null ? null : Number(item.tong_so_luong),
+    loai_bo_di_kem: item.mau_thiet_bi_phu_id ? "thiet_bi_phu" : "phu_kien",
+  }));
+}
+
+async function layGoiYBoDiKemAdminService(mauThietBiChinhId, query = {}) {
+  const mauChinh = await layThongTinMauThietBiChinh(mauThietBiChinhId);
+  const tuKhoa = chuanHoaChuoi(query.q);
+  const khoaTim = tuKhoa ? `%${tuKhoa}%` : null;
+
+  const thietBiPhu = mauChinh.ten_hang
+    ? await prisma.$queryRaw`
+        SELECT
+          mtb.id,
+          mtb.ten_mau,
+          mtb.ten_hang,
+          dmtb.ten_danh_muc
+        FROM mau_thiet_bi mtb
+        JOIN danh_muc_thiet_bi dmtb ON dmtb.id = mtb.danh_muc_id
+        WHERE mtb.da_xoa_luc IS NULL
+          AND mtb.id <> ${mauThietBiChinhId}::uuid
+          AND (
+            (dmtb.tinh_chat_id = 2502 AND mtb.ten_hang = ${mauChinh.ten_hang})
+            OR dmtb.ten_danh_muc = ${"Thẻ nhớ"}
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM bo_di_kem bdk
+            WHERE bdk.mau_thiet_bi_chinh_id = ${mauThietBiChinhId}::uuid
+              AND bdk.mau_thiet_bi_phu_id = mtb.id
+          )
+          AND (
+            ${khoaTim || ""} = ''
+            OR mtb.ten_mau ILIKE ${khoaTim || ""}
+            OR COALESCE(mtb.ten_hang, '') ILIKE ${khoaTim || ""}
+            OR dmtb.ten_danh_muc ILIKE ${khoaTim || ""}
+          )
+        ORDER BY mtb.ten_mau ASC
+        LIMIT 20
+      `
+    : await prisma.$queryRaw`
+        SELECT
+          mtb.id,
+          mtb.ten_mau,
+          mtb.ten_hang,
+          dmtb.ten_danh_muc
+        FROM mau_thiet_bi mtb
+        JOIN danh_muc_thiet_bi dmtb ON dmtb.id = mtb.danh_muc_id
+        WHERE mtb.da_xoa_luc IS NULL
+          AND mtb.id <> ${mauThietBiChinhId}::uuid
+          AND dmtb.ten_danh_muc = ${"Thẻ nhớ"}
+          AND NOT EXISTS (
+            SELECT 1
+            FROM bo_di_kem bdk
+            WHERE bdk.mau_thiet_bi_chinh_id = ${mauThietBiChinhId}::uuid
+              AND bdk.mau_thiet_bi_phu_id = mtb.id
+          )
+          AND (
+            ${khoaTim || ""} = ''
+            OR mtb.ten_mau ILIKE ${khoaTim || ""}
+            OR COALESCE(mtb.ten_hang, '') ILIKE ${khoaTim || ""}
+            OR dmtb.ten_danh_muc ILIKE ${khoaTim || ""}
+          )
+        ORDER BY mtb.ten_mau ASC
+        LIMIT 20
+      `;
+
+  const phuKien = await prisma.$queryRaw`
+    SELECT
+      pk.id,
+      pk.ten_phu_kien,
+      NULL::text AS ten_hang,
+      pk.tong_so_luong
+    FROM phu_kien pk
+    WHERE pk.da_xoa_luc IS NULL
+      AND NOT EXISTS (
+        SELECT 1
+        FROM bo_di_kem bdk
+        WHERE bdk.mau_thiet_bi_chinh_id = ${mauThietBiChinhId}::uuid
+          AND bdk.phu_kien_id = pk.id
+      )
+    ORDER BY pk.ten_phu_kien ASC
+    LIMIT 20
+  `;
+
+  return {
+    thiet_bi_phu: thietBiPhu,
+    phu_kien: phuKien.map((item) => ({
+      ...item,
+      tong_so_luong: Number(item.tong_so_luong),
+    })),
+  };
+}
+
+async function taoBoDiKemAdminService(mauThietBiChinhId, body = {}) {
+  const mauChinh = await layThongTinMauThietBiChinh(mauThietBiChinhId);
+  const mauThietBiPhuId = chuanHoaChuoi(body.mau_thiet_bi_phu_id);
+  const phuKienId = chuanHoaChuoi(body.phu_kien_id);
+  const soLuong = docSoLuongBoDiKem(body.so_luong);
+
+  if ((mauThietBiPhuId && phuKienId) || (!mauThietBiPhuId && !phuKienId)) {
+    throw new Error("Cần cung cấp đúng một trong hai trường mau_thiet_bi_phu_id hoặc phu_kien_id");
+  }
+
+  if (mauThietBiPhuId) {
+    const danhSach = await prisma.$queryRaw`
+      SELECT
+        mtb.id,
+        mtb.ten_hang,
+        mtb.ten_mau,
+        dmtb.ten_danh_muc,
+        dmtb.tinh_chat_id
+      FROM mau_thiet_bi mtb
+      JOIN danh_muc_thiet_bi dmtb ON dmtb.id = mtb.danh_muc_id
+      WHERE mtb.id = ${mauThietBiPhuId}::uuid
+        AND mtb.da_xoa_luc IS NULL
+      LIMIT 1
+    `;
+
+    if (danhSach.length === 0) {
+      throw new Error("Mẫu thiết bị phụ không tồn tại");
+    }
+
+    const mauPhu = danhSach[0];
+    const hopLe =
+      ((mauChinh.ten_hang && mauPhu.ten_hang === mauChinh.ten_hang && mauPhu.tinh_chat_id === 2502) ||
+        mauPhu.ten_danh_muc === "Thẻ nhớ");
+
+    if (!hopLe) {
+      throw new Error("Mẫu thiết bị phụ không phù hợp với cấu hình bộ đi kèm của mẫu chính");
+    }
+
+    const tonTai = await prisma.$queryRaw`
+      SELECT id
+      FROM bo_di_kem
+      WHERE mau_thiet_bi_chinh_id = ${mauThietBiChinhId}::uuid
+        AND mau_thiet_bi_phu_id = ${mauThietBiPhuId}::uuid
+      LIMIT 1
+    `;
+
+    if (tonTai.length > 0) {
+      throw new Error("Thiết bị phụ này đã tồn tại trong bộ đi kèm");
+    }
+
+    await prisma.$executeRaw`
+      INSERT INTO bo_di_kem (
+        id,
+        mau_thiet_bi_chinh_id,
+        mau_thiet_bi_phu_id,
+        phu_kien_id,
+        so_luong,
+        created_at
+      )
+      VALUES (
+        gen_random_uuid(),
+        ${mauThietBiChinhId}::uuid,
+        ${mauThietBiPhuId}::uuid,
+        NULL,
+        ${soLuong},
+        NOW()
+      )
+    `;
+  } else {
+    const danhSach = await prisma.$queryRaw`
+      SELECT id, ten_phu_kien, tong_so_luong
+      FROM phu_kien
+      WHERE id = ${phuKienId}::uuid
+        AND da_xoa_luc IS NULL
+      LIMIT 1
+    `;
+
+    if (danhSach.length === 0) {
+      throw new Error("Phụ kiện không tồn tại");
+    }
+
+    const tonTai = await prisma.$queryRaw`
+      SELECT id
+      FROM bo_di_kem
+      WHERE mau_thiet_bi_chinh_id = ${mauThietBiChinhId}::uuid
+        AND phu_kien_id = ${phuKienId}::uuid
+      LIMIT 1
+    `;
+
+    if (tonTai.length > 0) {
+      throw new Error("Phụ kiện này đã tồn tại trong bộ đi kèm");
+    }
+
+    await prisma.$executeRaw`
+      INSERT INTO bo_di_kem (
+        id,
+        mau_thiet_bi_chinh_id,
+        mau_thiet_bi_phu_id,
+        phu_kien_id,
+        so_luong,
+        created_at
+      )
+      VALUES (
+        gen_random_uuid(),
+        ${mauThietBiChinhId}::uuid,
+        NULL,
+        ${phuKienId}::uuid,
+        ${soLuong},
+        NOW()
+      )
+    `;
+  }
+
+  return layDanhSachBoDiKemAdminService(mauThietBiChinhId);
+}
+
+async function xoaBoDiKemAdminService(mauThietBiChinhId, bundleId) {
+  await layThongTinMauThietBiChinh(mauThietBiChinhId);
+
+  const tonTai = await prisma.$queryRaw`
+    SELECT id
+    FROM bo_di_kem
+    WHERE id = ${bundleId}::uuid
+      AND mau_thiet_bi_chinh_id = ${mauThietBiChinhId}::uuid
+    LIMIT 1
+  `;
+
+  if (tonTai.length === 0) {
+    throw new Error("Không tìm thấy món trong bộ đi kèm");
+  }
+
+  await prisma.$executeRaw`
+    DELETE FROM bo_di_kem
+    WHERE id = ${bundleId}::uuid
+  `;
+
+  return { message: "Xóa món khỏi bộ đi kèm thành công" };
+}
+
 module.exports = {
   taoMauThietBiAdminService,
   capNhatMauThietBiAdminService,
   capNhatTrangThaiMauThietBiAdminService,
+  layDanhSachBoDiKemAdminService,
+  layGoiYBoDiKemAdminService,
+  taoBoDiKemAdminService,
+  xoaBoDiKemAdminService,
 };

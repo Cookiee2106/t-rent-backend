@@ -404,6 +404,12 @@ async function themVaoGioHangService(
   );
 
   if (!isAvailable) {
+    if (soLuongCu > 0) {
+      throw new Error(
+        `Bạn đã có ${soLuongCu} bộ "${model.ten_mau}" trong giỏ. Không thể thêm ${parsedQty} bộ nữa vì vượt quá số lượng sẵn sàng cho khoảng thời gian này.`
+      );
+    }
+
     throw new Error(
       `Thiết bị "${model.ten_mau}" không đủ số lượng khả dụng cho khoảng thời gian này`
     );
