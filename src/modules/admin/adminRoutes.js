@@ -7,6 +7,10 @@ const {
   layDanhSachKhachHang,
   layChiTietKhachHang,
   capNhatTrangThaiKhachHang,
+  layBaoCaoDoanhThu,
+  layBaoCaoTonKho,
+  layDanhSachNhatKyThaoTac,
+  layChiTietNhatKyThaoTac,
 
   // XEM LỊCH SỬ HỒ SƠ XÁC MINH
   // layLichSuHoSoXacMinh,
@@ -77,6 +81,34 @@ router.put(
   xacThucDangNhap,
   kiemTraVaiTro(vaiTroNoiBo),
   capNhatTrangThaiKhachHang
+);
+
+router.get(
+  "/reports/revenue",
+  xacThucDangNhap,
+  kiemTraVaiTro(vaiTroNoiBo),
+  layBaoCaoDoanhThu
+);
+
+router.get(
+  "/reports/inventory",
+  xacThucDangNhap,
+  kiemTraVaiTro(vaiTroNoiBo),
+  layBaoCaoTonKho
+);
+
+router.get(
+  "/audit-logs",
+  xacThucDangNhap,
+  kiemTraVaiTro(vaiTroNoiBo),
+  layDanhSachNhatKyThaoTac
+);
+
+router.get(
+  "/audit-logs/:id",
+  xacThucDangNhap,
+  kiemTraVaiTro(vaiTroNoiBo),
+  layChiTietNhatKyThaoTac
 );
 
 

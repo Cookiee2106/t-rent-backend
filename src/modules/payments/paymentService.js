@@ -14,6 +14,8 @@ const crypto = require("crypto");
 
 const TRANG_THAI_XAC_MINH_DA_DUYET = 203;
 
+const TRANG_THAI_MAU_THIET_BI_HIEN_THI = 601;
+
 const TRANG_THAI_THIET_BI_SAN_SANG = 501;
 
 const PHIEN_CHO_THANH_TOAN = 901;
@@ -759,6 +761,7 @@ async function taoPhienThanhToanCocService(nguoiDungId, body, ip) {
       WHERE c.gio_hang_id = ${gioHang.id}::uuid
         AND c.id::text IN (${Prisma.join(itemIds)})
         AND mtb.da_xoa_luc IS NULL
+        AND mtb.trang_thai = ${TRANG_THAI_MAU_THIET_BI_HIEN_THI}
       ORDER BY c.created_at ASC
     `;
   } else {
@@ -784,6 +787,7 @@ async function taoPhienThanhToanCocService(nguoiDungId, body, ip) {
         ON mtb.id = c.mau_thiet_bi_id
       WHERE c.gio_hang_id = ${gioHang.id}::uuid
         AND mtb.da_xoa_luc IS NULL
+        AND mtb.trang_thai = ${TRANG_THAI_MAU_THIET_BI_HIEN_THI}
       ORDER BY c.created_at ASC
     `;
   }

@@ -1,7 +1,10 @@
 const express = require("express");
 
 const authRoutes = require("../modules/auth/authRoutes");
+const equipmentCategoryRoutes = require("../modules/equipmentCategories/equipmentCategoryRoutes");
 const deviceModelRoutes = require("../modules/deviceModels/deviceModelRoutes");
+const adminAccessoryRoutes = require("../modules/adminAccessories/adminAccessoryRoutes");
+const adminEquipmentModelRoutes = require("../modules/adminEquipmentModels/adminEquipmentModelRoutes");
 const cartRouter = require("../modules/cart/cartRoutes");
 const customerRoutes = require("../modules/customer/customerRoutes");
 const adminRoutes = require("../modules/admin/adminRoutes");
@@ -13,7 +16,10 @@ const settlementRoutes = require("../modules/settlements/settlementRoutes");
 const router = express.Router();
 
 router.use("/auth", authRoutes);
+router.use("/equipment-categories", equipmentCategoryRoutes);
 router.use("/equipment-models", deviceModelRoutes);
+router.use("/admin/accessories", adminAccessoryRoutes);
+router.use("/admin/equipment-models", adminEquipmentModelRoutes);
 router.use("/cart", cartRouter);
 router.use("/me", customerRoutes);
 router.use("/admin", adminRoutes);
