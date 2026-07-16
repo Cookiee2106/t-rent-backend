@@ -158,75 +158,162 @@ async function layGioHangService(khachHangId) {
 }
 
 // 2. Add to Cart
-async function themVaoGioHangService(khachHangId, { mau_thiet_bi_id, so_luong, ngay_nhan, ngay_tra }) {
+async function themVaoGioHangService(
+  khachHangId,
+  { mau_thiet_bi_id, so_luong, ngay_nhan, ngay_tra }
+) {
   if (!mau_thiet_bi_id || !so_luong || !ngay_nhan || !ngay_tra) {
     throw new Error("Vui lòng cung cấp đầy đủ thông tin");
   }
 
   const parsedQty = parseInt(so_luong);
+
   if (isNaN(parsedQty) || parsedQty <= 0) {
     throw new Error("Số lượng phải lớn hơn 0");
   }
 
   const dateNhan = new Date(ngay_nhan);
   const dateTra = new Date(ngay_tra);
-  if (isNaN(dateNhan.getTime()) || isNaN(dateTra.getTime()) || dateTra <= dateNhan) {
+
+  if (
+    isNaN(dateNhan.getTime()) ||
+    isNaN(dateTra.getTime()) ||
+    dateTra <= dateNhan
+  ) {
     throw new Error("Ngày nhận và ngày trả không hợp lệ");
   }
 
-  // Find or create cart
   const cartInfo = await layGioHangService(khachHangId);
   const gioHangId = cartInfo.gio_hang_id;
 
-  // Check if equipment model exists and get price/deposit snapshots
   const modelResult = await prisma.$queryRaw`
-    SELECT id, ten_mau, gia_thue_ngay, tien_coc 
-    FROM mau_thiet_bi 
-    WHERE id = ${mau_thiet_bi_id}::uuid AND da_xoa_luc IS NULL 
+    SELECT id, ten_mau, gia_thue_ngay, tien_coc
+    FROM mau_thiet_bi
+    WHERE id = ${mau_thiet_bi_id}::uuid
+      AND da_xoa_luc IS NULL
     LIMIT 1
   `;
+
   if (modelResult.length === 0) {
     throw new Error("Mẫu thiết bị không tồn tại hoặc đã bị xóa");
   }
+
   const model = modelResult[0];
 
-  // Check physical availability
-  const isAvailable = await checkAvailability(mau_thiet_bi_id, dateNhan, dateTra, parsedQty);
-  if (!isAvailable) {
-    throw new Error(`Thiết bị "${model.ten_mau}" không đủ số lượng khả dụng cho khoảng thời gian này`);
-  }
+  /*
+    Tìm tất cả dòng cùng mẫu trong giỏ.
 
-  // Check if same item (model + dates) already in cart
-  const existingItem = await prisma.$queryRaw`
-    SELECT id, so_luong FROM chi_tiet_gio_hang
+    Lưu ý:
+    Mình chỉ kiểm tra mau_thiet_bi_id, không kiểm tra ngày nữa.
+    Vì cùng mẫu thì phải gộp thành 1 dòng trong giỏ.
+  */
+  const existingItems = await prisma.$queryRaw`
+    SELECT id, so_luong, created_at
+    FROM chi_tiet_gio_hang
     WHERE gio_hang_id = ${gioHangId}::uuid
       AND mau_thiet_bi_id = ${mau_thiet_bi_id}::uuid
-      AND ngay_nhan = ${dateNhan}::timestamptz
-      AND ngay_tra = ${dateTra}::timestamptz
-    LIMIT 1
+    ORDER BY created_at ASC
   `;
 
-  if (existingItem.length > 0) {
-    const newQty = existingItem[0].so_luong + parsedQty;
-    // Check availability with the combined quantity
-    const isCombinedAvailable = await checkAvailability(mau_thiet_bi_id, dateNhan, dateTra, newQty);
-    if (!isCombinedAvailable) {
-      throw new Error(`Thiết bị "${model.ten_mau}" không đủ số lượng khả dụng để tăng thêm`);
+  /*
+    Số lượng mẫu này đã có sẵn trong giỏ.
+    Ví dụ khách đã có Sony A7 IV số lượng 2.
+  */
+  const soLuongDaCoTrongGio = existingItems.reduce((tong, item) => {
+    return tong + Number(item.so_luong || 0);
+  }, 0);
+
+  /*
+    Số lượng mới muốn lưu vào giỏ.
+    Ví dụ đã có 2, thêm tiếp 1 => cần kiểm tra 3.
+  */
+  const soLuongSauKhiThem = soLuongDaCoTrongGio + parsedQty;
+
+  /*
+    Kiểm tra khả dụng theo tổng số lượng sau khi thêm.
+
+    checkAvailability là hàm cũ của bạn.
+    Hàm này đang kiểm tra mẫu chính + bộ đi kèm theo ngày thuê.
+  */
+  const isAvailable = await checkAvailability(
+    mau_thiet_bi_id,
+    dateNhan,
+    dateTra,
+    soLuongSauKhiThem
+  );
+
+  if (!isAvailable) {
+    if (soLuongDaCoTrongGio > 0) {
+      throw new Error(
+        `Bạn đã có ${soLuongDaCoTrongGio} bộ "${model.ten_mau}" trong giỏ. Vui lòng chỉnh số lượng trong giỏ hoặc chọn ngày khác.`
+      );
     }
 
+    throw new Error(
+      `Thiết bị "${model.ten_mau}" không đủ số lượng sẵn sàng.`
+    );
+  }
+
+  if (existingItems.length > 0) {
+    const itemGiuLai = existingItems[0];
+    const danhSachItemCanXoa = existingItems.slice(1).map((item) => item.id);
+
+    /*
+      Nếu mẫu đã có trong giỏ:
+      - cộng số lượng
+      - cập nhật ngày nhận/ngày trả theo lần thêm mới nhất
+      - cập nhật lại snapshot giá thuê và tiền cọc
+    */
     await prisma.$executeRaw`
       UPDATE chi_tiet_gio_hang
-      SET so_luong = ${newQty}, updated_at = NOW()
-      WHERE id = ${existingItem[0].id}::uuid
+      SET
+        so_luong = ${soLuongSauKhiThem},
+        ngay_nhan = ${dateNhan}::timestamptz,
+        ngay_tra = ${dateTra}::timestamptz,
+        gia_thue_ngay_snapshot = ${model.gia_thue_ngay},
+        tien_coc_snapshot = ${model.tien_coc},
+        updated_at = NOW()
+      WHERE id = ${itemGiuLai.id}::uuid
     `;
+
+    /*
+      Nếu trước đó bị tách nhiều dòng cùng mẫu
+      thì xóa các dòng trùng còn lại.
+    */
+    for (const itemId of danhSachItemCanXoa) {
+      await prisma.$executeRaw`
+        DELETE FROM chi_tiet_gio_hang
+        WHERE id = ${itemId}::uuid
+      `;
+    }
   } else {
+    /*
+      Nếu mẫu chưa có trong giỏ thì thêm mới.
+    */
     await prisma.$executeRaw`
       INSERT INTO chi_tiet_gio_hang (
-        id, gio_hang_id, mau_thiet_bi_id, so_luong, ngay_nhan, ngay_tra,
-        gia_thue_ngay_snapshot, tien_coc_snapshot, created_at, updated_at
-      ) VALUES (
-        gen_random_uuid(), ${gioHangId}::uuid, ${mau_thiet_bi_id}::uuid, ${parsedQty}, ${dateNhan}::timestamptz, ${dateTra}::timestamptz,
-        ${model.gia_thue_ngay}, ${model.tien_coc}, NOW(), NOW()
+        id,
+        gio_hang_id,
+        mau_thiet_bi_id,
+        so_luong,
+        ngay_nhan,
+        ngay_tra,
+        gia_thue_ngay_snapshot,
+        tien_coc_snapshot,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        gen_random_uuid(),
+        ${gioHangId}::uuid,
+        ${mau_thiet_bi_id}::uuid,
+        ${parsedQty},
+        ${dateNhan}::timestamptz,
+        ${dateTra}::timestamptz,
+        ${model.gia_thue_ngay},
+        ${model.tien_coc},
+        NOW(),
+        NOW()
       )
     `;
   }

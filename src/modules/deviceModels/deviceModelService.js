@@ -158,6 +158,29 @@ async function layBoDiKemCuaMau(mauThietBiId) {
   return boDiKem;
 }
 
+// Gắn bộ đi kèm vào từng mẫu để Home và EquipmentList có dữ liệu hiển thị trên card.
+// Nếu mẫu nào lỗi bộ đi kèm thì vẫn cho mẫu đó hiển thị, chỉ để bo_di_kem = [].
+async function ganBoDiKemChoDanhSachMau(danhSachMau) {
+  const ketQua = [];
+
+  for (const mau of danhSachMau) {
+    let boDiKem = [];
+
+    try {
+      boDiKem = await layBoDiKemCuaMau(mau.id);
+    } catch {
+      boDiKem = [];
+    }
+
+    ketQua.push({
+      ...mau,
+      bo_di_kem: boDiKem,
+    });
+  }
+
+  return ketQua;
+}
+
 async function kiemTraMauCoTheThue(mauThietBiId, ngayNhan, ngayTra, soLuong) {
   kiemTraNgayThue(ngayNhan, ngayTra);
 
@@ -303,7 +326,7 @@ async function layDanhSachMauThietBiService(query = {}) {
   `;
 
   if (!ngay_nhan && !ngay_tra) {
-    return danhSach;
+    return await ganBoDiKemChoDanhSachMau(danhSach);
   }
 
   if ((ngay_nhan && !ngay_tra) || (!ngay_nhan && ngay_tra)) {
@@ -328,7 +351,7 @@ async function layDanhSachMauThietBiService(query = {}) {
     }
   }
 
-  return ketQua;
+  return await ganBoDiKemChoDanhSachMau(ketQua);
 }
 
 async function layChiTietMauThietBiService(id, query = {}) {

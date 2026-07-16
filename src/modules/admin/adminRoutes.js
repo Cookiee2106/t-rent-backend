@@ -6,9 +6,7 @@ const {
   tuChoiHoSoXacMinh,
   layDanhSachKhachHang,
   layChiTietKhachHang,
-
-  // KHÓA / MỞ KHÓA TÀI KHOẢN
-  // capNhatTrangThaiKhachHang,
+  capNhatTrangThaiKhachHang,
 
   // XEM LỊCH SỬ HỒ SƠ XÁC MINH
   // layLichSuHoSoXacMinh,
@@ -74,17 +72,12 @@ router.get(
 );
 */
 
-/*
-  KHÓA / MỞ KHÓA TÀI KHOẢN KHÁCH HÀNG
-*/
-
-/*
 router.put(
   "/customers/:id/status",
   xacThucDangNhap,
   kiemTraVaiTro(vaiTroNoiBo),
   capNhatTrangThaiKhachHang
 );
-*/
+
 
 module.exports = router;

@@ -5,9 +5,7 @@ const {
   tuChoiHoSoXacMinhService,
   layDanhSachKhachHangService,
   layChiTietKhachHangService,
-
-  //KHÓA / MỞ KHÓA TÀI KHOẢN
-  // capNhatTrangThaiKhachHangService,
+  capNhatTrangThaiKhachHangService,
 
   // XEM LỊCH SỬ HỒ SƠ XÁC MINH
   // layLichSuHoSoXacMinhService,
@@ -118,11 +116,6 @@ async function layChiTietKhachHang(req, res) {
   }
 }
 
-/*
-  KHÓA / MỞ KHÓA TÀI KHOẢN KHÁCH HÀNG
-*/
-
-/*
 async function capNhatTrangThaiKhachHang(req, res) {
   try {
     const khachHang = await capNhatTrangThaiKhachHangService(
@@ -142,7 +135,6 @@ async function capNhatTrangThaiKhachHang(req, res) {
     });
   }
 }
-*/
 
 /*
  XEM LỊCH SỬ HỒ SƠ XÁC MINH
@@ -174,9 +166,7 @@ module.exports = {
   tuChoiHoSoXacMinh,
   layDanhSachKhachHang,
   layChiTietKhachHang,
-
-  // KHÓA / MỞ KHÓA TÀI KHOẢN
-  // capNhatTrangThaiKhachHang,
+  capNhatTrangThaiKhachHang,
 
   // LỊCH SỬ HỒ SƠ XÁC MINH
   // layLichSuHoSoXacMinh,

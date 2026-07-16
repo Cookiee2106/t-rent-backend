@@ -305,8 +305,6 @@ async function layChiTietKhachHangService(khachHangId) {
 /*
   KHÓA / MỞ KHÓA TÀI KHOẢN KHÁCH HÀNG
 */
-
-/*
 async function capNhatTrangThaiKhachHangService(khachHangId, trangThaiMoi) {
   const TRANG_THAI_HOAT_DONG = 101;
   const TRANG_THAI_BI_KHOA = 102;
@@ -343,7 +341,6 @@ async function capNhatTrangThaiKhachHangService(khachHangId, trangThaiMoi) {
 
   return danhSachKhachHang[0];
 }
-*/
 
 /*
   XEM LỊCH SỬ HỒ SƠ XÁC MINH
@@ -390,9 +387,7 @@ module.exports = {
   tuChoiHoSoXacMinhService,
   layDanhSachKhachHangService,
   layChiTietKhachHangService,
-
-  // KHÓA / MỞ KHÓA TÀI KHOẢN
-  // capNhatTrangThaiKhachHangService,
+  capNhatTrangThaiKhachHangService,
 
   // XEM LỊCH SỬ HỒ SƠ XÁC MINH
   // layLichSuHoSoXacMinhService,
