@@ -147,6 +147,7 @@ async function layChiTietDonThueService(donThueId) {
       dt.ghi_chu_thanh_ly,
       dt.phi_phat_sinh_ly_do,
       dt.phi_phat_sinh_tien::text,
+      nd.ho_ten AS ten_nguoi_thanh_toan,
       dt.created_at
     FROM don_thue dt
     JOIN nguoi_dung nd ON nd.id = dt.khach_hang_id
@@ -207,10 +208,13 @@ async function layChiTietDonThueService(donThueId) {
       tt.so_tien::text,
       tt.loai_dong_tien_id,
       dmhs.ten_danh_muc AS ten_loai_dong_tien,
+      nd_kh.ho_ten AS ten_nguoi_thanh_toan,
       tt.ma_giao_dich,
       tt.ghi_chu,
       tt.created_at
     FROM thanh_toan tt
+    JOIN don_thue dt ON dt.id = tt.don_thue_id
+    JOIN nguoi_dung nd_kh ON nd_kh.id = dt.khach_hang_id
     LEFT JOIN danh_muc_he_thong dmhs ON dmhs.id = tt.loai_dong_tien_id
     WHERE tt.don_thue_id = ${donThueId}::uuid
     ORDER BY tt.created_at ASC
