@@ -329,6 +329,7 @@ model phieu_bao_tri {
 model phu_kien {
   id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   ten_phu_kien      String              @unique @db.VarChar(255)
+  ten_hang          String?             @db.VarChar(255)
   mo_ta             String?
   tong_so_luong     Int                 @default(0)
   vi_tri_luu_tru    String?             @db.VarChar(255)
