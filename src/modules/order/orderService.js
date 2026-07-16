@@ -26,9 +26,27 @@ async function layDanhSachDonThueService({ trang_thai, page = 1, limit = 20 }) {
         dt.tong_tien_coc::text,
         dt.trang_thai,
         tths.ten_trang_thai,
+        dt.nguoi_ban_giao_id,
+        dt.nguoi_nhan_tra_id,
         dt.ban_giao_luc,
         dt.tra_luc,
         dt.huy_luc,
+        (
+          SELECT mtb.anh_url
+          FROM chi_tiet_don_thue ctdt
+          JOIN mau_thiet_bi mtb ON mtb.id = ctdt.mau_thiet_bi_id
+          WHERE ctdt.don_thue_id = dt.id
+          ORDER BY ctdt.created_at ASC
+          LIMIT 1
+        ) AS anh_url_mau_thiet_bi,
+        (
+          SELECT nd_tt.ho_ten
+          FROM thanh_toan tt
+          LEFT JOIN nguoi_dung nd_tt ON nd_tt.id = tt.nguoi_thuc_hien_id
+          WHERE tt.don_thue_id = dt.id
+          ORDER BY tt.created_at DESC
+          LIMIT 1
+        ) AS ten_nguoi_thanh_toan,
         dt.created_at
       FROM don_thue dt
       JOIN nguoi_dung nd ON nd.id = dt.khach_hang_id
@@ -55,9 +73,27 @@ async function layDanhSachDonThueService({ trang_thai, page = 1, limit = 20 }) {
         dt.tong_tien_coc::text,
         dt.trang_thai,
         tths.ten_trang_thai,
+        dt.nguoi_ban_giao_id,
+        dt.nguoi_nhan_tra_id,
         dt.ban_giao_luc,
         dt.tra_luc,
         dt.huy_luc,
+        (
+          SELECT mtb.anh_url
+          FROM chi_tiet_don_thue ctdt
+          JOIN mau_thiet_bi mtb ON mtb.id = ctdt.mau_thiet_bi_id
+          WHERE ctdt.don_thue_id = dt.id
+          ORDER BY ctdt.created_at ASC
+          LIMIT 1
+        ) AS anh_url_mau_thiet_bi,
+        (
+          SELECT nd_tt.ho_ten
+          FROM thanh_toan tt
+          LEFT JOIN nguoi_dung nd_tt ON nd_tt.id = tt.nguoi_thuc_hien_id
+          WHERE tt.don_thue_id = dt.id
+          ORDER BY tt.created_at DESC
+          LIMIT 1
+        ) AS ten_nguoi_thanh_toan,
         dt.created_at
       FROM don_thue dt
       JOIN nguoi_dung nd ON nd.id = dt.khach_hang_id
