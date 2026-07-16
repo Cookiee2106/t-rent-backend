@@ -302,6 +302,132 @@ async function layChiTietKhachHangService(khachHangId) {
   return danhSachKhachHang[0];
 }
 
+async function layDanhSachNhatKyThaoTacService(query = {}) {
+  const page = Math.max(Number(query.page) || 1, 1);
+  const limit = Math.max(Number(query.limit) || 10, 1);
+  const offset = (page - 1) * limit;
+
+  const nguoiDungId = query.nguoi_dung_id || null;
+  const hanhDong = (query.hanh_dong || "").trim();
+  const from = query.from || null;
+  const to = query.to || null;
+
+  if ((from && !to) || (!from && to)) {
+    throw new Error("Cần truyền đồng thời cả from và to");
+  }
+
+  if (from && to) {
+    const ngayBatDau = new Date(from);
+    const ngayKetThuc = new Date(to);
+
+    if (
+      Number.isNaN(ngayBatDau.getTime()) ||
+      Number.isNaN(ngayKetThuc.getTime())
+    ) {
+      throw new Error("from hoặc to không hợp lệ");
+    }
+
+    if (ngayBatDau > ngayKetThuc) {
+      throw new Error("from không được lớn hơn to");
+    }
+  }
+
+  const mauHanhDong = `%${hanhDong}%`;
+
+  const danhSach = await prisma.$queryRaw`
+    SELECT
+      nk.id,
+      nk.nguoi_dung_id,
+      nd.ho_ten AS ten_nguoi_dung,
+      nd.email,
+      nd.vai_tro,
+      nk.hanh_dong,
+      nk.doi_tuong,
+      nk.doi_tuong_id,
+      nk.noi_dung,
+      nk.ip_address,
+      nk.created_at
+    FROM nhat_ky_thao_tac nk
+    LEFT JOIN nguoi_dung nd ON nd.id = nk.nguoi_dung_id
+    WHERE (
+      ${nguoiDungId}::uuid IS NULL
+      OR nk.nguoi_dung_id = ${nguoiDungId}::uuid
+    )
+      AND (
+        ${hanhDong} = ''
+        OR nk.hanh_dong ILIKE ${mauHanhDong}
+      )
+      AND (
+        ${from}::date IS NULL
+        OR nk.created_at::date >= ${from}::date
+      )
+      AND (
+        ${to}::date IS NULL
+        OR nk.created_at::date <= ${to}::date
+      )
+    ORDER BY nk.created_at DESC
+    LIMIT ${limit} OFFSET ${offset}
+  `;
+
+  const demKetQua = await prisma.$queryRaw`
+    SELECT COUNT(*)::int AS total
+    FROM nhat_ky_thao_tac nk
+    WHERE (
+      ${nguoiDungId}::uuid IS NULL
+      OR nk.nguoi_dung_id = ${nguoiDungId}::uuid
+    )
+      AND (
+        ${hanhDong} = ''
+        OR nk.hanh_dong ILIKE ${mauHanhDong}
+      )
+      AND (
+        ${from}::date IS NULL
+        OR nk.created_at::date >= ${from}::date
+      )
+      AND (
+        ${to}::date IS NULL
+        OR nk.created_at::date <= ${to}::date
+      )
+  `;
+
+  return {
+    data: danhSach,
+    total: Number(demKetQua[0]?.total || 0),
+    page,
+    limit,
+  };
+}
+
+async function layChiTietNhatKyThaoTacService(nhatKyId) {
+  const danhSach = await prisma.$queryRaw`
+    SELECT
+      nk.id,
+      nk.nguoi_dung_id,
+      nd.ho_ten AS ten_nguoi_dung,
+      nd.email,
+      nd.so_dien_thoai,
+      nd.vai_tro,
+      nk.hanh_dong,
+      nk.doi_tuong,
+      nk.doi_tuong_id,
+      nk.noi_dung,
+      nk.du_lieu_truoc,
+      nk.du_lieu_sau,
+      nk.ip_address,
+      nk.created_at
+    FROM nhat_ky_thao_tac nk
+    LEFT JOIN nguoi_dung nd ON nd.id = nk.nguoi_dung_id
+    WHERE nk.id = ${nhatKyId}::uuid
+    LIMIT 1
+  `;
+
+  if (danhSach.length === 0) {
+    throw new Error("Không tìm thấy nhật ký thao tác");
+  }
+
+  return danhSach[0];
+}
+
 /*
   KHÓA / MỞ KHÓA TÀI KHOẢN KHÁCH HÀNG
 */
@@ -612,6 +738,8 @@ module.exports = {
   capNhatTrangThaiKhachHangService,
   layBaoCaoDoanhThuService,
   layBaoCaoTonKhoService,
+  layDanhSachNhatKyThaoTacService,
+  layChiTietNhatKyThaoTacService,
 
   // XEM LỊCH SỬ HỒ SƠ XÁC MINH
   // layLichSuHoSoXacMinhService,

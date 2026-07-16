@@ -9,6 +9,8 @@ const {
   capNhatTrangThaiKhachHang,
   layBaoCaoDoanhThu,
   layBaoCaoTonKho,
+  layDanhSachNhatKyThaoTac,
+  layChiTietNhatKyThaoTac,
 
   // XEM LỊCH SỬ HỒ SƠ XÁC MINH
   // layLichSuHoSoXacMinh,
@@ -93,6 +95,20 @@ router.get(
   xacThucDangNhap,
   kiemTraVaiTro(vaiTroNoiBo),
   layBaoCaoTonKho
+);
+
+router.get(
+  "/audit-logs",
+  xacThucDangNhap,
+  kiemTraVaiTro(vaiTroNoiBo),
+  layDanhSachNhatKyThaoTac
+);
+
+router.get(
+  "/audit-logs/:id",
+  xacThucDangNhap,
+  kiemTraVaiTro(vaiTroNoiBo),
+  layChiTietNhatKyThaoTac
 );
 
 
