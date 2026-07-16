@@ -211,64 +211,73 @@ async function themVaoGioHangServiceLegacy(
     Mình chỉ kiểm tra mau_thiet_bi_id, không kiểm tra ngày nữa.
     Vì cùng mẫu thì phải gộp thành 1 dòng trong giỏ.
   */
-  const existingItems = await prisma.$queryRaw`
+/*
+const existingItems = await prisma.$queryRaw`
     SELECT id, so_luong, created_at
     FROM chi_tiet_gio_hang
     WHERE gio_hang_id = ${gioHangId}::uuid
       AND mau_thiet_bi_id = ${mau_thiet_bi_id}::uuid
     ORDER BY created_at ASC
   `;
+*/
 
-  /*
-    Số lượng mẫu này đã có sẵn trong giỏ.
-    Ví dụ khách đã có Sony A7 IV số lượng 2.
-  */
-  const soLuongDaCoTrongGio = existingItems.reduce((tong, item) => {
-    return tong + Number(item.so_luong || 0);
-  }, 0);
+/*
+  Số lượng mẫu này đã có sẵn trong giỏ.
+  Ví dụ khách đã có Sony A7 IV số lượng 2.
+*/
+/*
+const soLuongDaCoTrongGio = existingItems.reduce((tong, item) => {
+  return tong + Number(item.so_luong || 0);
+}, 0);
+*/
 
-  /*
-    Số lượng mới muốn lưu vào giỏ.
-    Ví dụ đã có 2, thêm tiếp 1 => cần kiểm tra 3.
-  */
-  const soLuongSauKhiThem = soLuongDaCoTrongGio + parsedQty;
+/*
+  Số lượng mới muốn lưu vào giỏ.
+  Ví dụ đã có 2, thêm tiếp 1 => cần kiểm tra 3.
+*/
+/*
+const soLuongSauKhiThem = soLuongDaCoTrongGio + parsedQty;
+*/
 
-  /*
-    Kiểm tra khả dụng theo tổng số lượng sau khi thêm.
+/*
+  Kiểm tra khả dụng theo tổng số lượng sau khi thêm.
 
-    checkAvailability là hàm cũ của bạn.
-    Hàm này đang kiểm tra mẫu chính + bộ đi kèm theo ngày thuê.
-  */
-  const isAvailable = await checkAvailability(
-    mau_thiet_bi_id,
-    dateNhan,
-    dateTra,
-    soLuongSauKhiThem
-  );
+  checkAvailability là hàm cũ của bạn.
+  Hàm này đang kiểm tra mẫu chính + bộ đi kèm theo ngày thuê.
+*/
+/*
+const isAvailable = await checkAvailability(
+  mau_thiet_bi_id,
+  dateNhan,
+  dateTra,
+  soLuongSauKhiThem
+);
 
-  if (!isAvailable) {
-    if (soLuongDaCoTrongGio > 0) {
-      throw new Error(
-        `Bạn đã có ${soLuongDaCoTrongGio} bộ "${model.ten_mau}" trong giỏ. Vui lòng chỉnh số lượng trong giỏ hoặc chọn ngày khác.`
-      );
-    }
-
+if (!isAvailable) {
+  if (soLuongDaCoTrongGio > 0) {
     throw new Error(
-      `Thiết bị "${model.ten_mau}" không đủ số lượng sẵn sàng.`
+      `Bạn đã có ${soLuongDaCoTrongGio} bộ "${model.ten_mau}" trong giỏ. Vui lòng chỉnh số lượng trong giỏ hoặc chọn ngày khác.`
     );
   }
 
-  if (existingItems.length > 0) {
-    const itemGiuLai = existingItems[0];
-    const danhSachItemCanXoa = existingItems.slice(1).map((item) => item.id);
+  throw new Error(
+    `Thiết bị "${model.ten_mau}" không đủ số lượng sẵn sàng.`
+  );
+}
 
-    /*
-      Nếu mẫu đã có trong giỏ:
-      - cộng số lượng
-      - cập nhật ngày nhận/ngày trả theo lần thêm mới nhất
-      - cập nhật lại snapshot giá thuê và tiền cọc
-    */
-    await prisma.$executeRaw`
+if (existingItems.length > 0) {
+  const itemGiuLai = existingItems[0];
+  const danhSachItemCanXoa = existingItems.slice(1).map((item) => item.id);
+*/
+
+  /*
+    Nếu mẫu đã có trong giỏ:
+    - cộng số lượng
+    - cập nhật ngày nhận/ngày trả theo lần thêm mới nhất
+    - cập nhật lại snapshot giá thuê và tiền cọc
+  */
+/*
+  await prisma.$executeRaw`
       UPDATE chi_tiet_gio_hang
       SET
         so_luong = ${soLuongSauKhiThem},
@@ -279,22 +288,26 @@ async function themVaoGioHangServiceLegacy(
         updated_at = NOW()
       WHERE id = ${itemGiuLai.id}::uuid
     `;
+*/
 
-    /*
-      Nếu trước đó bị tách nhiều dòng cùng mẫu
-      thì xóa các dòng trùng còn lại.
-    */
-    for (const itemId of danhSachItemCanXoa) {
-      await prisma.$executeRaw`
+  /*
+    Nếu trước đó bị tách nhiều dòng cùng mẫu
+    thì xóa các dòng trùng còn lại.
+  */
+/*
+  for (const itemId of danhSachItemCanXoa) {
+    await prisma.$executeRaw`
         DELETE FROM chi_tiet_gio_hang
         WHERE id = ${itemId}::uuid
       `;
-    }
-  } else {
-    /*
-      Nếu mẫu chưa có trong giỏ thì thêm mới.
-    */
-    await prisma.$executeRaw`
+  }
+} else {
+*/
+  /*
+    Nếu mẫu chưa có trong giỏ thì thêm mới.
+  */
+/*
+  await prisma.$executeRaw`
       INSERT INTO chi_tiet_gio_hang (
         id,
         gio_hang_id,
@@ -320,11 +333,10 @@ async function themVaoGioHangServiceLegacy(
         NOW()
       )
     `;
-  }
-
-  return { message: "Thêm vào giỏ hàng thành công" };
 }
 
+return { message: "Thêm vào giỏ hàng thành công" };
+}
 */
 
 async function themVaoGioHangService(
