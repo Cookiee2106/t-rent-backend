@@ -6,6 +6,8 @@ const {
   layDanhSachKhachHangService,
   layChiTietKhachHangService,
   capNhatTrangThaiKhachHangService,
+  layBaoCaoDoanhThuService,
+  layBaoCaoTonKhoService,
 
   // XEM LỊCH SỬ HỒ SƠ XÁC MINH
   // layLichSuHoSoXacMinhService,
@@ -136,6 +138,38 @@ async function capNhatTrangThaiKhachHang(req, res) {
   }
 }
 
+async function layBaoCaoDoanhThu(req, res) {
+  try {
+    const ketQua = await layBaoCaoDoanhThuService(req.query || {});
+    res.json({
+      success: true,
+      message: "Lấy báo cáo doanh thu thành công",
+      data: ketQua,
+    });
+  } catch (loi) {
+    res.status(400).json({
+      success: false,
+      message: loi.message,
+    });
+  }
+}
+
+async function layBaoCaoTonKho(req, res) {
+  try {
+    const ketQua = await layBaoCaoTonKhoService();
+    res.json({
+      success: true,
+      message: "Lấy báo cáo tồn kho thành công",
+      data: ketQua,
+    });
+  } catch (loi) {
+    res.status(400).json({
+      success: false,
+      message: loi.message,
+    });
+  }
+}
+
 /*
  XEM LỊCH SỬ HỒ SƠ XÁC MINH
 */
@@ -167,6 +201,8 @@ module.exports = {
   layDanhSachKhachHang,
   layChiTietKhachHang,
   capNhatTrangThaiKhachHang,
+  layBaoCaoDoanhThu,
+  layBaoCaoTonKho,
 
   // LỊCH SỬ HỒ SƠ XÁC MINH
   // layLichSuHoSoXacMinh,
