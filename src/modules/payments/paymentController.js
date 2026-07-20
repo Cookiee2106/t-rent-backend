@@ -4,11 +4,17 @@ const {
   xuLyReturnVnpayService,
 } = require("./paymentService");
 
+function guiLoi(res, loi) {
+  res.status(400).json({
+    success: false,
+    message: loi.message,
+  });
+}
+
 // POST /api/cart/checkout
 async function taoPhienThanhToanCoc(req, res) {
   try {
     const nguoiDungId = req.nguoiDung.id;
-
     const ketQua = await taoPhienThanhToanCocService(
       nguoiDungId,
       req.body || {},
@@ -21,10 +27,7 @@ async function taoPhienThanhToanCoc(req, res) {
       data: ketQua,
     });
   } catch (loi) {
-    res.status(400).json({
-      success: false,
-      message: loi.message,
-    });
+    guiLoi(res, loi);
   }
 }
 
@@ -32,7 +35,6 @@ async function taoPhienThanhToanCoc(req, res) {
 async function layTrangThaiPhienThanhToan(req, res) {
   try {
     const nguoiDungId = req.nguoiDung.id;
-
     const ketQua = await layTrangThaiPhienThanhToanService(
       nguoiDungId,
       req.params.id
@@ -44,10 +46,7 @@ async function layTrangThaiPhienThanhToan(req, res) {
       data: ketQua,
     });
   } catch (loi) {
-    res.status(400).json({
-      success: false,
-      message: loi.message,
-    });
+    guiLoi(res, loi);
   }
 }
 
@@ -60,8 +59,14 @@ async function nhanReturnVnpay(req, res) {
 
     const urlRedirect = await xuLyReturnVnpayService(req.query);
 
+    console.log("Redirect về FE:");
+    console.log(urlRedirect);
+
     res.redirect(urlRedirect);
   } catch (loi) {
+    console.log("Lỗi VNPay return:");
+    console.log(loi.message);
+
     const feUrl =
       process.env.FE_PAYMENT_RESULT_URL ||
       "http://localhost:5173/payment-result";

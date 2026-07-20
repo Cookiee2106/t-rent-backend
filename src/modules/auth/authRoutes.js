@@ -4,7 +4,9 @@ const {
   dangNhap,
   layThongTinCuaToi,
 } = require("./authController");
+
 const xacThucDangNhap = require("../../middlewares/authMiddleware");
+
 const router = express.Router();
 
 router.post("/register", dangKy);

@@ -1,8 +1,10 @@
 const express = require("express");
+
 const {
   layDanhSachMauThietBi,
   layChiTietMauThietBi,
 } = require("./deviceModelController");
+
 const router = express.Router();
 
 router.get("/", layDanhSachMauThietBi);

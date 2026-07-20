@@ -1,196 +1,153 @@
-const prisma = require("../../config/prisma");
+const UserModel = require("../../models/UserModel");
+const VerificationProfileModel = require("../../models/VerificationProfileModel");
+
+const {
+  timNguoiDungKhacTheoSoDienThoai,
+  capNhatThongTinCaNhan,
+} = require("../../repositories/userRepository");
+
+const {
+  layHoSoXacMinhCuaKhachHang,
+  layTrangThaiXacMinhNguoiDung,
+  timHoSoDangChoDuyetHoacDaDuyetTheoSoCccd,
+  taoHoSoXacMinhVaCapNhatTrangThai,
+} = require("../../repositories/verificationProfileRepository");
+
 const {
   taiAnhLenCloudinaryService,
 } = require("../uploads/uploadService");
 
-async function capNhatThongTinCaNhanService(nguoiDungId, duLieu) {
-  const { ho_ten, so_dien_thoai, dia_chi } = duLieu;
+function chuanHoaChuoi(giaTri) {
+  if (giaTri === undefined || giaTri === null) {
+    return "";
+  }
 
-  const danhSachTrungSoDienThoai = await prisma.$queryRaw`
-    SELECT id
-    FROM nguoi_dung
-    WHERE so_dien_thoai = ${so_dien_thoai}
-      AND id <> ${nguoiDungId}::uuid
-      AND da_xoa_luc IS NULL
-    LIMIT 1
-  `;
+  return String(giaTri).trim();
+}
 
-  if (danhSachTrungSoDienThoai.length > 0) {
+function kiemTraSoDienThoai(soDienThoai) {
+  return /^0[0-9]{9}$/.test(soDienThoai);
+}
+
+function kiemTraSoCccd(soCccd) {
+  return /^[0-9]{12}$/.test(soCccd);
+}
+
+function kiemTraFileAnh(file) {
+  return file && file.mimetype && file.mimetype.startsWith("image/");
+}
+
+async function capNhatThongTinCaNhanService(nguoiDungId, duLieu = {}) {
+  const hoTen = chuanHoaChuoi(duLieu.ho_ten);
+  const soDienThoai = chuanHoaChuoi(duLieu.so_dien_thoai);
+  const diaChi = chuanHoaChuoi(duLieu.dia_chi);
+
+  if (!hoTen || !soDienThoai || !diaChi) {
+    throw new Error("Vui lòng nhập đầy đủ thông tin");
+  }
+
+  if (!kiemTraSoDienThoai(soDienThoai)) {
+    throw new Error("Số điện thoại không hợp lệ");
+  }
+
+  const soDienThoaiTonTai = await timNguoiDungKhacTheoSoDienThoai(
+    nguoiDungId,
+    soDienThoai
+  );
+
+  if (soDienThoaiTonTai) {
     throw new Error("Số điện thoại đã được sử dụng");
   }
 
-  const danhSachNguoiDung = await prisma.$queryRaw`
-    WITH nguoi_dung_cap_nhat AS (
-      UPDATE nguoi_dung
-      SET 
-        ho_ten = ${ho_ten},
-        so_dien_thoai = ${so_dien_thoai},
-        dia_chi = ${dia_chi},
-        updated_at = NOW()
-      WHERE id = ${nguoiDungId}::uuid
-        AND da_xoa_luc IS NULL
-      RETURNING
-        id,
-        ho_ten,
-        email,
-        so_dien_thoai,
-        dia_chi,
-        vai_tro,
-        trang_thai,
-        trang_thai_xac_minh
-    )
-    SELECT
-      nd.id,
-      nd.ho_ten,
-      nd.email,
-      nd.so_dien_thoai,
-      nd.dia_chi,
-      nd.vai_tro,
-      nd.trang_thai,
-      tt_tk.ten_trang_thai AS ten_trang_thai_tai_khoan,
-      nd.trang_thai_xac_minh,
-      tt_xm.ten_trang_thai AS ten_trang_thai_xac_minh
-    FROM nguoi_dung_cap_nhat nd
+  const row = await capNhatThongTinCaNhan(nguoiDungId, {
+    hoTen,
+    soDienThoai,
+    diaChi,
+  });
 
-    LEFT JOIN trang_thai_he_thong tt_tk
-      ON tt_tk.id = nd.trang_thai
-
-    LEFT JOIN trang_thai_he_thong tt_xm
-      ON tt_xm.id = nd.trang_thai_xac_minh
-  `;
-
-  if (danhSachNguoiDung.length === 0) {
+  if (!row) {
     throw new Error("Không tìm thấy người dùng");
   }
 
-  return danhSachNguoiDung[0];
+  return new UserModel(row);
 }
 
 async function layHoSoXacMinhCuaToiService(nguoiDungId) {
-  const danhSachHoSo = await prisma.$queryRaw`
-    SELECT
-      nd.id,
-      nd.ho_ten,
-      nd.email,
-      nd.so_dien_thoai,
-      nd.dia_chi,
+  const row = await layHoSoXacMinhCuaKhachHang(nguoiDungId);
 
-      nd.trang_thai,
-      tt_tk.ten_trang_thai AS ten_trang_thai_tai_khoan,
-
-      nd.trang_thai_xac_minh,
-      tt_xm.ten_trang_thai AS ten_trang_thai_xac_minh,
-
-      hs.id AS ho_so_xac_minh_id,
-      hs.so_cccd,
-      hs.anh_mat_truoc_url,
-      hs.anh_mat_sau_url,
-      hs.anh_cam_cccd_url,
-      hs.trang_thai AS trang_thai_ho_so,
-      tt_hs.ten_trang_thai AS ten_trang_thai_ho_so,
-      hs.ly_do_tu_choi,
-      hs.duyet_luc,
-      hs.created_at AS ngay_gui
-
-    FROM nguoi_dung nd
-
-    LEFT JOIN trang_thai_he_thong tt_tk
-      ON tt_tk.id = nd.trang_thai
-
-    LEFT JOIN trang_thai_he_thong tt_xm
-      ON tt_xm.id = nd.trang_thai_xac_minh
-
-    LEFT JOIN LATERAL (
-      SELECT *
-      FROM ho_so_xac_minh
-      WHERE khach_hang_id = nd.id
-      ORDER BY created_at DESC
-      LIMIT 1
-    ) hs ON TRUE
-
-    LEFT JOIN trang_thai_he_thong tt_hs
-      ON tt_hs.id = hs.trang_thai
-
-    WHERE nd.id = ${nguoiDungId}::uuid
-      AND nd.da_xoa_luc IS NULL
-
-    LIMIT 1
-  `;
-
-  if (danhSachHoSo.length === 0) {
+  if (!row) {
     throw new Error("Không tìm thấy người dùng");
   }
 
-  return danhSachHoSo[0];
+  return new VerificationProfileModel(row);
 }
 
-async function guiHoSoXacMinhService(nguoiDungId, duLieu) {
-  const { so_cccd, anh_mat_truoc, anh_mat_sau, anh_cam_cccd } = duLieu;
+async function guiHoSoXacMinhService(nguoiDungId, duLieu = {}) {
+  const soCccd = chuanHoaChuoi(duLieu.so_cccd);
+  const anhMatTruoc = duLieu.anh_mat_truoc;
+  const anhMatSau = duLieu.anh_mat_sau;
+  const anhCamCccd = duLieu.anh_cam_cccd;
 
-  const danhSachNguoiDung = await prisma.$queryRaw`
-    SELECT id, trang_thai_xac_minh
-    FROM nguoi_dung
-    WHERE id = ${nguoiDungId}::uuid
-      AND da_xoa_luc IS NULL
-    LIMIT 1
-  `;
+  if (!soCccd || !anhMatTruoc || !anhMatSau || !anhCamCccd) {
+    throw new Error("Vui lòng nhập đầy đủ hồ sơ xác minh");
+  }
 
-  if (danhSachNguoiDung.length === 0) {
+  if (!kiemTraSoCccd(soCccd)) {
+    throw new Error("Số CCCD phải gồm 12 chữ số");
+  }
+
+  const cccdTonTai = await timHoSoDangChoDuyetHoacDaDuyetTheoSoCccd(
+    nguoiDungId,
+    soCccd
+  );
+
+  if (cccdTonTai) {
+    throw new Error("Số CCCD đã được sử dụng");
+  }
+
+  if (
+    !kiemTraFileAnh(anhMatTruoc) ||
+    !kiemTraFileAnh(anhMatSau) ||
+    !kiemTraFileAnh(anhCamCccd)
+  ) {
+    throw new Error("File tải lên phải là ảnh");
+  }
+
+  const nguoiDung = await layTrangThaiXacMinhNguoiDung(nguoiDungId);
+
+  if (!nguoiDung) {
     throw new Error("Không tìm thấy người dùng");
   }
 
-  const nguoiDung = danhSachNguoiDung[0];
-
-  if (nguoiDung.trang_thai_xac_minh === 202) {
+  if (Number(nguoiDung.trang_thai_xac_minh) === 202) {
     throw new Error("Hồ sơ của bạn đang chờ duyệt");
   }
 
-  if (nguoiDung.trang_thai_xac_minh === 203) {
+  if (Number(nguoiDung.trang_thai_xac_minh) === 203) {
     throw new Error("Hồ sơ của bạn đã được duyệt");
   }
 
   const ketQuaAnhMatTruoc = await taiAnhLenCloudinaryService(
-    anh_mat_truoc,
+    anhMatTruoc,
     "verification"
   );
 
   const ketQuaAnhMatSau = await taiAnhLenCloudinaryService(
-    anh_mat_sau,
+    anhMatSau,
     "verification"
   );
 
   const ketQuaAnhCamCccd = await taiAnhLenCloudinaryService(
-    anh_cam_cccd,
+    anhCamCccd,
     "verification"
   );
 
-  await prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`
-      INSERT INTO ho_so_xac_minh (
-        khach_hang_id,
-        so_cccd,
-        anh_mat_truoc_url,
-        anh_mat_sau_url,
-        anh_cam_cccd_url,
-        trang_thai
-      )
-      VALUES (
-        ${nguoiDungId}::uuid,
-        ${so_cccd},
-        ${ketQuaAnhMatTruoc.url},
-        ${ketQuaAnhMatSau.url},
-        ${ketQuaAnhCamCccd.url},
-        202
-      )
-    `;
-
-    await tx.$executeRaw`
-      UPDATE nguoi_dung
-      SET 
-        trang_thai_xac_minh = 202,
-        updated_at = NOW()
-      WHERE id = ${nguoiDungId}::uuid
-    `;
+  await taoHoSoXacMinhVaCapNhatTrangThai({
+    nguoiDungId,
+    soCccd,
+    anhMatTruocUrl: ketQuaAnhMatTruoc.url,
+    anhMatSauUrl: ketQuaAnhMatSau.url,
+    anhCamCccdUrl: ketQuaAnhCamCccd.url,
   });
 
   return await layHoSoXacMinhCuaToiService(nguoiDungId);

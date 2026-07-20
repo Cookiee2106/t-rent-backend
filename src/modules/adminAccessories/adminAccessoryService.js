@@ -1,4 +1,5 @@
-const prisma = require("../../config/prisma");
+const AccessoryModel = require("../../models/AccessoryModel");
+const adminAccessoryRepository = require("../../repositories/adminAccessoryRepository");
 
 function chuanHoaChuoi(giaTri) {
   if (giaTri === undefined || giaTri === null) {
@@ -9,199 +10,212 @@ function chuanHoaChuoi(giaTri) {
   return ketQua || null;
 }
 
-function docTongSoLuong(giaTri) {
+function docSoLuong(giaTri) {
   const so = Number(giaTri);
 
   if (!Number.isInteger(so) || so < 0) {
-    throw new Error("tong_so_luong phải là số nguyên lớn hơn hoặc bằng 0");
+    throw new Error("Tổng số lượng phải là số nguyên lớn hơn hoặc bằng 0");
   }
 
   return so;
 }
 
-async function layPhuKienTheoId(id) {
-  const danhSach = await prisma.$queryRaw`
-    SELECT
-      id,
-      ten_phu_kien,
-      ten_hang,
-      tong_so_luong,
-      vi_tri_luu_tru,
-      ghi_chu,
-      da_xoa_luc,
-      created_at,
-      updated_at
-    FROM phu_kien
-    WHERE id = ${id}::uuid
-      AND da_xoa_luc IS NULL
-    LIMIT 1
-  `;
+async function kiemTraTonTaiDuLieuLienQuan({ hangId, danhMucId, viTriKhoId }) {
+  let hang = null;
 
-  if (danhSach.length === 0) {
-    throw new Error("Không tìm thấy phụ kiện");
+  if (hangId) {
+    hang = await adminAccessoryRepository.layHangDangHienThiTheoId(hangId);
+
+    if (!hang) {
+      throw new Error("Hãng không hợp lệ hoặc đã bị ẩn");
+    }
   }
 
-  const phuKien = danhSach[0];
+  const danhMuc = await adminAccessoryRepository.layDanhMucPhuKienDangHienThiTheoId(
+    danhMucId
+  );
+
+  if (!danhMuc) {
+    throw new Error("Vui lòng chọn danh mục phụ kiện đang hiển thị");
+  }
+
+  const viTriKho = await adminAccessoryRepository.layViTriKhoDangHienThiTheoId(
+    viTriKhoId
+  );
+
+  if (!viTriKho) {
+    throw new Error("Vui lòng chọn vị trí kho đang hiển thị");
+  }
 
   return {
-    ...phuKien,
-    tong_so_luong: Number(phuKien.tong_so_luong),
+    hang,
+    danhMuc,
+    viTriKho,
   };
 }
 
-async function kiemTraTenPhuKienTrung(tenPhuKien, idLoaiTru = null) {
-  const danhSach = idLoaiTru
-    ? await prisma.$queryRaw`
-        SELECT id
-        FROM phu_kien
-        WHERE LOWER(ten_phu_kien) = LOWER(${tenPhuKien})
-          AND id <> ${idLoaiTru}::uuid
-        LIMIT 1
-      `
-    : await prisma.$queryRaw`
-        SELECT id
-        FROM phu_kien
-        WHERE LOWER(ten_phu_kien) = LOWER(${tenPhuKien})
-        LIMIT 1
-      `;
+async function kiemTraTenTrung(tenPhuKien, idBoQua = null) {
+  const trung = await adminAccessoryRepository.timPhuKienTrungTen(
+    tenPhuKien,
+    idBoQua
+  );
 
-  if (danhSach.length > 0) {
+  if (trung) {
     throw new Error("Tên phụ kiện đã tồn tại");
   }
 }
 
-async function layDanhSachPhuKienAdminService() {
-  const danhSach = await prisma.$queryRaw`
-    SELECT
-      id,
-      ten_phu_kien,
-      ten_hang,
-      tong_so_luong,
-      vi_tri_luu_tru,
-      ghi_chu,
-      created_at,
-      updated_at
-    FROM phu_kien
-    WHERE da_xoa_luc IS NULL
-    ORDER BY created_at DESC
-  `;
+async function kiemTraSucChuaViTri({ viTriKho, viTriKhoId, tongSoLuong, idBoQua = null }) {
+  const soLuongDangChua = await adminAccessoryRepository.tinhSoLuongDangChuaTaiViTri(
+    viTriKhoId,
+    idBoQua
+  );
 
-  return danhSach.map((item) => ({
-    ...item,
-    tong_so_luong: Number(item.tong_so_luong),
-  }));
+  const sucChuaToiDa = Number(viTriKho.suc_chua_toi_da || 0);
+
+  if (sucChuaToiDa > 0 && soLuongDangChua + tongSoLuong > sucChuaToiDa) {
+    throw new Error(
+      `Vị trí "${viTriKho.ten_vi_tri}" chỉ còn ${Math.max(
+        sucChuaToiDa - soLuongDangChua,
+        0
+      )} chỗ trống`
+    );
+  }
+}
+
+function docDuLieuPhuKien(body = {}) {
+  const tenPhuKien = chuanHoaChuoi(body.ten_phu_kien);
+  const hangId = chuanHoaChuoi(body.hang_id);
+  const danhMucId = chuanHoaChuoi(body.danh_muc_id);
+  const viTriKhoId = chuanHoaChuoi(body.vi_tri_kho_id);
+  const tongSoLuong = docSoLuong(body.tong_so_luong ?? 0);
+  const moTa = chuanHoaChuoi(body.mo_ta);
+
+  if (!tenPhuKien) {
+    throw new Error("Vui lòng nhập tên phụ kiện");
+  }
+
+  if (!danhMucId) {
+    throw new Error("Vui lòng chọn danh mục phụ kiện");
+  }
+
+  if (!viTriKhoId) {
+    throw new Error("Vui lòng chọn vị trí kho");
+  }
+
+  return {
+    tenPhuKien,
+    hangId,
+    danhMucId,
+    viTriKhoId,
+    tongSoLuong,
+    moTa,
+  };
+}
+
+async function layDanhSachPhuKienAdminService() {
+  const danhSach = await adminAccessoryRepository.layDanhSachPhuKien();
+
+  return danhSach.map((item) => new AccessoryModel(item));
 }
 
 async function layChiTietPhuKienAdminService(id) {
-  return layPhuKienTheoId(id);
+  const phuKien = await adminAccessoryRepository.layPhuKienTheoId(id);
+
+  if (!phuKien) {
+    throw new Error("Không tìm thấy phụ kiện");
+  }
+
+  return new AccessoryModel(phuKien);
 }
 
 async function taoPhuKienAdminService(body = {}) {
-  const tenPhuKien = chuanHoaChuoi(body.ten_phu_kien);
-  const tenHang = chuanHoaChuoi(body.ten_hang);
-  const viTriLuuTru = chuanHoaChuoi(body.vi_tri_luu_tru);
-  const ghiChu = chuanHoaChuoi(body.ghi_chu);
-  const tongSoLuong = docTongSoLuong(body.tong_so_luong ?? 0);
+  const duLieu = docDuLieuPhuKien(body);
 
-  if (!tenPhuKien) {
-    throw new Error("ten_phu_kien là bắt buộc");
-  }
+  await kiemTraTenTrung(duLieu.tenPhuKien);
 
-  await kiemTraTenPhuKienTrung(tenPhuKien);
+  const { viTriKho } = await kiemTraTonTaiDuLieuLienQuan({
+    hangId: duLieu.hangId,
+    danhMucId: duLieu.danhMucId,
+    viTriKhoId: duLieu.viTriKhoId,
+  });
 
-  const ketQua = await prisma.$queryRaw`
-    INSERT INTO phu_kien (
-      id,
-      ten_phu_kien,
-      ten_hang,
-      tong_so_luong,
-      vi_tri_luu_tru,
-      ghi_chu,
-      created_at,
-      updated_at
-    )
-    VALUES (
-      gen_random_uuid(),
-      ${tenPhuKien},
-      ${tenHang},
-      ${tongSoLuong},
-      ${viTriLuuTru},
-      ${ghiChu},
-      NOW(),
-      NOW()
-    )
-    RETURNING id
-  `;
+  await kiemTraSucChuaViTri({
+    viTriKho,
+    viTriKhoId: duLieu.viTriKhoId,
+    tongSoLuong: duLieu.tongSoLuong,
+  });
 
-  return layPhuKienTheoId(ketQua[0].id);
+  const phuKienMoi = await adminAccessoryRepository.taoPhuKien(duLieu);
+
+  return layChiTietPhuKienAdminService(phuKienMoi.id);
 }
 
 async function capNhatPhuKienAdminService(id, body = {}) {
-  const hienTai = await layPhuKienTheoId(id);
+  const phuKienCu = await adminAccessoryRepository.layPhuKienTheoId(id);
 
-  const coTruongCapNhat = [
-    "ten_phu_kien",
-    "ten_hang",
-    "tong_so_luong",
-    "vi_tri_luu_tru",
-    "ghi_chu",
-  ].some((truong) => Object.prototype.hasOwnProperty.call(body, truong));
-
-  if (!coTruongCapNhat) {
-    throw new Error("Không có dữ liệu để cập nhật");
+  if (!phuKienCu) {
+    throw new Error("Không tìm thấy phụ kiện");
   }
 
-  const tenPhuKien = Object.prototype.hasOwnProperty.call(body, "ten_phu_kien")
-    ? chuanHoaChuoi(body.ten_phu_kien)
-    : hienTai.ten_phu_kien;
-  const tenHang = Object.prototype.hasOwnProperty.call(body, "ten_hang")
-    ? chuanHoaChuoi(body.ten_hang)
-    : hienTai.ten_hang;
-  const viTriLuuTru = Object.prototype.hasOwnProperty.call(body, "vi_tri_luu_tru")
-    ? chuanHoaChuoi(body.vi_tri_luu_tru)
-    : hienTai.vi_tri_luu_tru;
-  const ghiChu = Object.prototype.hasOwnProperty.call(body, "ghi_chu")
-    ? chuanHoaChuoi(body.ghi_chu)
-    : hienTai.ghi_chu;
-  const tongSoLuong = Object.prototype.hasOwnProperty.call(body, "tong_so_luong")
-    ? docTongSoLuong(body.tong_so_luong)
-    : Number(hienTai.tong_so_luong);
+  const duLieu = docDuLieuPhuKien(body);
 
-  if (!tenPhuKien) {
-    throw new Error("ten_phu_kien không được để trống");
+  await kiemTraTenTrung(duLieu.tenPhuKien, id);
+
+  const { viTriKho } = await kiemTraTonTaiDuLieuLienQuan({
+    hangId: duLieu.hangId,
+    danhMucId: duLieu.danhMucId,
+    viTriKhoId: duLieu.viTriKhoId,
+  });
+
+  const soLuongDangSuDung = await adminAccessoryRepository.tinhSoLuongDangSuDungCuaPhuKien(
+    id
+  );
+
+  if (duLieu.tongSoLuong < soLuongDangSuDung) {
+    throw new Error(
+      `Tổng số lượng không được nhỏ hơn ${soLuongDangSuDung} vì phụ kiện đang được giữ/thuê`
+    );
   }
 
-  await kiemTraTenPhuKienTrung(tenPhuKien, id);
+  await kiemTraSucChuaViTri({
+    viTriKho,
+    viTriKhoId: duLieu.viTriKhoId,
+    tongSoLuong: duLieu.tongSoLuong,
+    idBoQua: id,
+  });
 
-  await prisma.$executeRaw`
-    UPDATE phu_kien
-    SET
-      ten_phu_kien = ${tenPhuKien},
-      ten_hang = ${tenHang},
-      tong_so_luong = ${tongSoLuong},
-      vi_tri_luu_tru = ${viTriLuuTru},
-      ghi_chu = ${ghiChu},
-      updated_at = NOW()
-    WHERE id = ${id}::uuid
-      AND da_xoa_luc IS NULL
-  `;
+  await adminAccessoryRepository.capNhatPhuKien(id, duLieu);
 
-  return layPhuKienTheoId(id);
+  return layChiTietPhuKienAdminService(id);
 }
 
 async function xoaMemPhuKienAdminService(id) {
-  await layPhuKienTheoId(id);
+  const phuKien = await adminAccessoryRepository.layPhuKienTheoId(id);
 
-  await prisma.$executeRaw`
-    UPDATE phu_kien
-    SET
-      da_xoa_luc = NOW(),
-      updated_at = NOW()
-    WHERE id = ${id}::uuid
-      AND da_xoa_luc IS NULL
-  `;
+  if (!phuKien) {
+    throw new Error("Không tìm thấy phụ kiện");
+  }
 
-  return { message: "Xóa mềm phụ kiện thành công" };
+  const soLuongDangSuDung = await adminAccessoryRepository.tinhSoLuongDangSuDungCuaPhuKien(
+    id
+  );
+
+  if (soLuongDangSuDung > 0) {
+    throw new Error("Không thể xóa phụ kiện đang được giữ/thuê");
+  }
+
+  const boDiKem = await adminAccessoryRepository.timBoDiKemTheoPhuKien(id);
+
+  if (boDiKem) {
+    throw new Error("Không thể xóa phụ kiện đang được cấu hình trong bộ đi kèm");
+  }
+
+  await adminAccessoryRepository.xoaMemPhuKien(id);
+
+  return {
+    id,
+  };
 }
 
 module.exports = {

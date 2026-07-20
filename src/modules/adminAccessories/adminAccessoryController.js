@@ -22,11 +22,12 @@ function guiLoi(res, loi) {
 
 async function layDanhSachPhuKienAdmin(req, res) {
   try {
-    const ketQua = await layDanhSachPhuKienAdminService();
+    const data = await layDanhSachPhuKienAdminService();
+
     res.json({
       success: true,
       message: "Lấy danh sách phụ kiện thành công",
-      data: ketQua,
+      data,
     });
   } catch (loi) {
     guiLoi(res, loi);
@@ -35,11 +36,12 @@ async function layDanhSachPhuKienAdmin(req, res) {
 
 async function layChiTietPhuKienAdmin(req, res) {
   try {
-    const ketQua = await layChiTietPhuKienAdminService(req.params.id);
+    const data = await layChiTietPhuKienAdminService(req.params.id);
+
     res.json({
       success: true,
       message: "Lấy chi tiết phụ kiện thành công",
-      data: ketQua,
+      data,
     });
   } catch (loi) {
     guiLoi(res, loi);
@@ -48,11 +50,12 @@ async function layChiTietPhuKienAdmin(req, res) {
 
 async function taoPhuKienAdmin(req, res) {
   try {
-    const ketQua = await taoPhuKienAdminService(req.body || {});
+    const data = await taoPhuKienAdminService(req.body || {});
+
     res.status(201).json({
       success: true,
       message: "Thêm phụ kiện thành công",
-      data: ketQua,
+      data,
     });
   } catch (loi) {
     guiLoi(res, loi);
@@ -61,11 +64,12 @@ async function taoPhuKienAdmin(req, res) {
 
 async function capNhatPhuKienAdmin(req, res) {
   try {
-    const ketQua = await capNhatPhuKienAdminService(req.params.id, req.body || {});
+    const data = await capNhatPhuKienAdminService(req.params.id, req.body || {});
+
     res.json({
       success: true,
       message: "Cập nhật phụ kiện thành công",
-      data: ketQua,
+      data,
     });
   } catch (loi) {
     guiLoi(res, loi);
@@ -74,10 +78,12 @@ async function capNhatPhuKienAdmin(req, res) {
 
 async function xoaMemPhuKienAdmin(req, res) {
   try {
-    const ketQua = await xoaMemPhuKienAdminService(req.params.id);
+    const data = await xoaMemPhuKienAdminService(req.params.id);
+
     res.json({
       success: true,
-      message: ketQua.message,
+      message: "Xóa phụ kiện thành công",
+      data,
     });
   } catch (loi) {
     guiLoi(res, loi);

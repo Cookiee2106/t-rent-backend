@@ -2,19 +2,21 @@ const {
   layDanhSachThanhLyService,
   layChiTietThanhLyService,
   lapPhieuTraService,
-
-  // capNhatThanhLyService,
-  // huyThanhLyService,
 } = require("./settlementService");
 
 async function layDanhSachThanhLy(req, res) {
   try {
-    const danhSach = await layDanhSachThanhLyService();
+    const ketQua = await layDanhSachThanhLyService({
+      trang_thai: req.query.trang_thai,
+      tu_khoa: req.query.tu_khoa,
+      page: req.query.page,
+      limit: req.query.limit,
+    });
 
     res.json({
       success: true,
       message: "Lấy danh sách thanh lý thành công",
-      data: danhSach,
+      ...ketQua,
     });
   } catch (loi) {
     res.status(400).json({
@@ -26,14 +28,12 @@ async function layDanhSachThanhLy(req, res) {
 
 async function layChiTietThanhLy(req, res) {
   try {
-    const donThueId = req.params.orderId;
-
-    const chiTiet = await layChiTietThanhLyService(donThueId);
+    const data = await layChiTietThanhLyService(req.params.orderId);
 
     res.json({
       success: true,
       message: "Lấy chi tiết thanh lý thành công",
-      data: chiTiet,
+      data,
     });
   } catch (loi) {
     res.status(400).json({
@@ -45,12 +45,9 @@ async function layChiTietThanhLy(req, res) {
 
 async function lapPhieuTra(req, res) {
   try {
-    const nguoiDungId = req.nguoiDung.id;
-    const donThueId = req.params.orderId;
-
-    const ketQua = await lapPhieuTraService(
-      nguoiDungId,
-      donThueId,
+    const data = await lapPhieuTraService(
+      req.nguoiDung.id,
+      req.params.orderId,
       req.body || {},
       req.files || []
     );
@@ -58,7 +55,7 @@ async function lapPhieuTra(req, res) {
     res.json({
       success: true,
       message: "Lập phiếu trả/thanh lý thành công",
-      data: ketQua,
+      data,
     });
   } catch (loi) {
     res.status(400).json({
@@ -67,65 +64,9 @@ async function lapPhieuTra(req, res) {
     });
   }
 }
-
-/*
-  CẬP NHẬT THANH LÝ - ĐANG COMMENT
-*/
-/*
-async function capNhatThanhLy(req, res) {
-  try {
-    const nguoiDungId = req.nguoiDung.id;
-    const donThueId = req.params.orderId;
-
-    const ketQua = await capNhatThanhLyService(
-      nguoiDungId,
-      donThueId,
-      req.body || {}
-    );
-
-    res.json({
-      success: true,
-      message: "Cập nhật thanh lý thành công",
-      data: ketQua,
-    });
-  } catch (loi) {
-    res.status(400).json({
-      success: false,
-      message: loi.message,
-    });
-  }
-}
-*/
-
-/*
-  HỦY THANH LÝ - ĐANG COMMENT
-*/
-/*
-async function huyThanhLy(req, res) {
-  try {
-    const donThueId = req.params.orderId;
-
-    const ketQua = await huyThanhLyService(donThueId);
-
-    res.json({
-      success: true,
-      message: "Hủy thanh lý thành công",
-      data: ketQua,
-    });
-  } catch (loi) {
-    res.status(400).json({
-      success: false,
-      message: loi.message,
-    });
-  }
-}
-*/
 
 module.exports = {
   layDanhSachThanhLy,
   layChiTietThanhLy,
   lapPhieuTra,
-
-  // capNhatThanhLy,
-  // huyThanhLy,
 };

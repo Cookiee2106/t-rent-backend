@@ -1,97 +1,103 @@
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const prisma = require("../../config/prisma");
 
-async function dangKyService(duLieu) {
+const UserModel = require("../../models/UserModel");
 
-  const { ho_ten, email, so_dien_thoai, mat_khau } = duLieu;
+const {
+  timNguoiDungTheoEmail,
+  timNguoiDungTheoSoDienThoai,
+  taoKhachHang,
+  layNguoiDungTheoId,
+} = require("../../repositories/userRepository");
 
-  const emailTonTai = await prisma.$queryRaw`
-    SELECT id
-    FROM nguoi_dung
-    WHERE email = ${email}
-      AND da_xoa_luc IS NULL
-    LIMIT 1
-  `;
+const JWT_SECRET = process.env.JWT_SECRET || "123456";
 
-  if (emailTonTai.length > 0) {
+function chuanHoaChuoi(giaTri) {
+  if (giaTri === undefined || giaTri === null) {
+    return "";
+  }
+
+  return String(giaTri).trim();
+}
+
+function kiemTraEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function kiemTraSoDienThoai(soDienThoai) {
+  return /^0[0-9]{9}$/.test(soDienThoai);
+}
+
+async function dangKyService(duLieu = {}) {
+  const hoTen = chuanHoaChuoi(duLieu.ho_ten);
+  const email = chuanHoaChuoi(duLieu.email).toLowerCase();
+  const soDienThoai = chuanHoaChuoi(duLieu.so_dien_thoai);
+  const matKhau = chuanHoaChuoi(duLieu.mat_khau);
+  const xacNhanMatKhau = chuanHoaChuoi(duLieu.xac_nhan_mat_khau);
+
+  if (!hoTen || !email || !soDienThoai || !matKhau || !xacNhanMatKhau) {
+    throw new Error("Vui lòng nhập đầy đủ thông tin");
+  }
+
+  if (!kiemTraEmail(email)) {
+    throw new Error("Email không hợp lệ");
+  }
+
+  if (!kiemTraSoDienThoai(soDienThoai)) {
+    throw new Error("Số điện thoại không hợp lệ");
+  }
+
+  if (matKhau.length < 6) {
+    throw new Error("Mật khẩu phải có ít nhất 6 ký tự");
+  }
+
+  if (matKhau !== xacNhanMatKhau) {
+    throw new Error("Xác nhận mật khẩu không khớp");
+  }
+
+  const emailTonTai = await timNguoiDungTheoEmail(email);
+
+  if (emailTonTai) {
     throw new Error("Email đã được sử dụng");
   }
 
-  const soDienThoaiTonTai = await prisma.$queryRaw`
-    SELECT id
-    FROM nguoi_dung
-    WHERE so_dien_thoai = ${so_dien_thoai}
-      AND da_xoa_luc IS NULL
-    LIMIT 1
-  `;
+  const soDienThoaiTonTai = await timNguoiDungTheoSoDienThoai(soDienThoai);
 
-  if (soDienThoaiTonTai.length > 0) {
+  if (soDienThoaiTonTai) {
     throw new Error("Số điện thoại đã được sử dụng");
   }
 
-  const matKhauHash = await bcrypt.hash(mat_khau, 10);
+  const matKhauHash = await bcrypt.hash(matKhau, 10);
 
-  const danhSachNguoiDung = await prisma.$queryRaw`
-    INSERT INTO nguoi_dung (
-      ho_ten,
-      email,
-      so_dien_thoai,
-      mat_khau_hash,
-      vai_tro,
-      trang_thai,
-      trang_thai_xac_minh
-    )
-    VALUES (
-      ${ho_ten},
-      ${email},
-      ${so_dien_thoai},
-      ${matKhauHash},
-      'KHACH_HANG',
-      101,
-      201
-    )
-    RETURNING
-      id,
-      ho_ten,
-      email,
-      so_dien_thoai,
-      vai_tro,
-      trang_thai,
-      trang_thai_xac_minh
-  `;
+  const row = await taoKhachHang({
+    hoTen,
+    email,
+    soDienThoai,
+    matKhauHash,
+  });
 
-  return danhSachNguoiDung[0];
+  return new UserModel(row);
 }
-async function dangNhapService(email, mat_khau) {
-  const danhSachNguoiDung = await prisma.$queryRaw`
-    SELECT
-      id,
-      ho_ten,
-      email,
-      so_dien_thoai,
-      mat_khau_hash,
-      vai_tro,
-      trang_thai,
-      dia_chi,
-      trang_thai_xac_minh
-    FROM nguoi_dung
-    WHERE email = ${email}
-      AND da_xoa_luc IS NULL
-    LIMIT 1
-  `;
 
-  if (danhSachNguoiDung.length === 0) {
+async function dangNhapService(duLieu = {}) {
+  const email = chuanHoaChuoi(duLieu.email).toLowerCase();
+  const matKhau = chuanHoaChuoi(duLieu.mat_khau);
+
+  if (!email || !matKhau) {
+    throw new Error("Vui lòng nhập email và mật khẩu");
+  }
+
+  const row = await timNguoiDungTheoEmail(email);
+
+  if (!row) {
     throw new Error("Email hoặc mật khẩu không đúng");
   }
 
-  const nguoiDung = danhSachNguoiDung[0];
-
-  if (nguoiDung.trang_thai !== 101) {
+  if (Number(row.trang_thai) !== 101) {
     throw new Error("Tài khoản đang bị khóa hoặc ngưng hoạt động");
   }
 
-  const matKhauDung = await bcrypt.compare(mat_khau, nguoiDung.mat_khau_hash);
+  const matKhauDung = await bcrypt.compare(matKhau, row.mat_khau_hash);
 
   if (!matKhauDung) {
     throw new Error("Email hoặc mật khẩu không đúng");
@@ -99,17 +105,17 @@ async function dangNhapService(email, mat_khau) {
 
   const token = jwt.sign(
     {
-      id: nguoiDung.id,
-      email: nguoiDung.email,
-      vai_tro: nguoiDung.vai_tro,
+      id: row.id,
+      email: row.email,
+      vai_tro: row.vai_tro,
     },
-    process.env.JWT_SECRET,
+    JWT_SECRET,
     {
       expiresIn: "7d",
     }
   );
 
-  delete nguoiDung.mat_khau_hash;
+  const nguoiDung = new UserModel(row);
 
   return {
     token,
@@ -118,37 +124,13 @@ async function dangNhapService(email, mat_khau) {
 }
 
 async function layThongTinCuaToiService(nguoiDungId) {
-  const danhSachNguoiDung = await prisma.$queryRaw`
-    SELECT
-      nd.id,
-      nd.ho_ten,
-      nd.email,
-      nd.so_dien_thoai,
-      nd.dia_chi,
-      nd.vai_tro,
-      nd.trang_thai,
-      tt_tk.ten_trang_thai AS ten_trang_thai_tai_khoan,
-      nd.trang_thai_xac_minh,
-      tt_xm.ten_trang_thai AS ten_trang_thai_xac_minh
-    FROM nguoi_dung nd
+  const row = await layNguoiDungTheoId(nguoiDungId);
 
-    LEFT JOIN trang_thai_he_thong tt_tk
-      ON tt_tk.id = nd.trang_thai
-
-    LEFT JOIN trang_thai_he_thong tt_xm
-      ON tt_xm.id = nd.trang_thai_xac_minh
-
-    WHERE nd.id = ${nguoiDungId}::uuid
-      AND nd.da_xoa_luc IS NULL
-
-    LIMIT 1
-  `;
-
-  if (danhSachNguoiDung.length === 0) {
+  if (!row) {
     throw new Error("Không tìm thấy người dùng");
   }
 
-  return danhSachNguoiDung[0];
+  return new UserModel(row);
 }
 
 module.exports = {

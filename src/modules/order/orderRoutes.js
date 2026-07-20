@@ -1,7 +1,9 @@
 const express = require("express");
 const multer = require("multer");
+
 const xacThucDangNhap = require("../../middlewares/authMiddleware");
 const kiemTraVaiTro = require("../../middlewares/roleMiddleware");
+
 const {
   layDanhSachDonThue,
   layChiTietDonThue,
@@ -13,28 +15,41 @@ const router = express.Router();
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 20 * 1024 * 1024 },
+  limits: {
+    fileSize: 20 * 1024 * 1024,
+  },
 });
 
-const VAI_TRO_NHAN_VIEN = ["NHAN_VIEN", "QUAN_TRI"];
+const vaiTroNoiBo = ["NHAN_VIEN", "QUAN_TRI", "QUAN_TRI_VIEN"];
 
-// GET /api/admin/orders
-router.get("/admin/orders", xacThucDangNhap, kiemTraVaiTro(VAI_TRO_NHAN_VIEN), layDanhSachDonThue);
+router.get(
+  "/admin/orders",
+  xacThucDangNhap,
+  kiemTraVaiTro(vaiTroNoiBo),
+  layDanhSachDonThue
+);
 
-// GET /api/admin/orders/:id
-router.get("/admin/orders/:id", xacThucDangNhap, kiemTraVaiTro(VAI_TRO_NHAN_VIEN), layChiTietDonThue);
+router.get(
+  "/admin/assets/available",
+  xacThucDangNhap,
+  kiemTraVaiTro(vaiTroNoiBo),
+  layThietBiSanSang
+);
 
-// GET /api/admin/assets/available
-router.get("/admin/assets/available", xacThucDangNhap, kiemTraVaiTro(VAI_TRO_NHAN_VIEN), layThietBiSanSang);
+router.get(
+  "/admin/orders/:id",
+  xacThucDangNhap,
+  kiemTraVaiTro(vaiTroNoiBo),
+  layChiTietDonThue
+);
 
-// POST /api/admin/orders/:id/handover
 router.post(
   "/admin/orders/:id/handover",
   xacThucDangNhap,
-  kiemTraVaiTro(VAI_TRO_NHAN_VIEN),
+  kiemTraVaiTro(vaiTroNoiBo),
   upload.fields([
     { name: "hop_dong_giay", maxCount: 5 },
-    { name: "anh_ban_giao", maxCount: 10 },
+    { name: "anh_ban_giao", maxCount: 5 },
   ]),
   lapPhieuBanGiao
 );

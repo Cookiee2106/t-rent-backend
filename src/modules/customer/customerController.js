@@ -4,27 +4,18 @@ const {
   guiHoSoXacMinhService,
 } = require("./customerService");
 
+function guiLoi(res, loi) {
+  return res.status(400).json({
+    success: false,
+    message: loi.message,
+  });
+}
+
 async function capNhatThongTinCaNhan(req, res) {
   try {
-    const { ho_ten, so_dien_thoai, dia_chi } = req.body;
-
-    if (!ho_ten || !so_dien_thoai || !dia_chi) {
-      return res.status(400).json({
-        success: false,
-        message: "Vui lòng nhập đầy đủ thông tin",
-      });
-    }
-
-    if (!/^0[0-9]{9}$/.test(so_dien_thoai)) {
-      return res.status(400).json({
-        success: false,
-        message: "Số điện thoại không hợp lệ",
-      });
-    }
-
     const nguoiDung = await capNhatThongTinCaNhanService(
       req.nguoiDung.id,
-      req.body
+      req.body || {}
     );
 
     res.json({
@@ -33,10 +24,7 @@ async function capNhatThongTinCaNhan(req, res) {
       data: nguoiDung,
     });
   } catch (loi) {
-    res.status(400).json({
-      success: false,
-      message: loi.message,
-    });
+    guiLoi(res, loi);
   }
 }
 
@@ -50,53 +38,17 @@ async function layHoSoXacMinhCuaToi(req, res) {
       data: hoSo,
     });
   } catch (loi) {
-    res.status(400).json({
-      success: false,
-      message: loi.message,
-    });
+    guiLoi(res, loi);
   }
 }
 
 async function guiHoSoXacMinh(req, res) {
   try {
-    const { so_cccd } = req.body;
-
-    const anhMatTruoc = req.files?.anh_mat_truoc?.[0];
-
-    const anhMatSau = req.files?.anh_mat_sau?.[0];
-
-    const anhCamCccd = req.files?.anh_cam_cccd?.[0];
-
-    if (!so_cccd || !anhMatTruoc || !anhMatSau || !anhCamCccd) {
-      return res.status(400).json({
-        success: false,
-        message: "Vui lòng nhập đầy đủ hồ sơ xác minh",
-      });
-    }
-
-    if (!/^[0-9]{12}$/.test(so_cccd)) {
-      return res.status(400).json({
-        success: false,
-        message: "Số CCCD phải gồm 12 chữ số",
-      });
-    }
-
-    if (
-      !anhMatTruoc.mimetype.startsWith("image/") ||
-      !anhMatSau.mimetype.startsWith("image/") ||
-      !anhCamCccd.mimetype.startsWith("image/")
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "File tải lên phải là ảnh",
-      });
-    }
-
     const hoSo = await guiHoSoXacMinhService(req.nguoiDung.id, {
-      so_cccd,
-      anh_mat_truoc: anhMatTruoc,
-      anh_mat_sau: anhMatSau,
-      anh_cam_cccd: anhCamCccd,
+      so_cccd: req.body.so_cccd,
+      anh_mat_truoc: req.files?.anh_mat_truoc?.[0],
+      anh_mat_sau: req.files?.anh_mat_sau?.[0],
+      anh_cam_cccd: req.files?.anh_cam_cccd?.[0],
     });
 
     res.json({
@@ -105,10 +57,7 @@ async function guiHoSoXacMinh(req, res) {
       data: hoSo,
     });
   } catch (loi) {
-    res.status(400).json({
-      success: false,
-      message: loi.message,
-    });
+    guiLoi(res, loi);
   }
 }
 

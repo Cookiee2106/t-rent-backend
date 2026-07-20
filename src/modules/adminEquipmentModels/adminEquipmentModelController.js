@@ -1,4 +1,6 @@
 const {
+  layDanhSachMauThietBiAdminService,
+  layChiTietMauThietBiAdminService,
   taoMauThietBiAdminService,
   capNhatMauThietBiAdminService,
   capNhatTrangThaiMauThietBiAdminService,
@@ -9,14 +11,10 @@ const {
 } = require("./adminEquipmentModelService");
 
 function guiLoi(res, loi) {
-  if (loi.message === "Không tìm thấy mẫu thiết bị") {
-    return res.status(404).json({
-      success: false,
-      message: loi.message,
-    });
-  }
-
-  if (loi.message === "KhÃ´ng tÃ¬m tháº¥y mÃ³n trong bá»™ Ä‘i kÃ¨m") {
+  if (
+    loi.message === "Không tìm thấy mẫu thiết bị" ||
+    loi.message === "Không tìm thấy món trong bộ đi kèm"
+  ) {
     return res.status(404).json({
       success: false,
       message: loi.message,
@@ -29,14 +27,42 @@ function guiLoi(res, loi) {
   });
 }
 
+async function layDanhSachMauThietBiAdmin(req, res) {
+  try {
+    const data = await layDanhSachMauThietBiAdminService();
+
+    res.json({
+      success: true,
+      message: "Lấy danh sách mẫu thiết bị thành công",
+      data,
+    });
+  } catch (loi) {
+    guiLoi(res, loi);
+  }
+}
+
+async function layChiTietMauThietBiAdmin(req, res) {
+  try {
+    const data = await layChiTietMauThietBiAdminService(req.params.id);
+
+    res.json({
+      success: true,
+      message: "Lấy chi tiết mẫu thiết bị thành công",
+      data,
+    });
+  } catch (loi) {
+    guiLoi(res, loi);
+  }
+}
+
 async function taoMauThietBiAdmin(req, res) {
   try {
-    const ketQua = await taoMauThietBiAdminService(req.body || {});
+    const data = await taoMauThietBiAdminService(req.body || {}, req.file);
 
     res.status(201).json({
       success: true,
       message: "Thêm mẫu thiết bị thành công",
-      data: ketQua,
+      data,
     });
   } catch (loi) {
     guiLoi(res, loi);
@@ -45,15 +71,16 @@ async function taoMauThietBiAdmin(req, res) {
 
 async function capNhatMauThietBiAdmin(req, res) {
   try {
-    const ketQua = await capNhatMauThietBiAdminService(
+    const data = await capNhatMauThietBiAdminService(
       req.params.id,
-      req.body || {}
+      req.body || {},
+      req.file
     );
 
     res.json({
       success: true,
       message: "Cập nhật mẫu thiết bị thành công",
-      data: ketQua,
+      data,
     });
   } catch (loi) {
     guiLoi(res, loi);
@@ -62,15 +89,18 @@ async function capNhatMauThietBiAdmin(req, res) {
 
 async function capNhatTrangThaiMauThietBiAdmin(req, res) {
   try {
-    const ketQua = await capNhatTrangThaiMauThietBiAdminService(
+    const data = await capNhatTrangThaiMauThietBiAdminService(
       req.params.id,
       req.body || {}
     );
 
     res.json({
       success: true,
-      message: "Cập nhật trạng thái mẫu thiết bị thành công",
-      data: ketQua,
+      message:
+        Number(data.trang_thai) === 601
+          ? "Hiện mẫu thiết bị thành công"
+          : "Ẩn mẫu thiết bị thành công",
+      data,
     });
   } catch (loi) {
     guiLoi(res, loi);
@@ -79,12 +109,12 @@ async function capNhatTrangThaiMauThietBiAdmin(req, res) {
 
 async function layDanhSachBoDiKemAdmin(req, res) {
   try {
-    const ketQua = await layDanhSachBoDiKemAdminService(req.params.id);
+    const data = await layDanhSachBoDiKemAdminService(req.params.id);
 
     res.json({
       success: true,
       message: "Lấy bộ đi kèm thành công",
-      data: ketQua,
+      data,
     });
   } catch (loi) {
     guiLoi(res, loi);
@@ -93,12 +123,15 @@ async function layDanhSachBoDiKemAdmin(req, res) {
 
 async function layGoiYBoDiKemAdmin(req, res) {
   try {
-    const ketQua = await layGoiYBoDiKemAdminService(req.params.id, req.query || {});
+    const data = await layGoiYBoDiKemAdminService(
+      req.params.id,
+      req.query || {}
+    );
 
     res.json({
       success: true,
       message: "Lấy gợi ý bộ đi kèm thành công",
-      data: ketQua,
+      data,
     });
   } catch (loi) {
     guiLoi(res, loi);
@@ -107,12 +140,12 @@ async function layGoiYBoDiKemAdmin(req, res) {
 
 async function taoBoDiKemAdmin(req, res) {
   try {
-    const ketQua = await taoBoDiKemAdminService(req.params.id, req.body || {});
+    const data = await taoBoDiKemAdminService(req.params.id, req.body || {});
 
     res.status(201).json({
       success: true,
       message: "Thêm món vào bộ đi kèm thành công",
-      data: ketQua,
+      data,
     });
   } catch (loi) {
     guiLoi(res, loi);
@@ -121,14 +154,14 @@ async function taoBoDiKemAdmin(req, res) {
 
 async function xoaBoDiKemAdmin(req, res) {
   try {
-    const ketQua = await xoaBoDiKemAdminService(
+    const data = await xoaBoDiKemAdminService(
       req.params.id,
       req.params.bundleId
     );
 
     res.json({
       success: true,
-      message: ketQua.message,
+      message: data.message,
     });
   } catch (loi) {
     guiLoi(res, loi);
@@ -136,6 +169,8 @@ async function xoaBoDiKemAdmin(req, res) {
 }
 
 module.exports = {
+  layDanhSachMauThietBiAdmin,
+  layChiTietMauThietBiAdmin,
   taoMauThietBiAdmin,
   capNhatMauThietBiAdmin,
   capNhatTrangThaiMauThietBiAdmin,

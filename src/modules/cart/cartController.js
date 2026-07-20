@@ -3,10 +3,15 @@ const {
   themVaoGioHangService,
   capNhatSanPhamService,
   xoaSanPhamService,
-  datHangService,
 } = require("./cartService");
 
-// 1. Xem giỏ hàng
+function guiLoi(res, loi) {
+  res.status(400).json({
+    success: false,
+    message: loi.message,
+  });
+}
+
 async function layGioHang(req, res) {
   try {
     const khachHangId = req.nguoiDung.id;
@@ -18,61 +23,53 @@ async function layGioHang(req, res) {
       data: gioHang,
     });
   } catch (loi) {
-    res.status(400).json({ success: false, message: loi.message });
+    guiLoi(res, loi);
   }
 }
 
-// 2. Thêm sản phẩm vào giỏ
 async function themVaoGioHang(req, res) {
   try {
     const khachHangId = req.nguoiDung.id;
     const ketQua = await themVaoGioHangService(khachHangId, req.body);
 
-    res.json({ success: true, message: ketQua.message });
+    res.json({
+      success: true,
+      message: ketQua.message,
+    });
   } catch (loi) {
-    res.status(400).json({ success: false, message: loi.message });
+    guiLoi(res, loi);
   }
 }
 
-// 3. Cập nhật sản phẩm trong giỏ
 async function capNhatSanPhamGioHang(req, res) {
   try {
     const khachHangId = req.nguoiDung.id;
     const itemId = req.params.id;
+
     const ketQua = await capNhatSanPhamService(khachHangId, itemId, req.body);
 
-    res.json({ success: true, message: ketQua.message });
+    res.json({
+      success: true,
+      message: ketQua.message,
+    });
   } catch (loi) {
-    res.status(400).json({ success: false, message: loi.message });
+    guiLoi(res, loi);
   }
 }
 
-// 4. Xóa sản phẩm khỏi giỏ
 async function xoaSanPhamGioHang(req, res) {
   try {
     const khachHangId = req.nguoiDung.id;
     const itemId = req.params.id;
+
     const ketQua = await xoaSanPhamService(khachHangId, itemId);
-
-    res.json({ success: true, message: ketQua.message });
-  } catch (loi) {
-    res.status(400).json({ success: false, message: loi.message });
-  }
-}
-
-// 5. Đặt hàng (checkout)
-async function datHang(req, res) {
-  try {
-    const khachHangId = req.nguoiDung.id;
-    const ketQua = await datHangService(khachHangId, req.body);
 
     res.json({
       success: true,
-      message: "Đặt hàng và tạo phiên thanh toán thành công",
-      data: ketQua,
+      message: ketQua.message,
     });
   } catch (loi) {
-    res.status(400).json({ success: false, message: loi.message });
+    guiLoi(res, loi);
   }
 }
 
@@ -81,5 +78,4 @@ module.exports = {
   themVaoGioHang,
   capNhatSanPhamGioHang,
   xoaSanPhamGioHang,
-  datHang,
 };

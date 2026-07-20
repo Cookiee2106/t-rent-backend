@@ -1,6 +1,7 @@
 const express = require("express");
 const xacThucDangNhap = require("../../middlewares/authMiddleware");
 const kiemTraVaiTro = require("../../middlewares/roleMiddleware");
+
 const {
   layDanhSachPhuKienAdmin,
   layChiTietPhuKienAdmin,
@@ -17,9 +18,10 @@ router.use(xacThucDangNhap);
 router.use(kiemTraVaiTro(vaiTroNoiBo));
 
 router.get("/", layDanhSachPhuKienAdmin);
-router.get("/:id", layChiTietPhuKienAdmin);
 router.post("/", taoPhuKienAdmin);
+router.put("/:id", capNhatPhuKienAdmin);
 router.patch("/:id", capNhatPhuKienAdmin);
 router.delete("/:id", xoaMemPhuKienAdmin);
+router.get("/:id", layChiTietPhuKienAdmin);
 
 module.exports = router;
