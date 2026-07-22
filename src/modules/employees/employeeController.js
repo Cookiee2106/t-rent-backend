@@ -5,7 +5,7 @@ const {
   capNhatNhanVienService,
   capNhatTrangThaiNhanVienService,
   xoaMemNhanVienService,
-} = require("./employeeService");
+} = require("../../models/EmployeeModel");
 
 function guiLoi(res, loi) {
   return res.status(400).json({

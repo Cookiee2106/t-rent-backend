@@ -5,7 +5,7 @@ const {
   capNhatThietBiVatLyService,
   capNhatTrangThaiThietBiVatLyService,
   xoaMemThietBiVatLyService,
-} = require("./assetService");
+} = require("../../models/AssetModel");
 
 async function layDanhSachThietBiVatLy(req, res) {
   try {

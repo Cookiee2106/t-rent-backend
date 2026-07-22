@@ -6,7 +6,7 @@ const {
   capNhatDanhMucThietBiService,
   capNhatTrangThaiDanhMucThietBiService,
   xoaMemDanhMucThietBiService,
-} = require("./equipmentCategoryService");
+} = require("../../models/EquipmentCategoryModel");
 
 function guiLoi(res, loi) {
   if (loi.message === "Không tìm thấy danh mục thiết bị") {

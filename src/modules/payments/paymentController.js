@@ -2,7 +2,7 @@ const {
   taoPhienThanhToanCocService,
   layTrangThaiPhienThanhToanService,
   xuLyReturnVnpayService,
-} = require("./paymentService");
+} = require("../../models/PaymentSessionModel");
 
 function guiLoi(res, loi) {
   res.status(400).json({

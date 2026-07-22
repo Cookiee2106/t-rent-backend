@@ -1,7 +1,7 @@
 const {
   layDanhSachMauThietBiService,
   layChiTietMauThietBiService,
-} = require("./deviceModelService");
+} = require("../../models/DeviceModelModel");
 
 async function layDanhSachMauThietBi(req, res) {
   try {

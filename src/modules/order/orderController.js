@@ -3,7 +3,7 @@ const {
   layChiTietDonThueService,
   layThietBiSanSangService,
   lapPhieuBanGiaoService,
-} = require("./orderService");
+} = require("../../models/AdminOrderModel");
 
 async function layDanhSachDonThue(req, res) {
   try {

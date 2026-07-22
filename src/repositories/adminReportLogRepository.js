@@ -1,6 +1,18 @@
 const prisma = require("../config/prisma");
 const AdminReportLogModel = require("../models/AdminReportLogModel");
 
+async function kiemTraCoCotPhuKienMatHuHong() {
+  const ketQua = await prisma.$queryRaw`
+    SELECT COUNT(*)::int AS so_cot
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'phu_kien'
+      AND column_name = 'so_luong_mat_hu_hong'
+  `;
+
+  return Number(ketQua[0]?.so_cot || 0) > 0;
+}
+
 async function layBaoCaoDoanhThuRepository({ tuNgay, denNgay }) {
   const danhSachTheoThang = await prisma.$queryRaw`
     SELECT
@@ -33,6 +45,8 @@ async function layBaoCaoDoanhThuRepository({ tuNgay, denNgay }) {
 }
 
 async function layBaoCaoTonKhoRepository({ hangId, danhMucId }) {
+  const coCotPhuKienMatHuHong = await kiemTraCoCotPhuKienMatHuHong();
+
   const [tongQuanThietBi] = await prisma.$queryRaw`
     SELECT
       COUNT(tbvl.id) FILTER (WHERE tbvl.trang_thai NOT IN (505, 506))::int AS tong_thiet_bi,
@@ -53,22 +67,43 @@ async function layBaoCaoTonKhoRepository({ hangId, danhMucId }) {
       )
   `;
 
-  const [tongQuanPhuKien] = await prisma.$queryRaw`
-    SELECT
-      COUNT(pk.id)::int AS tong_phu_kien,
-      COALESCE(SUM(pk.tong_so_luong), 0)::int AS tong_so_luong_phu_kien,
-      COALESCE(SUM(pk.so_luong_mat_hu_hong), 0)::int AS phu_kien_mat_hu_hong
-    FROM phu_kien pk
-    WHERE pk.da_xoa_luc IS NULL
-      AND (
-        ${hangId}::uuid IS NULL
-        OR pk.hang_id = ${hangId}::uuid
-      )
-      AND (
-        ${danhMucId}::uuid IS NULL
-        OR pk.danh_muc_id = ${danhMucId}::uuid
-      )
-  `;
+  let tongQuanPhuKien;
+
+  if (coCotPhuKienMatHuHong) {
+    [tongQuanPhuKien] = await prisma.$queryRaw`
+      SELECT
+        COUNT(pk.id)::int AS tong_phu_kien,
+        COALESCE(SUM(pk.tong_so_luong), 0)::int AS tong_so_luong_phu_kien,
+        COALESCE(SUM(pk.so_luong_mat_hu_hong), 0)::int AS phu_kien_mat_hu_hong
+      FROM phu_kien pk
+      WHERE pk.da_xoa_luc IS NULL
+        AND (
+          ${hangId}::uuid IS NULL
+          OR pk.hang_id = ${hangId}::uuid
+        )
+        AND (
+          ${danhMucId}::uuid IS NULL
+          OR pk.danh_muc_id = ${danhMucId}::uuid
+        )
+    `;
+  } else {
+    [tongQuanPhuKien] = await prisma.$queryRaw`
+      SELECT
+        COUNT(pk.id)::int AS tong_phu_kien,
+        COALESCE(SUM(pk.tong_so_luong), 0)::int AS tong_so_luong_phu_kien,
+        0::int AS phu_kien_mat_hu_hong
+      FROM phu_kien pk
+      WHERE pk.da_xoa_luc IS NULL
+        AND (
+          ${hangId}::uuid IS NULL
+          OR pk.hang_id = ${hangId}::uuid
+        )
+        AND (
+          ${danhMucId}::uuid IS NULL
+          OR pk.danh_muc_id = ${danhMucId}::uuid
+        )
+    `;
+  }
 
   const danhSachThietBiVatLy = await prisma.$queryRaw`
     SELECT
@@ -101,47 +136,93 @@ async function layBaoCaoTonKhoRepository({ hangId, danhMucId }) {
     ORDER BY mtb.created_at DESC, mtb.ten_mau ASC
   `;
 
-  const danhSachPhuKien = await prisma.$queryRaw`
-    WITH phu_kien_dang_thue AS (
+  let danhSachPhuKien;
+
+  if (coCotPhuKienMatHuHong) {
+    danhSachPhuKien = await prisma.$queryRaw`
+      WITH phu_kien_dang_thue AS (
+        SELECT
+          bgvp.phu_kien_id,
+          SUM(bgvp.so_luong_giao)::int AS dang_thue
+        FROM ban_giao_vat_pham bgvp
+        JOIN chi_tiet_don_thue ctdt
+          ON ctdt.id = bgvp.chi_tiet_don_thue_id
+        JOIN don_thue dt
+          ON dt.id = ctdt.don_thue_id
+        WHERE bgvp.phu_kien_id IS NOT NULL
+          AND dt.trang_thai IN (1103, 1105)
+        GROUP BY bgvp.phu_kien_id
+      )
       SELECT
-        bgvp.phu_kien_id,
-        SUM(bgvp.so_luong_giao)::int AS dang_thue
-      FROM ban_giao_vat_pham bgvp
-      JOIN chi_tiet_don_thue ctdt
-        ON ctdt.id = bgvp.chi_tiet_don_thue_id
-      JOIN don_thue dt
-        ON dt.id = ctdt.don_thue_id
-      WHERE bgvp.phu_kien_id IS NOT NULL
-        AND dt.trang_thai IN (1103, 1105)
-      GROUP BY bgvp.phu_kien_id
-    )
-    SELECT
-      pk.id,
-      pk.ten_phu_kien,
-      h.ten_hang,
-      dmtb.ten_danh_muc,
-      pk.tong_so_luong::int AS tong_so_luong,
-      COALESCE(pkdt.dang_thue, 0)::int AS dang_thue,
-      COALESCE(pk.so_luong_mat_hu_hong, 0)::int AS hu_hong_mat,
-      GREATEST(pk.tong_so_luong - COALESCE(pkdt.dang_thue, 0), 0)::int AS san_sang
-    FROM phu_kien pk
-    LEFT JOIN hang_thiet_bi h
-      ON h.id = pk.hang_id
-    LEFT JOIN danh_muc_thiet_bi dmtb
-      ON dmtb.id = pk.danh_muc_id
-    LEFT JOIN phu_kien_dang_thue pkdt
-      ON pkdt.phu_kien_id = pk.id
-    WHERE pk.da_xoa_luc IS NULL
-      AND (
-        ${hangId}::uuid IS NULL
-        OR pk.hang_id = ${hangId}::uuid
+        pk.id,
+        pk.ten_phu_kien,
+        h.ten_hang,
+        dmtb.ten_danh_muc,
+        pk.tong_so_luong::int AS tong_so_luong,
+        COALESCE(pkdt.dang_thue, 0)::int AS dang_thue,
+        COALESCE(pk.so_luong_mat_hu_hong, 0)::int AS hu_hong_mat,
+        GREATEST(pk.tong_so_luong - COALESCE(pkdt.dang_thue, 0), 0)::int AS san_sang
+      FROM phu_kien pk
+      LEFT JOIN hang_thiet_bi h
+        ON h.id = pk.hang_id
+      LEFT JOIN danh_muc_thiet_bi dmtb
+        ON dmtb.id = pk.danh_muc_id
+      LEFT JOIN phu_kien_dang_thue pkdt
+        ON pkdt.phu_kien_id = pk.id
+      WHERE pk.da_xoa_luc IS NULL
+        AND (
+          ${hangId}::uuid IS NULL
+          OR pk.hang_id = ${hangId}::uuid
+        )
+        AND (
+          ${danhMucId}::uuid IS NULL
+          OR pk.danh_muc_id = ${danhMucId}::uuid
+        )
+      ORDER BY pk.ten_phu_kien ASC
+    `;
+  } else {
+    danhSachPhuKien = await prisma.$queryRaw`
+      WITH phu_kien_dang_thue AS (
+        SELECT
+          bgvp.phu_kien_id,
+          SUM(bgvp.so_luong_giao)::int AS dang_thue
+        FROM ban_giao_vat_pham bgvp
+        JOIN chi_tiet_don_thue ctdt
+          ON ctdt.id = bgvp.chi_tiet_don_thue_id
+        JOIN don_thue dt
+          ON dt.id = ctdt.don_thue_id
+        WHERE bgvp.phu_kien_id IS NOT NULL
+          AND dt.trang_thai IN (1103, 1105)
+        GROUP BY bgvp.phu_kien_id
       )
-      AND (
-        ${danhMucId}::uuid IS NULL
-        OR pk.danh_muc_id = ${danhMucId}::uuid
-      )
-    ORDER BY pk.ten_phu_kien ASC
-  `;
+      SELECT
+        pk.id,
+        pk.ten_phu_kien,
+        h.ten_hang,
+        dmtb.ten_danh_muc,
+        pk.tong_so_luong::int AS tong_so_luong,
+        COALESCE(pkdt.dang_thue, 0)::int AS dang_thue,
+        0::int AS hu_hong_mat,
+        GREATEST(pk.tong_so_luong - COALESCE(pkdt.dang_thue, 0), 0)::int AS san_sang
+      FROM phu_kien pk
+      LEFT JOIN hang_thiet_bi h
+        ON h.id = pk.hang_id
+      LEFT JOIN danh_muc_thiet_bi dmtb
+        ON dmtb.id = pk.danh_muc_id
+      LEFT JOIN phu_kien_dang_thue pkdt
+        ON pkdt.phu_kien_id = pk.id
+      WHERE pk.da_xoa_luc IS NULL
+        AND (
+          ${hangId}::uuid IS NULL
+          OR pk.hang_id = ${hangId}::uuid
+        )
+        AND (
+          ${danhMucId}::uuid IS NULL
+          OR pk.danh_muc_id = ${danhMucId}::uuid
+        )
+      ORDER BY pk.ten_phu_kien ASC
+    `;
+  }
 
   const danhSachHang = await prisma.$queryRaw`
     SELECT id, ten_hang

@@ -3,7 +3,7 @@ const {
   layChiTietHoSoBaoTriService,
   taoHoSoBaoTriTuThietBiService,
   capNhatKetQuaBaoTriService,
-} = require("./maintenanceService");
+} = require("../../models/MaintenanceModel");
 
 function layNguoiDungId(req) {
   return req.nguoiDung?.id || req.user?.id || req.user?.userId || null;

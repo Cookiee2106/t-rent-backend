@@ -1,8 +1,4 @@
-const {
-  dangKyService,
-  dangNhapService,
-  layThongTinCuaToiService,
-} = require("./authService");
+const UserModel = require("../../models/UserModel");
 
 function guiLoi(res, loi) {
   return res.status(400).json({
@@ -13,7 +9,7 @@ function guiLoi(res, loi) {
 
 async function dangKy(req, res) {
   try {
-    const nguoiDung = await dangKyService(req.body || {});
+    const nguoiDung = await UserModel.dangKy(req.body || {});
 
     res.json({
       success: true,
@@ -27,7 +23,7 @@ async function dangKy(req, res) {
 
 async function dangNhap(req, res) {
   try {
-    const ketQua = await dangNhapService(req.body || {});
+    const ketQua = await UserModel.dangNhap(req.body || {});
 
     res.json({
       success: true,
@@ -41,7 +37,9 @@ async function dangNhap(req, res) {
 
 async function layThongTinCuaToi(req, res) {
   try {
-    const nguoiDung = await layThongTinCuaToiService(req.nguoiDung.id);
+    const nguoiDung = await UserModel.layThongTinCuaToi(
+      req.nguoiDung.id
+    );
 
     res.json({
       success: true,

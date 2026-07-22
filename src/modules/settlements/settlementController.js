@@ -2,7 +2,7 @@ const {
   layDanhSachThanhLyService,
   layChiTietThanhLyService,
   lapPhieuTraService,
-} = require("./settlementService");
+} = require("../../models/SettlementModel");
 
 async function layDanhSachThanhLy(req, res) {
   try {

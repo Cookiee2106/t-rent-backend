@@ -8,7 +8,7 @@ const {
   layGoiYBoDiKemAdminService,
   taoBoDiKemAdminService,
   xoaBoDiKemAdminService,
-} = require("./adminEquipmentModelService");
+} = require("../../models/EquipmentModelModel");
 
 function guiLoi(res, loi) {
   if (

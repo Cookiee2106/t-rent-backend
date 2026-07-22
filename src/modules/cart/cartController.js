@@ -3,7 +3,7 @@ const {
   themVaoGioHangService,
   capNhatSanPhamService,
   xoaSanPhamService,
-} = require("./cartService");
+} = require("../../models/CartModel");
 
 function guiLoi(res, loi) {
   res.status(400).json({

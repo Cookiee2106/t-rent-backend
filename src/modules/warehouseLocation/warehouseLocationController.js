@@ -5,7 +5,7 @@ const {
   capNhatViTriKhoService,
   capNhatTrangThaiViTriKhoService,
   xoaMemViTriKhoService,
-} = require("./warehouseLocationService");
+} = require("../../models/WarehouseLocationModel");
 
 function guiLoi(res, loi) {
   if (loi.message === "Không tìm thấy vị trí kho") {

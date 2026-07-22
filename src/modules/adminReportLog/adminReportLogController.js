@@ -3,7 +3,7 @@ const {
   layBaoCaoTonKhoService,
   layDanhSachNhatKyThaoTacService,
   layChiTietNhatKyThaoTacService,
-} = require("./adminReportLogService");
+} = require("../../models/AdminReportLogModel");
 
 async function layBaoCaoDoanhThu(req, res) {
   try {

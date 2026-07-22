@@ -5,7 +5,7 @@ const {
   capNhatHangThietBiService,
   capNhatTrangThaiHangThietBiService,
   xoaMemHangThietBiService,
-} = require("./equipmentBrandService");
+} = require("../../models/EquipmentBrandModel");
 
 function guiLoi(res, loi) {
   if (loi.message === "Không tìm thấy hãng thiết bị") {

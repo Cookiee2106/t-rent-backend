@@ -2,7 +2,7 @@ const {
   layDanhSachDonCuaToiService,
   layChiTietDonCuaToiService,
   huyDonCuaToiService,
-} = require("./customerOrderService");
+} = require("../../models/CustomerOrderModel");
 
 function guiLoi(res, loi) {
   const statusCode = loi.message === "Không tìm thấy đơn thuê" ? 404 : 400;

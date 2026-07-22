@@ -2,7 +2,7 @@ const {
   capNhatThongTinCaNhanService,
   layHoSoXacMinhCuaToiService,
   guiHoSoXacMinhService,
-} = require("./customerService");
+} = require("../../models/VerificationProfileModel");
 
 function guiLoi(res, loi) {
   return res.status(400).json({

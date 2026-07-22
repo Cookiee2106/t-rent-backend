@@ -4,7 +4,7 @@ const {
   taoPhuKienAdminService,
   capNhatPhuKienAdminService,
   xoaMemPhuKienAdminService,
-} = require("./adminAccessoryService");
+} = require("../../models/AccessoryModel");
 
 function guiLoi(res, loi) {
   if (loi.message === "Không tìm thấy phụ kiện") {

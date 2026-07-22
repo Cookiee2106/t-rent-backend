@@ -4,7 +4,7 @@ const {
   capNhatTrangThaiKhachHangService,
   duyetHoSoXacMinhService,
   tuChoiHoSoXacMinhService,
-} = require("./adminService");
+} = require("../../models/AdminCustomerModel");
 
 function guiLoi(res, loi) {
   return res.status(400).json({
