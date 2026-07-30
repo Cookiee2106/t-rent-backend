@@ -428,6 +428,7 @@ async function luuThanhLy({
         UPDATE phu_kien
         SET
           tong_so_luong = tong_so_luong - ${soLuongThieu},
+          so_luong_mat_hu_hong = so_luong_mat_hu_hong + ${soLuongThieu},
           updated_at = NOW()
         WHERE id = ${phuKien.phu_kien_id}::uuid
           AND tong_so_luong >= ${soLuongThieu}

@@ -343,8 +343,21 @@ async function layGoiYThietBiPhu(mauThietBiChinhId, mauChinh, khoaTim) {
       AND mtb.id <> ${mauThietBiChinhId}::uuid
       AND mtb.trang_thai = 601
       AND (
-        (dmtb.tinh_chat_id = 2502 AND mtb.hang_id = ${mauChinh.hang_id}::uuid)
-        OR dmtb.ten_danh_muc = ${"Thẻ nhớ"}
+        -- Riêng danh mục Thẻ nhớ: lấy tất cả, không phân biệt hãng.
+        dmtb.ten_danh_muc ILIKE ${"Thẻ nhớ"}
+
+        OR (
+          -- Các thiết bị phụ khác phải thuộc nhóm thiết bị phụ.
+          dmtb.tinh_chat_id = 2502
+
+          AND (
+            -- Cùng hãng với mẫu thiết bị chính.
+            mtb.hang_id = ${mauChinh.hang_id}::uuid
+
+            -- Thiết bị phụ không gán hãng vẫn được sử dụng.
+            OR mtb.hang_id IS NULL
+          )
+        )
       )
       AND NOT EXISTS (
         SELECT 1
@@ -383,6 +396,24 @@ async function layGoiYPhuKien(mauThietBiChinhId, khoaTim) {
       ON dmtb.id = pk.danh_muc_id
 
     WHERE pk.da_xoa_luc IS NULL
+
+      AND (
+        -- Riêng danh mục Thẻ nhớ: lấy tất cả, không phân biệt hãng.
+        COALESCE(dmtb.ten_danh_muc, '') ILIKE ${"Thẻ nhớ"}
+
+        -- Phụ kiện không gán hãng vẫn được sử dụng.
+        OR pk.hang_id IS NULL
+
+        -- Phụ kiện có hãng phải cùng hãng với mẫu thiết bị chính.
+        OR pk.hang_id = (
+          SELECT mtb_chinh.hang_id
+          FROM mau_thiet_bi mtb_chinh
+          WHERE mtb_chinh.id = ${mauThietBiChinhId}::uuid
+            AND mtb_chinh.da_xoa_luc IS NULL
+          LIMIT 1
+        )
+      )
+
       AND NOT EXISTS (
         SELECT 1
         FROM bo_di_kem bdk
@@ -430,10 +461,26 @@ async function layMauThietBiPhuTheoId(id) {
 
 async function layPhuKienTheoId(id) {
   const rows = await prisma.$queryRaw`
-    SELECT id, ten_phu_kien, tong_so_luong
-    FROM phu_kien
-    WHERE id = ${id}::uuid
-      AND da_xoa_luc IS NULL
+    SELECT
+      pk.id,
+      pk.ten_phu_kien,
+      pk.tong_so_luong,
+      pk.hang_id,
+      h.ten_hang,
+      pk.danh_muc_id,
+      dmtb.ten_danh_muc
+
+    FROM phu_kien pk
+
+    LEFT JOIN hang_thiet_bi h
+      ON h.id = pk.hang_id
+
+    LEFT JOIN danh_muc_thiet_bi dmtb
+      ON dmtb.id = pk.danh_muc_id
+
+    WHERE pk.id = ${id}::uuid
+      AND pk.da_xoa_luc IS NULL
+
     LIMIT 1
   `;
 

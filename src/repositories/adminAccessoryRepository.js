@@ -34,6 +34,7 @@ async function layDanhSachPhuKien() {
       vtk.suc_chua_toi_da,
 
       pk.tong_so_luong::int AS tong_so_luong,
+      pk.so_luong_mat_hu_hong::int AS so_luong_mat_hu_hong,
 
       COALESCE((
         SELECT SUM(ctdt.so_luong * bdk.so_luong)::int
@@ -84,6 +85,7 @@ async function layPhuKienTheoId(id) {
       vtk.suc_chua_toi_da,
 
       pk.tong_so_luong::int AS tong_so_luong,
+      pk.so_luong_mat_hu_hong::int AS so_luong_mat_hu_hong,
 
       COALESCE((
         SELECT SUM(ctdt.so_luong * bdk.so_luong)::int

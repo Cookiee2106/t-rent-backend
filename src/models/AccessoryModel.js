@@ -129,6 +129,7 @@ class AccessoryModel {
 
     tong_so_luong,
     so_luong_dang_su_dung,
+    so_luong_mat_hu_hong,
 
     mo_ta,
     created_at,
@@ -149,6 +150,7 @@ class AccessoryModel {
 
     this.tong_so_luong = Number(tong_so_luong || 0);
     this.so_luong_dang_su_dung = Number(so_luong_dang_su_dung || 0);
+    this.so_luong_mat_hu_hong = Number(so_luong_mat_hu_hong || 0);
     this.so_luong_kha_dung = this.tong_so_luong - this.so_luong_dang_su_dung;
 
     this.mo_ta = mo_ta || null;
