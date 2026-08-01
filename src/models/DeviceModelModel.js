@@ -38,81 +38,204 @@ function docSoLuong(giaTri) {
   return soLuong;
 }
 
-async function tinhSoLuongKhaDungCuaMau(
-  mauThietBiId,
-  ngayNhan,
-  ngayTra
-) {
-  const tongThietBi =
-    await deviceModelRepository.tinhTongThietBiSanSangCuaMau(
-      mauThietBiId
-    );
+function taoTenHienThiBoDiKem(item) {
+  if (item.mau_thiet_bi_phu_id) {
+    return `${item.ten_hang_phu || ""} ${
+      item.ten_mau_phu || ""
+    }`.trim();
+  }
 
-  const soLuongDaDat =
-    await deviceModelRepository.tinhSoLuongDaDatCuaMau(
-      mauThietBiId,
-      ngayNhan,
-      ngayTra
-    );
-
-  const soLuongConLai = tongThietBi - soLuongDaDat;
-
-  return soLuongConLai > 0 ? soLuongConLai : 0;
+  return item.ten_phu_kien || "";
 }
 
-async function tinhSoLuongKhaDungCuaPhuKien(
-  phuKienId,
-  ngayNhan,
-  ngayTra
-) {
-  const tongPhuKien =
-    await deviceModelRepository.layTongSoLuongPhuKien(phuKienId);
+function taoMapBoDiKem(danhSachBoDiKem = []) {
+  const map = new Map();
 
-  const soLuongDaDat =
-    await deviceModelRepository.tinhSoLuongDaDatCuaPhuKien(
-      phuKienId,
-      ngayNhan,
-      ngayTra
-    );
+  for (const item of danhSachBoDiKem) {
+    const mauChinhId = String(item.mau_thiet_bi_chinh_id);
 
-  const soLuongConLai = tongPhuKien - soLuongDaDat;
-
-  return soLuongConLai > 0 ? soLuongConLai : 0;
-}
-
-async function layBoDiKemCuaMau(mauThietBiId) {
-  const rows =
-    await deviceModelRepository.layBoDiKemCuaMau(mauThietBiId);
-
-  return rows.map((item) => ({
-    ...item,
-    ten_hien_thi: item.mau_thiet_bi_phu_id
-      ? `${item.ten_hang_phu || ""} ${item.ten_mau_phu || ""}`.trim()
-      : item.ten_phu_kien,
-  }));
-}
-
-async function ganBoDiKemChoDanhSachMau(danhSachMau) {
-  const ketQua = [];
-
-  for (const mau of danhSachMau) {
-    let boDiKem = [];
-
-    try {
-      boDiKem = await layBoDiKemCuaMau(mau.id);
-    } catch {
-      boDiKem = [];
+    if (!map.has(mauChinhId)) {
+      map.set(mauChinhId, []);
     }
 
-    ketQua.push(
-      new DeviceModelModel({
-        ...mau,
-        bo_di_kem: boDiKem,
-      })
+    map.get(mauChinhId).push({
+      ...item,
+      ten_hien_thi: taoTenHienThiBoDiKem(item),
+    });
+  }
+
+  return map;
+}
+
+function taoMapSoLuong(danhSach = [], tenCotId) {
+  const map = new Map();
+
+  for (const item of danhSach) {
+    map.set(
+      String(item[tenCotId]),
+      Number(item.so_luong_kha_dung || 0)
     );
   }
 
-  return ketQua;
+  return map;
+}
+
+// Gắn bộ đi kèm đã lấy theo lô vào từng mẫu.
+// Hàm này không gọi database trong vòng lặp.
+function ganBoDiKemChoDanhSachMau(danhSachMau, mapBoDiKem) {
+  return danhSachMau.map(
+    (mau) =>
+      new DeviceModelModel({
+        ...mau,
+        bo_di_kem: mapBoDiKem.get(String(mau.id)) || [],
+      })
+  );
+}
+
+// Tính bộ sẵn sàng hoàn toàn từ dữ liệu đã tải.
+// Không còn await truy vấn trong vòng lặp từng món đi kèm.
+function kiemTraMauBangDuLieuDaTai({
+  mauThietBiId,
+  soLuongMuonThue,
+  mapBoDiKem,
+  mapKhaDungMau,
+  mapKhaDungPhuKien,
+}) {
+  const soLuongMauChinh =
+    mapKhaDungMau.get(String(mauThietBiId)) || 0;
+
+  const boDiKem =
+    mapBoDiKem.get(String(mauThietBiId)) || [];
+
+  let soLuongSanSangTheoBo = soLuongMauChinh;
+  const chiTietKhaDung = [];
+
+  if (soLuongMauChinh < soLuongMuonThue) {
+    return {
+      co_the_thue: false,
+      so_luong_san_sang: soLuongMauChinh,
+      ly_do_khong_the_thue:
+        "Mẫu thiết bị chính không đủ số lượng sẵn sàng",
+      chi_tiet_kha_dung: chiTietKhaDung,
+    };
+  }
+
+  for (const item of boDiKem) {
+    const soLuongMoiBo = Number(item.so_luong || 0);
+
+    if (soLuongMoiBo <= 0) {
+      continue;
+    }
+
+    const soLuongCan = soLuongMoiBo * soLuongMuonThue;
+
+    if (item.mau_thiet_bi_phu_id) {
+      const soLuongPhuSanSang =
+        mapKhaDungMau.get(String(item.mau_thiet_bi_phu_id)) || 0;
+
+      const toiDaTheoThanhPhan = Math.floor(
+        soLuongPhuSanSang / soLuongMoiBo
+      );
+
+      soLuongSanSangTheoBo = Math.min(
+        soLuongSanSangTheoBo,
+        toiDaTheoThanhPhan
+      );
+
+      chiTietKhaDung.push({
+        ten_vat_pham: item.ten_hien_thi,
+        loai: "THIET_BI_PHU",
+        so_luong_can: soLuongCan,
+        so_luong_san_sang: soLuongPhuSanSang,
+      });
+
+      if (soLuongPhuSanSang < soLuongCan) {
+        return {
+          co_the_thue: false,
+          so_luong_san_sang: soLuongSanSangTheoBo,
+          ly_do_khong_the_thue:
+            `Thiết bị đi kèm ${item.ten_hien_thi} ` +
+            "không đủ số lượng sẵn sàng",
+          chi_tiet_kha_dung: chiTietKhaDung,
+        };
+      }
+    }
+
+    if (item.phu_kien_id) {
+      const soLuongPhuKienSanSang =
+        mapKhaDungPhuKien.get(String(item.phu_kien_id)) || 0;
+
+      const toiDaTheoThanhPhan = Math.floor(
+        soLuongPhuKienSanSang / soLuongMoiBo
+      );
+
+      soLuongSanSangTheoBo = Math.min(
+        soLuongSanSangTheoBo,
+        toiDaTheoThanhPhan
+      );
+
+      chiTietKhaDung.push({
+        ten_vat_pham: item.ten_phu_kien,
+        loai: "PHU_KIEN",
+        so_luong_can: soLuongCan,
+        so_luong_san_sang: soLuongPhuKienSanSang,
+      });
+
+      if (soLuongPhuKienSanSang < soLuongCan) {
+        return {
+          co_the_thue: false,
+          so_luong_san_sang: soLuongSanSangTheoBo,
+          ly_do_khong_the_thue:
+            `Phụ kiện ${item.ten_phu_kien} ` +
+            "không đủ số lượng sẵn sàng",
+          chi_tiet_kha_dung: chiTietKhaDung,
+        };
+      }
+    }
+  }
+
+  return {
+    co_the_thue: true,
+    so_luong_san_sang: soLuongSanSangTheoBo,
+    ly_do_khong_the_thue: "",
+    chi_tiet_kha_dung: chiTietKhaDung,
+  };
+}
+
+async function taiDuLieuKhaDungTheoLo(
+  danhSachMauId,
+  ngayNhan,
+  ngayTra
+) {
+  const [
+    danhSachBoDiKem,
+    danhSachKhaDungMau,
+    danhSachKhaDungPhuKien,
+  ] = await Promise.all([
+    deviceModelRepository.layBoDiKemCuaNhieuMau(danhSachMauId),
+    deviceModelRepository.laySoLuongKhaDungCuaTatCaMau(
+      ngayNhan,
+      ngayTra
+    ),
+    deviceModelRepository.laySoLuongKhaDungCuaTatCaPhuKien(
+      ngayNhan,
+      ngayTra
+    ),
+  ]);
+
+  return {
+    mapBoDiKem: taoMapBoDiKem(danhSachBoDiKem),
+
+    mapKhaDungMau: taoMapSoLuong(
+      danhSachKhaDungMau,
+      "mau_thiet_bi_id"
+    ),
+
+    mapKhaDungPhuKien: taoMapSoLuong(
+      danhSachKhaDungPhuKien,
+      "phu_kien_id"
+    ),
+  };
 }
 
 class DeviceModelModel {
@@ -146,10 +269,12 @@ class DeviceModelModel {
     this.anh_url = anh_url || null;
     this.gia_thue_ngay = gia_thue_ngay || "0";
     this.tien_coc = tien_coc || "0";
+
     this.so_luong_san_sang =
       so_luong_san_sang === undefined
         ? null
         : Number(so_luong_san_sang || 0);
+
     this.bo_di_kem = bo_di_kem || [];
     this.co_the_thue = co_the_thue ?? null;
     this.ly_do_khong_the_thue = ly_do_khong_the_thue || "";
@@ -157,7 +282,7 @@ class DeviceModelModel {
     this.san_pham_tuong_tu = san_pham_tuong_tu || [];
   }
 
-  // Kiểm tra mẫu thiết bị và toàn bộ bộ đi kèm có đủ để thuê.
+  // Kiểm tra một mẫu bằng các query theo lô.
   static async kiemTraMauCoTheThue(
     mauThietBiId,
     ngayNhan,
@@ -168,117 +293,30 @@ class DeviceModelModel {
 
     const soLuongMuonThue = docSoLuong(soLuong);
 
-    const soLuongMauChinh = await tinhSoLuongKhaDungCuaMau(
-      mauThietBiId,
+    const {
+      mapBoDiKem,
+      mapKhaDungMau,
+      mapKhaDungPhuKien,
+    } = await taiDuLieuKhaDungTheoLo(
+      [mauThietBiId],
       ngayNhan,
       ngayTra
     );
 
-    const boDiKem = await layBoDiKemCuaMau(mauThietBiId);
-
-    let soLuongSanSangTheoBo = soLuongMauChinh;
-    const chiTietKhaDung = [];
-
-    if (soLuongMauChinh < soLuongMuonThue) {
-      return {
-        co_the_thue: false,
-        so_luong_san_sang: soLuongMauChinh,
-        ly_do_khong_the_thue:
-          "Mẫu thiết bị chính không đủ số lượng sẵn sàng",
-        chi_tiet_kha_dung: chiTietKhaDung,
-      };
-    }
-
-    for (const item of boDiKem) {
-      const soLuongCan =
-        Number(item.so_luong) * soLuongMuonThue;
-
-      if (item.mau_thiet_bi_phu_id) {
-        const soLuongPhuSanSang =
-          await tinhSoLuongKhaDungCuaMau(
-            item.mau_thiet_bi_phu_id,
-            ngayNhan,
-            ngayTra
-          );
-
-        const toiDaTheoThanhPhan = Math.floor(
-          soLuongPhuSanSang / Number(item.so_luong)
-        );
-
-        soLuongSanSangTheoBo = Math.min(
-          soLuongSanSangTheoBo,
-          toiDaTheoThanhPhan
-        );
-
-        chiTietKhaDung.push({
-          ten_vat_pham: item.ten_hien_thi,
-          loai: "THIET_BI_PHU",
-          so_luong_can: soLuongCan,
-          so_luong_san_sang: soLuongPhuSanSang,
-        });
-
-        if (soLuongPhuSanSang < soLuongCan) {
-          return {
-            co_the_thue: false,
-            so_luong_san_sang: soLuongSanSangTheoBo,
-            ly_do_khong_the_thue:
-              `Thiết bị đi kèm ${item.ten_hien_thi} ` +
-              "không đủ số lượng sẵn sàng",
-            chi_tiet_kha_dung: chiTietKhaDung,
-          };
-        }
-      }
-
-      if (item.phu_kien_id) {
-        const soLuongPhuKienSanSang =
-          await tinhSoLuongKhaDungCuaPhuKien(
-            item.phu_kien_id,
-            ngayNhan,
-            ngayTra
-          );
-
-        const toiDaTheoThanhPhan = Math.floor(
-          soLuongPhuKienSanSang / Number(item.so_luong)
-        );
-
-        soLuongSanSangTheoBo = Math.min(
-          soLuongSanSangTheoBo,
-          toiDaTheoThanhPhan
-        );
-
-        chiTietKhaDung.push({
-          ten_vat_pham: item.ten_phu_kien,
-          loai: "PHU_KIEN",
-          so_luong_can: soLuongCan,
-          so_luong_san_sang: soLuongPhuKienSanSang,
-        });
-
-        if (soLuongPhuKienSanSang < soLuongCan) {
-          return {
-            co_the_thue: false,
-            so_luong_san_sang: soLuongSanSangTheoBo,
-            ly_do_khong_the_thue:
-              `Phụ kiện ${item.ten_phu_kien} ` +
-              "không đủ số lượng sẵn sàng",
-            chi_tiet_kha_dung: chiTietKhaDung,
-          };
-        }
-      }
-    }
-
-    return {
-      co_the_thue: true,
-      so_luong_san_sang: soLuongSanSangTheoBo,
-      ly_do_khong_the_thue: "",
-      chi_tiet_kha_dung: chiTietKhaDung,
-    };
+    return kiemTraMauBangDuLieuDaTai({
+      mauThietBiId,
+      soLuongMuonThue,
+      mapBoDiKem,
+      mapKhaDungMau,
+      mapKhaDungPhuKien,
+    });
   }
 
   // Lấy danh sách mẫu thiết bị.
   static async layDanhSachMauThietBiService(query = {}) {
     const ngayNhan = query.ngay_nhan;
     const ngayTra = query.ngay_tra;
-    const soLuong = query.so_luong || 1;
+    const soLuongMuonThue = docSoLuong(query.so_luong || 1);
 
     const danhSach =
       await deviceModelRepository.layDanhSachMauThietBi({
@@ -286,8 +324,21 @@ class DeviceModelModel {
         danhMucId: query.danh_muc_id || "",
       });
 
+    const danhSachMauId = danhSach.map((mau) => mau.id);
+
+    // Chưa chọn ngày: chỉ dùng thêm một query lấy toàn bộ bộ đi kèm.
     if (!ngayNhan && !ngayTra) {
-      return await ganBoDiKemChoDanhSachMau(danhSach);
+      const danhSachBoDiKem =
+        await deviceModelRepository.layBoDiKemCuaNhieuMau(
+          danhSachMauId
+        );
+
+      const mapBoDiKem = taoMapBoDiKem(danhSachBoDiKem);
+
+      return ganBoDiKemChoDanhSachMau(
+        danhSach,
+        mapBoDiKem
+      );
     }
 
     if (
@@ -297,26 +348,43 @@ class DeviceModelModel {
       throw new Error("Vui lòng chọn đủ ngày nhận và ngày trả");
     }
 
+    kiemTraNgayThue(ngayNhan, ngayTra);
+
+    // Chỉ chạy ba query song song cho toàn bộ danh sách.
+    const {
+      mapBoDiKem,
+      mapKhaDungMau,
+      mapKhaDungPhuKien,
+    } = await taiDuLieuKhaDungTheoLo(
+      danhSachMauId,
+      ngayNhan,
+      ngayTra
+    );
+
     const ketQua = [];
 
     for (const mau of danhSach) {
-      const kiemTra =
-        await DeviceModelModel.kiemTraMauCoTheThue(
-          mau.id,
-          ngayNhan,
-          ngayTra,
-          soLuong
-        );
+      const kiemTra = kiemTraMauBangDuLieuDaTai({
+        mauThietBiId: mau.id,
+        soLuongMuonThue,
+        mapBoDiKem,
+        mapKhaDungMau,
+        mapKhaDungPhuKien,
+      });
 
       if (kiemTra.co_the_thue) {
-        ketQua.push({
-          ...mau,
-          so_luong_san_sang: kiemTra.so_luong_san_sang,
-        });
+        ketQua.push(
+          new DeviceModelModel({
+            ...mau,
+            bo_di_kem:
+              mapBoDiKem.get(String(mau.id)) || [],
+            ...kiemTra,
+          })
+        );
       }
     }
 
-    return await ganBoDiKemChoDanhSachMau(ketQua);
+    return ketQua;
   }
 
   // Lấy chi tiết mẫu thiết bị.
@@ -328,13 +396,19 @@ class DeviceModelModel {
       throw new Error("Không tìm thấy mẫu thiết bị");
     }
 
-    const boDiKem = await layBoDiKemCuaMau(id);
+    const [danhSachBoDiKem, sanPhamTuongTu] =
+      await Promise.all([
+        deviceModelRepository.layBoDiKemCuaMau(id),
+        deviceModelRepository.laySanPhamTuongTu(
+          id,
+          mauThietBi.danh_muc_id
+        ),
+      ]);
 
-    const sanPhamTuongTu =
-      await deviceModelRepository.laySanPhamTuongTu(
-        id,
-        mauThietBi.danh_muc_id
-      );
+    const boDiKem = danhSachBoDiKem.map((item) => ({
+      ...item,
+      ten_hien_thi: taoTenHienThiBoDiKem(item),
+    }));
 
     if (!query.ngay_nhan && !query.ngay_tra) {
       return new DeviceModelModel({
