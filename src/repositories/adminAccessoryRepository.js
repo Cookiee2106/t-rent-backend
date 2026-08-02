@@ -1,6 +1,7 @@
 const prisma = require("../config/prisma");
 
 const TRANG_THAI_HIEN_THI = 601;
+const TRANG_THAI_DA_AN = 602;
 const TINH_CHAT_PHU_KIEN = 2503;
 
 const DON_DA_GIU_CHO = 1102;
@@ -22,6 +23,7 @@ async function layDanhSachPhuKien() {
     SELECT
       pk.id,
       pk.ten_phu_kien,
+      pk.trang_thai,
 
       pk.hang_id,
       h.ten_hang,
@@ -73,6 +75,7 @@ async function layPhuKienTheoId(id) {
     SELECT
       pk.id,
       pk.ten_phu_kien,
+      pk.trang_thai,
 
       pk.hang_id,
       h.ten_hang,
@@ -230,6 +233,20 @@ async function timBoDiKemTheoPhuKien(phuKienId) {
   return rows[0] || null;
 }
 
+async function layDanhSachMauDangDungPhuKien(phuKienId) {
+  return await prisma.$queryRaw`
+    SELECT
+      bdk.id AS bo_di_kem_id,
+      mtb.id AS mau_thiet_bi_id,
+      mtb.ten_mau
+    FROM bo_di_kem bdk
+    JOIN mau_thiet_bi mtb
+      ON mtb.id = bdk.mau_thiet_bi_chinh_id
+    WHERE bdk.phu_kien_id = ${phuKienId}::uuid
+    ORDER BY mtb.ten_mau ASC
+  `;
+}
+
 async function taoPhuKien({
   tenPhuKien,
   hangId,
@@ -246,6 +263,7 @@ async function taoPhuKien({
       danh_muc_id,
       vi_tri_kho_id,
       tong_so_luong,
+      trang_thai,
       mo_ta,
       created_at,
       updated_at
@@ -257,6 +275,7 @@ async function taoPhuKien({
       ${danhMucId}::uuid,
       ${viTriKhoId}::uuid,
       ${tongSoLuong},
+      ${TRANG_THAI_HIEN_THI},
       ${moTa},
       NOW(),
       NOW()
@@ -296,6 +315,21 @@ async function capNhatPhuKien(
   return rows[0] || null;
 }
 
+async function capNhatTrangThaiPhuKien(id, trangThai) {
+  const rows = await prisma.$queryRaw`
+    UPDATE phu_kien
+    SET
+      trang_thai = ${trangThai},
+      updated_at = NOW()
+    WHERE id = ${id}::uuid
+      AND da_xoa_luc IS NULL
+      AND ${trangThai} IN (${TRANG_THAI_HIEN_THI}, ${TRANG_THAI_DA_AN})
+    RETURNING id
+  `;
+
+  return rows[0] || null;
+}
+
 async function xoaMemPhuKien(id) {
   const rows = await prisma.$queryRaw`
     UPDATE phu_kien
@@ -320,7 +354,9 @@ module.exports = {
   tinhSoLuongDangChuaTaiViTri,
   tinhSoLuongDangSuDungCuaPhuKien,
   timBoDiKemTheoPhuKien,
+  layDanhSachMauDangDungPhuKien,
   taoPhuKien,
   capNhatPhuKien,
+  capNhatTrangThaiPhuKien,
   xoaMemPhuKien,
 };

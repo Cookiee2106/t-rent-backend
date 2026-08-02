@@ -1,5 +1,8 @@
 const adminAccessoryRepository = require("../repositories/adminAccessoryRepository");
 
+const TRANG_THAI_HIEN_THI = 601;
+const TRANG_THAI_DA_AN = 602;
+
 function chuanHoaChuoi(giaTri) {
   if (giaTri === undefined || giaTri === null) {
     return null;
@@ -116,6 +119,7 @@ class AccessoryModel {
   constructor({
     id,
     ten_phu_kien,
+    trang_thai,
 
     hang_id,
     ten_hang,
@@ -137,6 +141,9 @@ class AccessoryModel {
   } = {}) {
     this.id = id;
     this.ten_phu_kien = ten_phu_kien;
+    this.trang_thai = Number(trang_thai || TRANG_THAI_HIEN_THI);
+    this.ten_trang_thai =
+      this.trang_thai === TRANG_THAI_HIEN_THI ? "Hiện" : "Ẩn";
 
     this.hang_id = hang_id || null;
     this.ten_hang = ten_hang || null;
@@ -231,6 +238,75 @@ class AccessoryModel {
     });
 
     await adminAccessoryRepository.capNhatPhuKien(id, duLieu);
+
+    return AccessoryModel.layChiTietPhuKienAdminService(id);
+  }
+
+  static async doiTrangThaiPhuKienAdminService(id, body = {}) {
+    const phuKien = await adminAccessoryRepository.layPhuKienTheoId(id);
+
+    if (!phuKien) {
+      throw new Error("Không tìm thấy phụ kiện");
+    }
+
+    const hanhDong = String(body.hanh_dong || "")
+      .trim()
+      .toUpperCase();
+
+    if (!["AN", "HIEN"].includes(hanhDong)) {
+      throw new Error("Hành động trạng thái không hợp lệ");
+    }
+
+    const trangThaiMoi =
+      hanhDong === "AN" ? TRANG_THAI_DA_AN : TRANG_THAI_HIEN_THI;
+
+    if (Number(phuKien.trang_thai) === trangThaiMoi) {
+      return new AccessoryModel(phuKien);
+    }
+
+    if (hanhDong === "AN") {
+      const soLuongDangSuDung =
+        await adminAccessoryRepository.tinhSoLuongDangSuDungCuaPhuKien(id);
+
+      if (soLuongDangSuDung > 0) {
+        throw new Error(
+          "Không thể ẩn phụ kiện đang được giữ chỗ, đang thuê hoặc quá hạn"
+        );
+      }
+
+      const danhSachMau =
+        await adminAccessoryRepository.layDanhSachMauDangDungPhuKien(id);
+
+      if (danhSachMau.length > 0) {
+        const tenMau = danhSachMau
+          .slice(0, 3)
+          .map((item) => item.ten_mau)
+          .join(", ");
+
+        const phanConLai =
+          danhSachMau.length > 3
+            ? ` và ${danhSachMau.length - 3} mẫu khác`
+            : "";
+
+        throw new Error(
+          `Không thể ẩn vì phụ kiện đang nằm trong bộ đi kèm của ${tenMau}${phanConLai}. ` +
+            "Vui lòng gỡ hoặc thay thế phụ kiện trong các bộ đi kèm trước"
+        );
+      }
+    }
+
+    if (hanhDong === "HIEN") {
+      await kiemTraTonTaiDuLieuLienQuan({
+        hangId: phuKien.hang_id,
+        danhMucId: phuKien.danh_muc_id,
+        viTriKhoId: phuKien.vi_tri_kho_id,
+      });
+    }
+
+    await adminAccessoryRepository.capNhatTrangThaiPhuKien(
+      id,
+      trangThaiMoi
+    );
 
     return AccessoryModel.layChiTietPhuKienAdminService(id);
   }

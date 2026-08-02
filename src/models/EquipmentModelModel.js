@@ -428,7 +428,7 @@ class EquipmentModelModel {
       );
 
       if (!phuKien) {
-        throw new Error("Phụ kiện không tồn tại");
+        throw new Error("Phụ kiện không tồn tại hoặc đã bị ẩn");
       }
 
       const tonTai = await adminEquipmentModelRepository.timBoDiKemTheoPhuKien(
@@ -460,6 +460,17 @@ class EquipmentModelModel {
 
     if (!tonTai) {
       throw new Error("Không tìm thấy món trong bộ đi kèm");
+    }
+
+    const dangDuocDonHoatDongSuDung =
+      await adminEquipmentModelRepository.kiemTraBoDiKemDangDuocDonHoatDong(
+        bundleId
+      );
+
+    if (dangDuocDonHoatDongSuDung) {
+      throw new Error(
+        "Không thể gỡ món khỏi bộ đi kèm vì mẫu thiết bị đang có đơn giữ chỗ, đang thuê hoặc quá hạn"
+      );
     }
 
     await adminEquipmentModelRepository.xoaBoDiKem(bundleId);

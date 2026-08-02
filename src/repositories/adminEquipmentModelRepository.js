@@ -1,5 +1,10 @@
 const prisma = require("../config/prisma");
 
+const TRANG_THAI_HIEN_THI = 601;
+const DON_DA_GIU_CHO = 1102;
+const DON_DANG_THUE = 1103;
+const DON_QUA_HAN = 1105;
+
 function chuanHoaTenDeSoSanh(giaTri) {
   return String(giaTri || "")
     .trim()
@@ -294,6 +299,7 @@ async function layDanhSachBoDiKem(mauThietBiChinhId) {
 
       pk.id AS phu_kien_id,
       pk.ten_phu_kien,
+      pk.trang_thai AS trang_thai_phu_kien,
       h_pk.ten_hang AS ten_hang_phu_kien,
       dmtb_pk.ten_danh_muc AS ten_danh_muc_phu_kien
 
@@ -396,6 +402,7 @@ async function layGoiYPhuKien(mauThietBiChinhId, khoaTim) {
       ON dmtb.id = pk.danh_muc_id
 
     WHERE pk.da_xoa_luc IS NULL
+      AND pk.trang_thai = ${TRANG_THAI_HIEN_THI}
 
       AND (
         -- Riêng danh mục Thẻ nhớ: lấy tất cả, không phân biệt hãng.
@@ -480,6 +487,7 @@ async function layPhuKienTheoId(id) {
 
     WHERE pk.id = ${id}::uuid
       AND pk.da_xoa_luc IS NULL
+      AND pk.trang_thai = ${TRANG_THAI_HIEN_THI}
 
     LIMIT 1
   `;
@@ -555,7 +563,11 @@ async function themBoDiKemPhuKien(mauThietBiChinhId, phuKienId, soLuong) {
 
 async function layBoDiKemTheoId(mauThietBiChinhId, bundleId) {
   const rows = await prisma.$queryRaw`
-    SELECT id
+    SELECT
+      id,
+      mau_thiet_bi_chinh_id,
+      mau_thiet_bi_phu_id,
+      phu_kien_id
     FROM bo_di_kem
     WHERE id = ${bundleId}::uuid
       AND mau_thiet_bi_chinh_id = ${mauThietBiChinhId}::uuid
@@ -563,6 +575,27 @@ async function layBoDiKemTheoId(mauThietBiChinhId, bundleId) {
   `;
 
   return rows[0] || null;
+}
+
+async function kiemTraBoDiKemDangDuocDonHoatDong(bundleId) {
+  const rows = await prisma.$queryRaw`
+    SELECT EXISTS (
+      SELECT 1
+      FROM bo_di_kem bdk
+      JOIN chi_tiet_don_thue ctdt
+        ON ctdt.mau_thiet_bi_id = bdk.mau_thiet_bi_chinh_id
+      JOIN don_thue dt
+        ON dt.id = ctdt.don_thue_id
+      WHERE bdk.id = ${bundleId}::uuid
+        AND dt.trang_thai IN (
+          ${DON_DA_GIU_CHO},
+          ${DON_DANG_THUE},
+          ${DON_QUA_HAN}
+        )
+    ) AS dang_su_dung
+  `;
+
+  return Boolean(rows[0]?.dang_su_dung);
 }
 
 async function xoaBoDiKem(bundleId) {
@@ -593,5 +626,6 @@ module.exports = {
   themBoDiKemThietBiPhu,
   themBoDiKemPhuKien,
   layBoDiKemTheoId,
+  kiemTraBoDiKemDangDuocDonHoatDong,
   xoaBoDiKem,
 };

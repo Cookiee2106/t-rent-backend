@@ -3,6 +3,7 @@ const {
   layChiTietPhuKienAdminService,
   taoPhuKienAdminService,
   capNhatPhuKienAdminService,
+  doiTrangThaiPhuKienAdminService,
   xoaMemPhuKienAdminService,
 } = require("../../models/AccessoryModel");
 
@@ -76,6 +77,30 @@ async function capNhatPhuKienAdmin(req, res) {
   }
 }
 
+async function doiTrangThaiPhuKienAdmin(req, res) {
+  try {
+    const data = await doiTrangThaiPhuKienAdminService(
+      req.params.id,
+      req.body || {}
+    );
+
+    const hanhDong = String(req.body?.hanh_dong || "")
+      .trim()
+      .toUpperCase();
+
+    res.json({
+      success: true,
+      message:
+        hanhDong === "AN"
+          ? "Ẩn phụ kiện thành công"
+          : "Hiện phụ kiện thành công",
+      data,
+    });
+  } catch (loi) {
+    guiLoi(res, loi);
+  }
+}
+
 async function xoaMemPhuKienAdmin(req, res) {
   try {
     const data = await xoaMemPhuKienAdminService(req.params.id);
@@ -95,5 +120,6 @@ module.exports = {
   layChiTietPhuKienAdmin,
   taoPhuKienAdmin,
   capNhatPhuKienAdmin,
+  doiTrangThaiPhuKienAdmin,
   xoaMemPhuKienAdmin,
 };

@@ -11,6 +11,7 @@ class BundleItemModel {
 
     phu_kien_id,
     ten_phu_kien,
+    trang_thai_phu_kien,
     tong_so_luong,
     loai_bo_di_kem,
   } = {}) {
@@ -25,6 +26,12 @@ class BundleItemModel {
 
     this.phu_kien_id = phu_kien_id || null;
     this.ten_phu_kien = ten_phu_kien || null;
+    this.trang_thai_phu_kien =
+      trang_thai_phu_kien === null || trang_thai_phu_kien === undefined
+        ? null
+        : Number(trang_thai_phu_kien);
+    this.phu_kien_dang_hien =
+      this.phu_kien_id === null || this.trang_thai_phu_kien === 601;
     this.tong_so_luong =
       tong_so_luong === null || tong_so_luong === undefined
         ? null

@@ -3,6 +3,7 @@ const { Prisma } = require("@prisma/client");
 
 const TRANG_THAI_MAU_THIET_BI_HIEN_THI = 601;
 const TRANG_THAI_THIET_BI_SAN_SANG = 501;
+const TRANG_THAI_PHU_KIEN_HIEN_THI = 601;
 
 const PHIEN_CHO_THANH_TOAN = 901;
 const PHIEN_DA_THANH_TOAN = 902;
@@ -149,6 +150,7 @@ async function tinhSoLuongKhaDungCuaPhuKien(phuKienId, ngayNhan, ngayTra, db = p
         FROM phu_kien pk
         WHERE pk.id = ${phuKienId}::uuid
           AND pk.da_xoa_luc IS NULL
+          AND pk.trang_thai = ${TRANG_THAI_PHU_KIEN_HIEN_THI}
         LIMIT 1
       )
       -

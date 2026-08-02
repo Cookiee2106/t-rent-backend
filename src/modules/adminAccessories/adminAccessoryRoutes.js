@@ -7,6 +7,7 @@ const {
   layChiTietPhuKienAdmin,
   taoPhuKienAdmin,
   capNhatPhuKienAdmin,
+  doiTrangThaiPhuKienAdmin,
   xoaMemPhuKienAdmin,
 } = require("./adminAccessoryController");
 
@@ -19,6 +20,7 @@ router.use(kiemTraVaiTro(vaiTroNoiBo));
 
 router.get("/", layDanhSachPhuKienAdmin);
 router.post("/", taoPhuKienAdmin);
+router.patch("/:id/status", doiTrangThaiPhuKienAdmin);
 router.put("/:id", capNhatPhuKienAdmin);
 router.patch("/:id", capNhatPhuKienAdmin);
 router.delete("/:id", xoaMemPhuKienAdmin);
