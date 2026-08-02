@@ -158,7 +158,6 @@ class AccessoryModel {
     this.tong_so_luong = Number(tong_so_luong || 0);
     this.so_luong_dang_su_dung = Number(so_luong_dang_su_dung || 0);
     this.so_luong_mat_hu_hong = Number(so_luong_mat_hu_hong || 0);
-    this.so_luong_kha_dung = this.tong_so_luong - this.so_luong_dang_su_dung;
 
     this.mo_ta = mo_ta || null;
     this.created_at = created_at || null;
@@ -220,13 +219,14 @@ class AccessoryModel {
       viTriKhoId: duLieu.viTriKhoId,
     });
 
-    const soLuongDangSuDung = await adminAccessoryRepository.tinhSoLuongDangSuDungCuaPhuKien(
-      id
-    );
+    const soLuongDangCamKet =
+      await adminAccessoryRepository.tinhSoLuongDangCamKetCuaPhuKien(
+        id
+      );
 
-    if (duLieu.tongSoLuong < soLuongDangSuDung) {
+    if (duLieu.tongSoLuong < soLuongDangCamKet) {
       throw new Error(
-        `Tổng số lượng không được nhỏ hơn ${soLuongDangSuDung} vì phụ kiện đang được giữ/thuê`
+        `Tổng số lượng không được nhỏ hơn ${soLuongDangCamKet} vì phụ kiện đang được giữ chỗ, đang thuê hoặc quá hạn`
       );
     }
 
@@ -265,10 +265,12 @@ class AccessoryModel {
     }
 
     if (hanhDong === "AN") {
-      const soLuongDangSuDung =
-        await adminAccessoryRepository.tinhSoLuongDangSuDungCuaPhuKien(id);
+      const soLuongDangCamKet =
+        await adminAccessoryRepository.tinhSoLuongDangCamKetCuaPhuKien(
+          id
+        );
 
-      if (soLuongDangSuDung > 0) {
+      if (soLuongDangCamKet > 0) {
         throw new Error(
           "Không thể ẩn phụ kiện đang được giữ chỗ, đang thuê hoặc quá hạn"
         );
@@ -318,12 +320,15 @@ class AccessoryModel {
       throw new Error("Không tìm thấy phụ kiện");
     }
 
-    const soLuongDangSuDung = await adminAccessoryRepository.tinhSoLuongDangSuDungCuaPhuKien(
-      id
-    );
+    const soLuongDangCamKet =
+      await adminAccessoryRepository.tinhSoLuongDangCamKetCuaPhuKien(
+        id
+      );
 
-    if (soLuongDangSuDung > 0) {
-      throw new Error("Không thể xóa phụ kiện đang được giữ/thuê");
+    if (soLuongDangCamKet > 0) {
+      throw new Error(
+        "Không thể xóa phụ kiện đang được giữ chỗ, đang thuê hoặc quá hạn"
+      );
     }
 
     const boDiKem = await adminAccessoryRepository.timBoDiKemTheoPhuKien(id);

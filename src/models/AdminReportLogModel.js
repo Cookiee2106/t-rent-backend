@@ -36,14 +36,33 @@ class AdminReportLogModel {
       thang: item.thang || null,
       thang_hien_thi: item.thang_hien_thi || "",
       tong_doanh_thu: Number(item.tong_doanh_thu || 0),
-      so_giao_dich: Number(item.so_giao_dich || 0),
       so_don_thue: Number(item.so_don_thue || 0),
     };
   }
 
-  static mapBaoCaoDoanhThu({ tuNgay, denNgay, danhSachTheoThang }) {
+  static mapDongDoanhThuTheoMau(item = {}) {
+    return {
+      mau_thiet_bi_id: item.mau_thiet_bi_id || null,
+      ten_mau: item.ten_mau || "",
+      ten_hang: item.ten_hang || "",
+      ten_danh_muc: item.ten_danh_muc || "",
+      so_lan_thue: Number(item.so_lan_thue || 0),
+      tong_doanh_thu: Number(item.tong_doanh_thu || 0),
+    };
+  }
+
+  static mapBaoCaoDoanhThu({
+    tuNgay,
+    denNgay,
+    danhSachTheoThang,
+    danhSachTheoMau,
+  }) {
     const data = (danhSachTheoThang || []).map((item) =>
       AdminReportLogModel.mapDongDoanhThuTheoThang(item)
+    );
+
+    const revenueByModels = (danhSachTheoMau || []).map((item) =>
+      AdminReportLogModel.mapDongDoanhThuTheoMau(item)
     );
 
     return {
@@ -53,15 +72,12 @@ class AdminReportLogModel {
         (tong, item) => tong + Number(item.tong_doanh_thu || 0),
         0
       ),
-      tong_giao_dich: data.reduce(
-        (tong, item) => tong + Number(item.so_giao_dich || 0),
-        0
-      ),
       tong_don_thue: data.reduce(
         (tong, item) => tong + Number(item.so_don_thue || 0),
         0
       ),
       data,
+      revenue_by_models: revenueByModels,
     };
   }
 
@@ -69,10 +85,14 @@ class AdminReportLogModel {
     return {
       summary: {
         tong_thiet_bi: Number(tongQuan?.tong_thiet_bi || 0),
-        tong_phu_kien: Number(tongQuan?.tong_phu_kien || 0),
-        tong_so_luong_phu_kien: Number(tongQuan?.tong_so_luong_phu_kien || 0),
+        thiet_bi_san_sang: Number(tongQuan?.thiet_bi_san_sang || 0),
+        thiet_bi_dang_thue: Number(tongQuan?.thiet_bi_dang_thue || 0),
+        thiet_bi_dang_bao_tri: Number(tongQuan?.thiet_bi_dang_bao_tri || 0),
+        thiet_bi_da_thanh_ly: Number(tongQuan?.thiet_bi_da_thanh_ly || 0),
         thiet_bi_hu_hong: Number(tongQuan?.thiet_bi_hu_hong || 0),
         thiet_bi_bi_mat: Number(tongQuan?.thiet_bi_bi_mat || 0),
+        tong_phu_kien: Number(tongQuan?.tong_phu_kien || 0),
+        tong_so_luong_phu_kien: Number(tongQuan?.tong_so_luong_phu_kien || 0),
         phu_kien_mat_hu_hong: Number(tongQuan?.phu_kien_mat_hu_hong || 0),
       },
       physical_devices: (thietBiVatLy || []).map((item) => ({
@@ -81,9 +101,12 @@ class AdminReportLogModel {
         ten_hang: item.ten_hang || "",
         ten_danh_muc: item.ten_danh_muc || "",
         tong_so_luong: Number(item.tong_so_luong || 0),
-        dang_thue: Number(item.dang_thue || 0),
-        hu_hong_mat: Number(item.hu_hong_mat || 0),
         san_sang: Number(item.san_sang || 0),
+        dang_thue: Number(item.dang_thue || 0),
+        dang_bao_tri: Number(item.dang_bao_tri || 0),
+        da_thanh_ly: Number(item.da_thanh_ly || 0),
+        hu_hong: Number(item.hu_hong || 0),
+        bi_mat: Number(item.bi_mat || 0),
       })),
       accessories: (phuKien || []).map((item) => ({
         id: item.id,
@@ -163,6 +186,7 @@ class AdminReportLogModel {
     const page = Math.max(Number(query.page) || 1, 1);
     const limit = Math.min(Math.max(Number(query.limit) || 10, 1), 100);
     const loaiThaoTac = query.loai_thao_tac || null;
+    const tuKhoa = String(query.tu_khoa || "").trim() || null;
     const from = query.from || null;
     const to = query.to || null;
 
@@ -176,6 +200,7 @@ class AdminReportLogModel {
       page,
       limit,
       loaiThaoTac,
+      tuKhoa,
       from,
       to,
     });

@@ -38,6 +38,7 @@ async function layDanhSachPhuKien() {
       pk.tong_so_luong::int AS tong_so_luong,
       pk.so_luong_mat_hu_hong::int AS so_luong_mat_hu_hong,
 
+      -- Chỉ đơn đã bàn giao và đơn quá hạn mới được tính là đang dùng.
       COALESCE((
         SELECT SUM(ctdt.so_luong * bdk.so_luong)::int
         FROM bo_di_kem bdk
@@ -46,7 +47,7 @@ async function layDanhSachPhuKien() {
         JOIN don_thue dt
           ON dt.id = ctdt.don_thue_id
         WHERE bdk.phu_kien_id = pk.id
-          AND dt.trang_thai IN (${DON_DA_GIU_CHO}, ${DON_DANG_THUE}, ${DON_QUA_HAN})
+          AND dt.trang_thai IN (${DON_DANG_THUE}, ${DON_QUA_HAN})
       ), 0)::int AS so_luong_dang_su_dung,
 
       pk.mo_ta,
@@ -90,6 +91,7 @@ async function layPhuKienTheoId(id) {
       pk.tong_so_luong::int AS tong_so_luong,
       pk.so_luong_mat_hu_hong::int AS so_luong_mat_hu_hong,
 
+      -- Chỉ đơn đã bàn giao và đơn quá hạn mới được tính là đang dùng.
       COALESCE((
         SELECT SUM(ctdt.so_luong * bdk.so_luong)::int
         FROM bo_di_kem bdk
@@ -98,7 +100,7 @@ async function layPhuKienTheoId(id) {
         JOIN don_thue dt
           ON dt.id = ctdt.don_thue_id
         WHERE bdk.phu_kien_id = pk.id
-          AND dt.trang_thai IN (${DON_DA_GIU_CHO}, ${DON_DANG_THUE}, ${DON_QUA_HAN})
+          AND dt.trang_thai IN (${DON_DANG_THUE}, ${DON_QUA_HAN})
       ), 0)::int AS so_luong_dang_su_dung,
 
       pk.mo_ta,
@@ -207,6 +209,8 @@ async function tinhSoLuongDangChuaTaiViTri(viTriKhoId, phuKienIdBoQua = null) {
   return Number(rows[0]?.so_luong_dang_chua || 0);
 }
 
+// Chỉ tính phụ kiện của đơn Đang thuê hoặc Quá hạn.
+// Đơn Đã giữ chỗ chưa bàn giao không được tính là đang dùng.
 async function tinhSoLuongDangSuDungCuaPhuKien(phuKienId) {
   const rows = await prisma.$queryRaw`
     SELECT COALESCE(SUM(ctdt.so_luong * bdk.so_luong), 0)::int AS so_luong_dang_su_dung
@@ -216,10 +220,39 @@ async function tinhSoLuongDangSuDungCuaPhuKien(phuKienId) {
     JOIN don_thue dt
       ON dt.id = ctdt.don_thue_id
     WHERE bdk.phu_kien_id = ${phuKienId}::uuid
-      AND dt.trang_thai IN (${DON_DA_GIU_CHO}, ${DON_DANG_THUE}, ${DON_QUA_HAN})
+      AND dt.trang_thai IN (${DON_DANG_THUE}, ${DON_QUA_HAN})
   `;
 
   return Number(rows[0]?.so_luong_dang_su_dung || 0);
+}
+
+// Dùng cho các nghiệp vụ thay đổi/xóa/ẩn phụ kiện.
+// Đơn Đã giữ chỗ vẫn phải được bảo vệ vì cửa hàng đã cam kết giao cho khách.
+async function tinhSoLuongDangCamKetCuaPhuKien(phuKienId) {
+  const rows = await prisma.$queryRaw`
+    SELECT
+      COALESCE(
+        SUM(ctdt.so_luong * bdk.so_luong),
+        0
+      )::int AS so_luong_dang_cam_ket
+
+    FROM bo_di_kem bdk
+
+    JOIN chi_tiet_don_thue ctdt
+      ON ctdt.mau_thiet_bi_id = bdk.mau_thiet_bi_chinh_id
+
+    JOIN don_thue dt
+      ON dt.id = ctdt.don_thue_id
+
+    WHERE bdk.phu_kien_id = ${phuKienId}::uuid
+      AND dt.trang_thai IN (
+        ${DON_DA_GIU_CHO},
+        ${DON_DANG_THUE},
+        ${DON_QUA_HAN}
+      )
+  `;
+
+  return Number(rows[0]?.so_luong_dang_cam_ket || 0);
 }
 
 async function timBoDiKemTheoPhuKien(phuKienId) {
@@ -353,6 +386,7 @@ module.exports = {
   layViTriKhoDangHienThiTheoId,
   tinhSoLuongDangChuaTaiViTri,
   tinhSoLuongDangSuDungCuaPhuKien,
+  tinhSoLuongDangCamKetCuaPhuKien,
   timBoDiKemTheoPhuKien,
   layDanhSachMauDangDungPhuKien,
   taoPhuKien,
