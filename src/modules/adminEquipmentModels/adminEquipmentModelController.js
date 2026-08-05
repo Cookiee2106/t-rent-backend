@@ -1,4 +1,6 @@
 const {
+  layLuaChonCauHinhMauAdminService,
+
   layDanhSachMauThietBiAdminService,
   layChiTietMauThietBiAdminService,
   taoMauThietBiAdminService,
@@ -27,9 +29,30 @@ function guiLoi(res, loi) {
   });
 }
 
+// Chỉ lấy ngàm và nhu cầu đang hiển thị cho form mẫu thiết bị.
+async function layLuaChonCauHinhMauAdmin(req, res) {
+  try {
+    const data =
+      await layLuaChonCauHinhMauAdminService();
+
+    res.json({
+      success: true,
+      message: "Lấy lựa chọn cấu hình mẫu thiết bị thành công",
+      data,
+    });
+  } catch (loi) {
+    guiLoi(res, loi);
+  }
+}
+
+// ============================================================
+// QUẢN LÝ MẪU THIẾT BỊ
+// ============================================================
+
 async function layDanhSachMauThietBiAdmin(req, res) {
   try {
-    const data = await layDanhSachMauThietBiAdminService();
+    const data =
+      await layDanhSachMauThietBiAdminService();
 
     res.json({
       success: true,
@@ -43,7 +66,10 @@ async function layDanhSachMauThietBiAdmin(req, res) {
 
 async function layChiTietMauThietBiAdmin(req, res) {
   try {
-    const data = await layChiTietMauThietBiAdminService(req.params.id);
+    const data =
+      await layChiTietMauThietBiAdminService(
+        req.params.id
+      );
 
     res.json({
       success: true,
@@ -57,7 +83,10 @@ async function layChiTietMauThietBiAdmin(req, res) {
 
 async function taoMauThietBiAdmin(req, res) {
   try {
-    const data = await taoMauThietBiAdminService(req.body || {}, req.file);
+    const data = await taoMauThietBiAdminService(
+      req.body || {},
+      req.file
+    );
 
     res.status(201).json({
       success: true,
@@ -71,11 +100,12 @@ async function taoMauThietBiAdmin(req, res) {
 
 async function capNhatMauThietBiAdmin(req, res) {
   try {
-    const data = await capNhatMauThietBiAdminService(
-      req.params.id,
-      req.body || {},
-      req.file
-    );
+    const data =
+      await capNhatMauThietBiAdminService(
+        req.params.id,
+        req.body || {},
+        req.file
+      );
 
     res.json({
       success: true,
@@ -87,12 +117,16 @@ async function capNhatMauThietBiAdmin(req, res) {
   }
 }
 
-async function capNhatTrangThaiMauThietBiAdmin(req, res) {
+async function capNhatTrangThaiMauThietBiAdmin(
+  req,
+  res
+) {
   try {
-    const data = await capNhatTrangThaiMauThietBiAdminService(
-      req.params.id,
-      req.body || {}
-    );
+    const data =
+      await capNhatTrangThaiMauThietBiAdminService(
+        req.params.id,
+        req.body || {}
+      );
 
     res.json({
       success: true,
@@ -109,7 +143,10 @@ async function capNhatTrangThaiMauThietBiAdmin(req, res) {
 
 async function layDanhSachBoDiKemAdmin(req, res) {
   try {
-    const data = await layDanhSachBoDiKemAdminService(req.params.id);
+    const data =
+      await layDanhSachBoDiKemAdminService(
+        req.params.id
+      );
 
     res.json({
       success: true,
@@ -123,10 +160,11 @@ async function layDanhSachBoDiKemAdmin(req, res) {
 
 async function layGoiYBoDiKemAdmin(req, res) {
   try {
-    const data = await layGoiYBoDiKemAdminService(
-      req.params.id,
-      req.query || {}
-    );
+    const data =
+      await layGoiYBoDiKemAdminService(
+        req.params.id,
+        req.query || {}
+      );
 
     res.json({
       success: true,
@@ -140,7 +178,10 @@ async function layGoiYBoDiKemAdmin(req, res) {
 
 async function taoBoDiKemAdmin(req, res) {
   try {
-    const data = await taoBoDiKemAdminService(req.params.id, req.body || {});
+    const data = await taoBoDiKemAdminService(
+      req.params.id,
+      req.body || {}
+    );
 
     res.status(201).json({
       success: true,
@@ -169,6 +210,8 @@ async function xoaBoDiKemAdmin(req, res) {
 }
 
 module.exports = {
+  layLuaChonCauHinhMauAdmin,
+
   layDanhSachMauThietBiAdmin,
   layChiTietMauThietBiAdmin,
   taoMauThietBiAdmin,

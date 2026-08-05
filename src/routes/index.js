@@ -16,6 +16,8 @@ const employeeRoutes = require("../modules/employees/employeeRoutes");
 const assetRoutes = require("../modules/assets/assetRoutes");
 const maintenanceRoutes = require("../modules/maintenances/maintenanceRoutes");
 const equipmentBrandRoutes = require("../modules/equipmentBrand/equipmentBrandRoutes");
+const equipmentMountRoutes = require("../modules/equipmentMounts/equipmentMountRoutes");
+const equipmentNeedRoutes = require("../modules/equipmentNeeds/equipmentNeedRoutes");
 const warehouseLocationRoutes = require("../modules/warehouseLocation/warehouseLocationRoutes");
 const adminReportLogRoutes = require("../modules/adminReportLog/adminReportLogRoutes");
 
@@ -37,6 +39,8 @@ router.use("/admin/employees", employeeRoutes);
 router.use("/admin/assets", assetRoutes);
 router.use("/admin/maintenances", maintenanceRoutes);
 router.use("/equipment-brands", equipmentBrandRoutes);
+router.use("/equipment-mounts", equipmentMountRoutes);
+router.use("/equipment-needs", equipmentNeedRoutes);
 router.use("/warehouse-locations", warehouseLocationRoutes);
 router.use("/admin", adminReportLogRoutes);
 

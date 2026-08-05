@@ -1,4 +1,5 @@
 const prisma = require("../config/prisma");
+const { Prisma } = require("@prisma/client");
 
 const TRANG_THAI_HIEN_THI = 601;
 const DON_DA_GIU_CHO = 1102;
@@ -56,6 +57,10 @@ async function layMauThietBiTheoId(id) {
       mtb.hang_id,
       h.ten_hang,
 
+      mtb.ngam_id,
+      n.ten_ngam,
+      n.trang_thai AS trang_thai_ngam,
+
       mtb.ten_mau,
       mtb.mo_ta,
       mtb.anh_url,
@@ -65,6 +70,28 @@ async function layMauThietBiTheoId(id) {
       tt.ten_trang_thai,
       mtb.created_at,
       mtb.updated_at,
+
+      COALESCE(
+        (
+          SELECT JSONB_AGG(
+            JSONB_BUILD_OBJECT(
+              'id', nc.id,
+              'ten_nhu_cau', nc.ten_nhu_cau,
+              'trang_thai', nc.trang_thai
+            )
+            ORDER BY nc.ten_nhu_cau
+          )
+
+          FROM mau_thiet_bi_nhu_cau mnc
+
+          JOIN nhu_cau_su_dung nc
+            ON nc.id = mnc.nhu_cau_id
+
+          WHERE mnc.mau_thiet_bi_id = mtb.id
+            AND nc.da_xoa_luc IS NULL
+        ),
+        '[]'::jsonb
+      ) AS nhu_cau_su_dung,
 
       (
         SELECT COUNT(*)::int
@@ -88,6 +115,10 @@ async function layMauThietBiTheoId(id) {
 
     LEFT JOIN hang_thiet_bi h
       ON h.id = mtb.hang_id
+
+    LEFT JOIN ngam_thiet_bi n
+      ON n.id = mtb.ngam_id
+      AND n.da_xoa_luc IS NULL
 
     LEFT JOIN trang_thai_he_thong tt
       ON tt.id = mtb.trang_thai
@@ -112,6 +143,10 @@ async function layDanhSachMauThietBiAdmin() {
       mtb.hang_id,
       h.ten_hang,
 
+      mtb.ngam_id,
+      n.ten_ngam,
+      n.trang_thai AS trang_thai_ngam,
+
       mtb.ten_mau,
       mtb.mo_ta,
       mtb.anh_url,
@@ -121,6 +156,28 @@ async function layDanhSachMauThietBiAdmin() {
       tt.ten_trang_thai,
       mtb.created_at,
       mtb.updated_at,
+
+      COALESCE(
+        (
+          SELECT JSONB_AGG(
+            JSONB_BUILD_OBJECT(
+              'id', nc.id,
+              'ten_nhu_cau', nc.ten_nhu_cau,
+              'trang_thai', nc.trang_thai
+            )
+            ORDER BY nc.ten_nhu_cau
+          )
+
+          FROM mau_thiet_bi_nhu_cau mnc
+
+          JOIN nhu_cau_su_dung nc
+            ON nc.id = mnc.nhu_cau_id
+
+          WHERE mnc.mau_thiet_bi_id = mtb.id
+            AND nc.da_xoa_luc IS NULL
+        ),
+        '[]'::jsonb
+      ) AS nhu_cau_su_dung,
 
       (
         SELECT COUNT(*)::int
@@ -144,6 +201,10 @@ async function layDanhSachMauThietBiAdmin() {
 
     LEFT JOIN hang_thiet_bi h
       ON h.id = mtb.hang_id
+
+    LEFT JOIN ngam_thiet_bi n
+      ON n.id = mtb.ngam_id
+      AND n.da_xoa_luc IS NULL
 
     LEFT JOIN trang_thai_he_thong tt
       ON tt.id = mtb.trang_thai
@@ -174,9 +235,50 @@ async function timMauTrungTen(tenMau, idBoQua = null) {
   return mauTrung || null;
 }
 
+
+async function themLienKetNhuCau(
+  ketNoi,
+  mauThietBiId,
+  danhSachNhuCauId = []
+) {
+  const danhSachId = [
+    ...new Set(
+      danhSachNhuCauId
+        .filter(Boolean)
+        .map((id) => String(id))
+    ),
+  ];
+
+  if (danhSachId.length === 0) {
+    return;
+  }
+
+  const values = Prisma.join(
+    danhSachId.map(
+      (nhuCauId) =>
+        Prisma.sql`(
+          ${mauThietBiId}::uuid,
+          ${nhuCauId}::uuid,
+          NOW()
+        )`
+    )
+  );
+
+  await ketNoi.$executeRaw`
+    INSERT INTO mau_thiet_bi_nhu_cau (
+      mau_thiet_bi_id,
+      nhu_cau_id,
+      created_at
+    )
+    VALUES ${values}
+  `;
+}
+
 async function taoMauThietBi({
   danhMucId,
   hangId,
+  ngamId,
+  nhuCauIds = [],
   tenMau,
   moTa,
   anhUrl,
@@ -184,65 +286,102 @@ async function taoMauThietBi({
   tienCoc,
   trangThai,
 }) {
-  const rows = await prisma.$queryRaw`
-    INSERT INTO mau_thiet_bi (
-      id,
-      danh_muc_id,
-      hang_id,
-      ten_mau,
-      mo_ta,
-      anh_url,
-      gia_thue_ngay,
-      tien_coc,
-      trang_thai,
-      created_at,
-      updated_at
-    )
-    VALUES (
-      gen_random_uuid(),
-      ${danhMucId}::uuid,
-      ${hangId}::uuid,
-      ${tenMau},
-      ${moTa},
-      ${anhUrl},
-      ${giaThueNgay},
-      ${tienCoc},
-      ${trangThai},
-      NOW(),
-      NOW()
-    )
-    RETURNING id
-  `;
+  return await prisma.$transaction(async (tx) => {
+    const rows = await tx.$queryRaw`
+      INSERT INTO mau_thiet_bi (
+        id,
+        danh_muc_id,
+        hang_id,
+        ngam_id,
+        ten_mau,
+        mo_ta,
+        anh_url,
+        gia_thue_ngay,
+        tien_coc,
+        trang_thai,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        gen_random_uuid(),
+        ${danhMucId}::uuid,
+        ${hangId}::uuid,
+        ${ngamId || null}::uuid,
+        ${tenMau},
+        ${moTa},
+        ${anhUrl},
+        ${giaThueNgay},
+        ${tienCoc},
+        ${trangThai},
+        NOW(),
+        NOW()
+      )
+      RETURNING id
+    `;
 
-  return rows[0];
+    const mauMoi = rows[0];
+
+    await themLienKetNhuCau(
+      tx,
+      mauMoi.id,
+      nhuCauIds
+    );
+
+    return mauMoi;
+  });
 }
 
 async function capNhatMauThietBi(id, {
   danhMucId,
   hangId,
+  ngamId,
+  nhuCauIds = [],
+  capNhatNhuCau = false,
   tenMau,
   moTa,
   anhUrl,
   giaThueNgay,
   tienCoc,
 }) {
-  const rows = await prisma.$queryRaw`
-    UPDATE mau_thiet_bi
-    SET
-      danh_muc_id = ${danhMucId}::uuid,
-      hang_id = ${hangId}::uuid,
-      ten_mau = ${tenMau},
-      mo_ta = ${moTa},
-      anh_url = ${anhUrl},
-      gia_thue_ngay = ${giaThueNgay},
-      tien_coc = ${tienCoc},
-      updated_at = NOW()
-    WHERE id = ${id}::uuid
-      AND da_xoa_luc IS NULL
-    RETURNING id
-  `;
+  return await prisma.$transaction(async (tx) => {
+    const rows = await tx.$queryRaw`
+      UPDATE mau_thiet_bi
+      SET
+        danh_muc_id = ${danhMucId}::uuid,
+        hang_id = ${hangId}::uuid,
+        ngam_id = ${ngamId || null}::uuid,
+        ten_mau = ${tenMau},
+        mo_ta = ${moTa},
+        anh_url = ${anhUrl},
+        gia_thue_ngay = ${giaThueNgay},
+        tien_coc = ${tienCoc},
+        updated_at = NOW()
+      WHERE id = ${id}::uuid
+        AND da_xoa_luc IS NULL
+      RETURNING id
+    `;
 
-  return rows[0] || null;
+    const mauSauCapNhat = rows[0] || null;
+
+    if (!mauSauCapNhat) {
+      return null;
+    }
+
+    if (capNhatNhuCau) {
+      await tx.$executeRaw`
+        DELETE FROM mau_thiet_bi_nhu_cau
+        WHERE mau_thiet_bi_id = ${id}::uuid
+      `;
+
+      await themLienKetNhuCau(
+        tx,
+        id,
+        nhuCauIds
+      );
+    }
+
+    return mauSauCapNhat;
+  });
 }
 
 async function capNhatTrangThaiMauThietBi(id, trangThai) {
@@ -258,6 +397,11 @@ async function capNhatTrangThaiMauThietBi(id, trangThai) {
 
   return rows[0] || null;
 }
+
+
+// ============================================================
+// NGÀM THIẾT BỊ
+// ============================================================
 
 async function layThongTinMauThietBiChinh(id) {
   const rows = await prisma.$queryRaw`
@@ -614,6 +758,7 @@ module.exports = {
   taoMauThietBi,
   capNhatMauThietBi,
   capNhatTrangThaiMauThietBi,
+
 
   layThongTinMauThietBiChinh,
   layDanhSachBoDiKem,

@@ -2,6 +2,8 @@ const express = require("express");
 const multer = require("multer");
 
 const {
+  layLuaChonCauHinhMauAdmin,
+
   layDanhSachMauThietBiAdmin,
   layChiTietMauThietBiAdmin,
   taoMauThietBiAdmin,
@@ -25,25 +27,60 @@ const upload = multer({
   },
 });
 
-const vaiTroNoiBo = ["NHAN_VIEN", "QUAN_TRI", "QUAN_TRI_VIEN"];
+const vaiTroNoiBo = [
+  "NHAN_VIEN",
+  "QUAN_TRI",
+  "QUAN_TRI_VIEN",
+];
 
 router.use(xacThucDangNhap);
 router.use(kiemTraVaiTro(vaiTroNoiBo));
 
+// Các route tĩnh phải đặt trước /:id.
+router.get(
+  "/configuration-options",
+  layLuaChonCauHinhMauAdmin
+);
+
+// Quản lý mẫu thiết bị.
 router.get("/", layDanhSachMauThietBiAdmin);
-router.post("/", upload.single("anh_mau"), taoMauThietBiAdmin);
+router.post(
+  "/",
+  upload.single("anh_mau"),
+  taoMauThietBiAdmin
+);
 
 router.get("/:id/bundles", layDanhSachBoDiKemAdmin);
-router.get("/:id/bundle-options", layGoiYBoDiKemAdmin);
+router.get(
+  "/:id/bundle-options",
+  layGoiYBoDiKemAdmin
+);
 router.post("/:id/bundles", taoBoDiKemAdmin);
-router.delete("/:id/bundles/:bundleId", xoaBoDiKemAdmin);
+router.delete(
+  "/:id/bundles/:bundleId",
+  xoaBoDiKemAdmin
+);
 
 router.get("/:id", layChiTietMauThietBiAdmin);
 
-router.put("/:id/status", capNhatTrangThaiMauThietBiAdmin);
-router.patch("/:id/status", capNhatTrangThaiMauThietBiAdmin);
+router.put(
+  "/:id/status",
+  capNhatTrangThaiMauThietBiAdmin
+);
+router.patch(
+  "/:id/status",
+  capNhatTrangThaiMauThietBiAdmin
+);
 
-router.put("/:id", upload.single("anh_mau"), capNhatMauThietBiAdmin);
-router.patch("/:id", upload.single("anh_mau"), capNhatMauThietBiAdmin);
+router.put(
+  "/:id",
+  upload.single("anh_mau"),
+  capNhatMauThietBiAdmin
+);
+router.patch(
+  "/:id",
+  upload.single("anh_mau"),
+  capNhatMauThietBiAdmin
+);
 
 module.exports = router;

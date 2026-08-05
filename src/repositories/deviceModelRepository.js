@@ -111,12 +111,20 @@ async function layBoDiKemCuaNhieuMau(danhSachMauId = []) {
 async function layDanhSachMauThietBi({
   hangId = "",
   danhMucId = "",
+  nhuCauId = "",
+  giaTu = null,
+  giaDen = null,
+  ngamIdBatBuoc = "",
 } = {}) {
   const coLocHang = Boolean(hangId);
   const coLocDanhMuc = Boolean(danhMucId);
+  const coLocNhuCau = Boolean(nhuCauId);
+  const coLocGiaTu = giaTu !== null;
+  const coLocGiaDen = giaDen !== null;
+  const coLocNgam = Boolean(ngamIdBatBuoc);
 
   // Đếm số thiết bị theo nhóm trước rồi JOIN vào danh sách mẫu.
-  // Nhanh hơn subquery COUNT chạy lại cho từng mẫu.
+  // Nhu cầu được gom thành JSON để không làm trùng dòng mẫu thiết bị.
   return await prisma.$queryRaw`
     WITH so_luong_tai_san AS (
       SELECT
@@ -140,11 +148,38 @@ async function layDanhSachMauThietBi({
       mtb.hang_id,
       h.ten_hang,
 
+      -- Chỉ trả ngàm đang hiển thị.
+      -- Mẫu cũ vẫn giữ liên kết trong database khi ngàm bị ẩn.
+      n.id AS ngam_id,
+      n.ten_ngam,
+
       mtb.ten_mau,
       mtb.mo_ta,
       mtb.anh_url,
       mtb.gia_thue_ngay::text AS gia_thue_ngay,
       mtb.tien_coc::text AS tien_coc,
+
+      COALESCE(
+        (
+          SELECT JSONB_AGG(
+            JSONB_BUILD_OBJECT(
+              'id', nc.id,
+              'ten_nhu_cau', nc.ten_nhu_cau
+            )
+            ORDER BY nc.ten_nhu_cau
+          )
+
+          FROM mau_thiet_bi_nhu_cau mnc
+
+          JOIN nhu_cau_su_dung nc
+            ON nc.id = mnc.nhu_cau_id
+
+          WHERE mnc.mau_thiet_bi_id = mtb.id
+            AND nc.da_xoa_luc IS NULL
+            AND nc.trang_thai = 601
+        ),
+        '[]'::jsonb
+      ) AS nhu_cau_su_dung,
 
       COALESCE(slts.tong_san_sang, 0)::int AS so_luong_san_sang
 
@@ -156,13 +191,64 @@ async function layDanhSachMauThietBi({
     LEFT JOIN hang_thiet_bi h
       ON h.id = mtb.hang_id
 
+    LEFT JOIN ngam_thiet_bi n
+      ON n.id = mtb.ngam_id
+      AND n.da_xoa_luc IS NULL
+      AND n.trang_thai = 601
+
     LEFT JOIN so_luong_tai_san slts
       ON slts.mau_thiet_bi_id = mtb.id
 
     WHERE mtb.da_xoa_luc IS NULL
       AND mtb.trang_thai = 601
-      AND (${coLocHang} = false OR mtb.hang_id = ${hangId || null}::uuid)
-      AND (${coLocDanhMuc} = false OR mtb.danh_muc_id = ${danhMucId || null}::uuid)
+
+      AND (
+        ${coLocHang} = false
+        OR mtb.hang_id = ${hangId || null}::uuid
+      )
+
+      AND (
+        ${coLocDanhMuc} = false
+        OR mtb.danh_muc_id = ${danhMucId || null}::uuid
+      )
+
+      AND (
+        ${coLocNhuCau} = false
+        OR EXISTS (
+          SELECT 1
+
+          FROM mau_thiet_bi_nhu_cau mnc_loc
+
+          JOIN nhu_cau_su_dung nc_loc
+            ON nc_loc.id = mnc_loc.nhu_cau_id
+
+          WHERE mnc_loc.mau_thiet_bi_id = mtb.id
+            AND mnc_loc.nhu_cau_id = ${nhuCauId || null}::uuid
+            AND nc_loc.da_xoa_luc IS NULL
+            AND nc_loc.trang_thai = 601
+        )
+      )
+
+      AND (
+        ${coLocGiaTu} = false
+        OR mtb.gia_thue_ngay >= ${giaTu ?? 0}::bigint
+      )
+
+      AND (
+        ${coLocGiaDen} = false
+        OR mtb.gia_thue_ngay <= ${giaDen ?? 0}::bigint
+      )
+
+      -- Khách chọn mẫu máy ảnh, Backend lấy ngàm bằng id.
+      -- Chỉ trả ống kính cùng ngàm đang hiển thị.
+      AND (
+        ${coLocNgam} = false
+        OR (
+          mtb.ngam_id = ${ngamIdBatBuoc || null}::uuid
+          AND n.id IS NOT NULL
+          AND LOWER(dmtb.ten_danh_muc) = LOWER('Ống kính')
+        )
+      )
 
     ORDER BY mtb.created_at DESC
   `;
@@ -289,6 +375,124 @@ async function laySoLuongKhaDungCuaTatCaPhuKien(ngayNhan, ngayTra) {
   `;
 }
 
+
+// Chỉ lấy nhu cầu đang hiển thị cho bộ lọc khách hàng.
+async function layDanhSachNhuCauBoLoc() {
+  return await prisma.$queryRaw`
+    SELECT
+      id,
+      ten_nhu_cau,
+      mo_ta
+
+    FROM nhu_cau_su_dung
+
+    WHERE da_xoa_luc IS NULL
+      AND trang_thai = 601
+
+    ORDER BY ten_nhu_cau ASC
+  `;
+}
+
+// Chỉ lấy máy ảnh có ngàm đang hiển thị.
+// Ngàm bị ẩn sẽ không xuất hiện trong phần chọn máy ảnh để lọc ống kính.
+async function layDanhSachMayAnhBoLoc() {
+  return await prisma.$queryRaw`
+    SELECT
+      mtb.id,
+      mtb.hang_id,
+      h.ten_hang,
+      mtb.ten_mau,
+      n.id AS ngam_id,
+      n.ten_ngam
+
+    FROM mau_thiet_bi mtb
+
+    JOIN danh_muc_thiet_bi dmtb
+      ON dmtb.id = mtb.danh_muc_id
+
+    LEFT JOIN hang_thiet_bi h
+      ON h.id = mtb.hang_id
+
+    JOIN ngam_thiet_bi n
+      ON n.id = mtb.ngam_id
+
+    WHERE mtb.da_xoa_luc IS NULL
+      AND mtb.trang_thai = 601
+      AND dmtb.da_xoa_luc IS NULL
+      AND dmtb.trang_thai = 601
+      AND LOWER(dmtb.ten_danh_muc) = LOWER('Máy ảnh')
+      AND n.da_xoa_luc IS NULL
+      AND n.trang_thai = 601
+      AND (
+        mtb.hang_id IS NULL
+        OR (
+          h.da_xoa_luc IS NULL
+          AND h.trang_thai = 601
+        )
+      )
+
+    ORDER BY
+      h.ten_hang ASC,
+      mtb.ten_mau ASC
+  `;
+}
+
+// Kiểm tra nhu cầu được truyền vào bộ lọc còn đang hiển thị.
+async function layNhuCauHienThiTheoId(nhuCauId) {
+  const rows = await prisma.$queryRaw`
+    SELECT id, ten_nhu_cau
+    FROM nhu_cau_su_dung
+    WHERE id = ${nhuCauId}::uuid
+      AND da_xoa_luc IS NULL
+      AND trang_thai = 601
+    LIMIT 1
+  `;
+
+  return rows[0] || null;
+}
+
+// Lấy máy ảnh và ngàm đang hiển thị để kiểm tra tương thích.
+async function layMayAnhTheoIdChoTuongThich(mayAnhId) {
+  const rows = await prisma.$queryRaw`
+    SELECT
+      mtb.id,
+      mtb.ten_mau,
+      n.id AS ngam_id,
+      n.ten_ngam
+
+    FROM mau_thiet_bi mtb
+
+    JOIN danh_muc_thiet_bi dmtb
+      ON dmtb.id = mtb.danh_muc_id
+
+    JOIN ngam_thiet_bi n
+      ON n.id = mtb.ngam_id
+
+    LEFT JOIN hang_thiet_bi h
+      ON h.id = mtb.hang_id
+
+    WHERE mtb.id = ${mayAnhId}::uuid
+      AND mtb.da_xoa_luc IS NULL
+      AND mtb.trang_thai = 601
+      AND dmtb.da_xoa_luc IS NULL
+      AND dmtb.trang_thai = 601
+      AND LOWER(dmtb.ten_danh_muc) = LOWER('Máy ảnh')
+      AND n.da_xoa_luc IS NULL
+      AND n.trang_thai = 601
+      AND (
+        mtb.hang_id IS NULL
+        OR (
+          h.da_xoa_luc IS NULL
+          AND h.trang_thai = 601
+        )
+      )
+
+    LIMIT 1
+  `;
+
+  return rows[0] || null;
+}
+
 async function layMauThietBiTheoId(id) {
   const rows = await prisma.$queryRaw`
     SELECT
@@ -300,11 +504,41 @@ async function layMauThietBiTheoId(id) {
       mtb.hang_id,
       h.ten_hang,
 
+      -- ngam_id_noi_bo chỉ dùng trong Model để lọc sản phẩm tương tự.
+      -- Không gắn vào response trả cho khách.
+      mtb.ngam_id AS ngam_id_noi_bo,
+
+      -- Chỉ trả thông tin ngàm khi ngàm đang hiển thị.
+      n.id AS ngam_id,
+      n.ten_ngam,
+
       mtb.ten_mau,
       mtb.mo_ta,
       mtb.anh_url,
       mtb.gia_thue_ngay::text AS gia_thue_ngay,
-      mtb.tien_coc::text AS tien_coc
+      mtb.tien_coc::text AS tien_coc,
+
+      COALESCE(
+        (
+          SELECT JSONB_AGG(
+            JSONB_BUILD_OBJECT(
+              'id', nc.id,
+              'ten_nhu_cau', nc.ten_nhu_cau
+            )
+            ORDER BY nc.ten_nhu_cau
+          )
+
+          FROM mau_thiet_bi_nhu_cau mnc
+
+          JOIN nhu_cau_su_dung nc
+            ON nc.id = mnc.nhu_cau_id
+
+          WHERE mnc.mau_thiet_bi_id = mtb.id
+            AND nc.da_xoa_luc IS NULL
+            AND nc.trang_thai = 601
+        ),
+        '[]'::jsonb
+      ) AS nhu_cau_su_dung
 
     FROM mau_thiet_bi mtb
 
@@ -313,6 +547,11 @@ async function layMauThietBiTheoId(id) {
 
     LEFT JOIN hang_thiet_bi h
       ON h.id = mtb.hang_id
+
+    LEFT JOIN ngam_thiet_bi n
+      ON n.id = mtb.ngam_id
+      AND n.da_xoa_luc IS NULL
+      AND n.trang_thai = 601
 
     WHERE mtb.id = ${id}::uuid
       AND mtb.da_xoa_luc IS NULL
@@ -324,7 +563,13 @@ async function layMauThietBiTheoId(id) {
   return rows[0] || null;
 }
 
-async function laySanPhamTuongTu(mauId, danhMucId) {
+async function laySanPhamTuongTu(
+  mauId,
+  danhMucId,
+  ngamIdBatBuoc = ""
+) {
+  const coLocNgam = Boolean(ngamIdBatBuoc);
+
   return await prisma.$queryRaw`
     SELECT
       mtb.id,
@@ -334,10 +579,35 @@ async function laySanPhamTuongTu(mauId, danhMucId) {
       mtb.hang_id,
       h.ten_hang,
 
+      n.id AS ngam_id,
+      n.ten_ngam,
+
       mtb.ten_mau,
       mtb.anh_url,
       mtb.gia_thue_ngay::text AS gia_thue_ngay,
-      mtb.tien_coc::text AS tien_coc
+      mtb.tien_coc::text AS tien_coc,
+
+      COALESCE(
+        (
+          SELECT JSONB_AGG(
+            JSONB_BUILD_OBJECT(
+              'id', nc.id,
+              'ten_nhu_cau', nc.ten_nhu_cau
+            )
+            ORDER BY nc.ten_nhu_cau
+          )
+
+          FROM mau_thiet_bi_nhu_cau mnc
+
+          JOIN nhu_cau_su_dung nc
+            ON nc.id = mnc.nhu_cau_id
+
+          WHERE mnc.mau_thiet_bi_id = mtb.id
+            AND nc.da_xoa_luc IS NULL
+            AND nc.trang_thai = 601
+        ),
+        '[]'::jsonb
+      ) AS nhu_cau_su_dung
 
     FROM mau_thiet_bi mtb
 
@@ -347,10 +617,22 @@ async function laySanPhamTuongTu(mauId, danhMucId) {
     LEFT JOIN hang_thiet_bi h
       ON h.id = mtb.hang_id
 
+    LEFT JOIN ngam_thiet_bi n
+      ON n.id = mtb.ngam_id
+      AND n.da_xoa_luc IS NULL
+      AND n.trang_thai = 601
+
     WHERE mtb.da_xoa_luc IS NULL
       AND mtb.id <> ${mauId}::uuid
       AND mtb.danh_muc_id = ${danhMucId}::uuid
       AND mtb.trang_thai = 601
+      AND (
+        ${coLocNgam} = false
+        OR (
+          mtb.ngam_id = ${ngamIdBatBuoc || null}::uuid
+          AND n.id IS NOT NULL
+        )
+      )
 
     ORDER BY mtb.created_at DESC
   `;
@@ -362,6 +644,10 @@ module.exports = {
   layDanhSachMauThietBi,
   laySoLuongKhaDungCuaTatCaMau,
   laySoLuongKhaDungCuaTatCaPhuKien,
+  layDanhSachNhuCauBoLoc,
+  layDanhSachMayAnhBoLoc,
+  layNhuCauHienThiTheoId,
+  layMayAnhTheoIdChoTuongThich,
   layMauThietBiTheoId,
   laySanPhamTuongTu,
 };

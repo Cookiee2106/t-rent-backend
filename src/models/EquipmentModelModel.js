@@ -1,6 +1,8 @@
 const cloudinary = require("../config/cloudinary");
 const BundleItemModel = require("./BundleItemModel");
 const adminEquipmentModelRepository = require("../repositories/adminEquipmentModelRepository");
+const equipmentMountRepository = require("../repositories/equipmentMountRepository");
+const equipmentNeedRepository = require("../repositories/equipmentNeedRepository");
 
 const TRANG_THAI_HIEN_THI = 601;
 const TRANG_THAI_DA_AN = 602;
@@ -11,6 +13,78 @@ function chuanHoaChuoi(giaTri) {
   }
 
   return String(giaTri).trim();
+}
+
+
+function kiemTraUuid(giaTri) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    String(giaTri || "")
+  );
+}
+
+
+function docDanhSachId(giaTri) {
+  if (giaTri === undefined || giaTri === null) {
+    return [];
+  }
+
+  let danhSach = giaTri;
+
+  if (typeof giaTri === "string") {
+    const chuoi = giaTri.trim();
+
+    if (!chuoi) {
+      return [];
+    }
+
+    if (chuoi.startsWith("[")) {
+      try {
+        danhSach = JSON.parse(chuoi);
+      } catch {
+        throw new Error("Danh sách nhu cầu không hợp lệ");
+      }
+    } else {
+      danhSach = chuoi.split(",");
+    }
+  }
+
+  if (!Array.isArray(danhSach)) {
+    danhSach = [danhSach];
+  }
+
+  const ketQua = [
+    ...new Set(
+      danhSach
+        .map((id) => String(id || "").trim())
+        .filter(Boolean)
+    ),
+  ];
+
+  if (ketQua.some((id) => !kiemTraUuid(id))) {
+    throw new Error("Danh sách nhu cầu có id không hợp lệ");
+  }
+
+  return ketQua;
+}
+
+function coThuocTinh(doiTuong, tenThuocTinh) {
+  return Object.prototype.hasOwnProperty.call(
+    doiTuong || {},
+    tenThuocTinh
+  );
+}
+
+function laDanhMucCanNgam(danhMuc) {
+  const tenDanhMuc = String(
+    danhMuc?.ten_danh_muc || ""
+  )
+    .trim()
+    .toLowerCase();
+
+  return (
+    tenDanhMuc === "máy ảnh" ||
+    tenDanhMuc === "ống kính"
+  );
 }
 
 function docSoTien(giaTri, tenTruong) {
@@ -27,7 +101,7 @@ function docTrangThai(giaTri) {
   const trangThai = Number(giaTri);
 
   if (trangThai !== TRANG_THAI_HIEN_THI && trangThai !== TRANG_THAI_DA_AN) {
-    throw new Error("Trạng thái mẫu thiết bị không hợp lệ");
+    throw new Error("Trạng thái phải là 601 (Hiển thị) hoặc 602 (Đã ẩn)");
   }
 
   return trangThai;
@@ -97,6 +171,47 @@ async function kiemTraHangHopLe(hangId) {
   return hang;
 }
 
+
+async function kiemTraNgamHopLe(ngamId) {
+  if (!ngamId || !kiemTraUuid(ngamId)) {
+    throw new Error("Ngàm thiết bị không hợp lệ");
+  }
+
+  const ngam =
+    await equipmentMountRepository.layNgamHopLe(
+      ngamId
+    );
+
+  if (!ngam) {
+    throw new Error(
+      "Ngàm thiết bị không tồn tại, hãng đã bị ẩn hoặc ngàm đã bị ẩn"
+    );
+  }
+
+  return ngam;
+}
+
+async function kiemTraDanhSachNhuCauHopLe(
+  danhSachNhuCauId = []
+) {
+  if (danhSachNhuCauId.length === 0) {
+    throw new Error("Vui lòng chọn ít nhất một nhu cầu sử dụng");
+  }
+
+  const rows =
+    await equipmentNeedRepository.layNhieuNhuCauHopLe(
+      danhSachNhuCauId
+    );
+
+  if (rows.length !== danhSachNhuCauId.length) {
+    throw new Error(
+      "Có nhu cầu sử dụng không tồn tại hoặc đã bị ẩn"
+    );
+  }
+
+  return rows;
+}
+
 async function kiemTraTenMauTrung(tenMau, idBoQua = null) {
   const mauTrung = await adminEquipmentModelRepository.timMauTrungTen(
     tenMau,
@@ -116,6 +231,10 @@ class EquipmentModelModel {
     tinh_chat_id,
     hang_id,
     ten_hang,
+    ngam_id,
+    ten_ngam,
+    trang_thai_ngam,
+    nhu_cau_su_dung,
     ten_mau,
     mo_ta,
     anh_url,
@@ -137,6 +256,18 @@ class EquipmentModelModel {
     this.hang_id = hang_id || null;
     this.ten_hang = ten_hang || null;
 
+    this.ngam_id = ngam_id || null;
+    this.ten_ngam = ten_ngam || null;
+    this.trang_thai_ngam =
+      trang_thai_ngam === undefined ||
+      trang_thai_ngam === null
+        ? null
+        : Number(trang_thai_ngam);
+
+    this.nhu_cau_su_dung = Array.isArray(nhu_cau_su_dung)
+      ? nhu_cau_su_dung
+      : [];
+
     this.ten_mau = ten_mau;
     this.mo_ta = mo_ta || null;
     this.anh_url = anh_url || null;
@@ -154,6 +285,21 @@ class EquipmentModelModel {
     this.created_at = created_at || null;
     this.updated_at = updated_at || null;
   }
+
+  // Chỉ lấy ngàm và nhu cầu đang hiển thị cho form thêm/cập nhật mẫu.
+  // Dữ liệu được lấy từ repository riêng của từng nghiệp vụ.
+  static async layLuaChonCauHinhMauAdminService() {
+    const [ngam, nhuCau] = await Promise.all([
+      equipmentMountRepository.layDanhSachNgamDangHienThi(),
+      equipmentNeedRepository.layDanhSachNhuCauDangHienThi(),
+    ]);
+
+    return {
+      ngam,
+      nhu_cau: nhuCau,
+    };
+  }
+
 
   static async layDanhSachMauThietBiAdminService() {
     const rows = await adminEquipmentModelRepository.layDanhSachMauThietBiAdmin();
@@ -176,8 +322,14 @@ class EquipmentModelModel {
     const hangId = chuanHoaChuoi(body.hang_id);
     const tenMau = chuanHoaChuoi(body.ten_mau);
     const moTa = chuanHoaChuoi(body.mo_ta) || null;
-    const giaThueNgay = docSoTien(body.gia_thue_ngay || 0, "Giá thuê/ngày");
-    const tienCoc = docSoTien(body.tien_coc || 0, "Tiền cọc");
+    const giaThueNgay = docSoTien(
+      body.gia_thue_ngay || 0,
+      "Giá thuê/ngày"
+    );
+    const tienCoc = docSoTien(
+      body.tien_coc || 0,
+      "Tiền cọc"
+    );
 
     if (!danhMucId) {
       throw new Error("Vui lòng chọn danh mục");
@@ -191,9 +343,34 @@ class EquipmentModelModel {
       throw new Error("Vui lòng nhập tên mẫu");
     }
 
-    await kiemTraDanhMucHopLe(danhMucId);
+    const danhMuc = await kiemTraDanhMucHopLe(
+      danhMucId
+    );
+
     await kiemTraHangHopLe(hangId);
     await kiemTraTenMauTrung(tenMau);
+
+    let ngamId = null;
+    let nhuCauIds = [];
+
+    if (laDanhMucCanNgam(danhMuc)) {
+      ngamId = chuanHoaChuoi(body.ngam_id);
+      nhuCauIds = docDanhSachId(body.nhu_cau_ids);
+
+      if (!ngamId) {
+        throw new Error("Vui lòng chọn ngàm");
+      }
+
+      const ngam = await kiemTraNgamHopLe(ngamId);
+
+      if (String(ngam.hang_so_huu_id) !== String(hangId)) {
+        throw new Error("Ngàm không thuộc hãng đã chọn");
+      }
+
+      await kiemTraDanhSachNhuCauHopLe(
+        nhuCauIds
+      );
+    }
 
     let anhUrl = null;
 
@@ -202,29 +379,39 @@ class EquipmentModelModel {
         throw new Error("File tải lên phải là ảnh");
       }
 
-      const ketQuaUpload = await uploadAnhLenCloudinary(fileAnh);
+      const ketQuaUpload =
+        await uploadAnhLenCloudinary(fileAnh);
+
       anhUrl = ketQuaUpload.secure_url;
     }
 
-    const ketQua = await adminEquipmentModelRepository.taoMauThietBi({
-      danhMucId,
-      hangId,
-      tenMau,
-      moTa,
-      anhUrl,
-      giaThueNgay,
-      tienCoc,
-      trangThai: TRANG_THAI_HIEN_THI,
-    });
+    const ketQua =
+      await adminEquipmentModelRepository.taoMauThietBi({
+        danhMucId,
+        hangId,
+        ngamId,
+        nhuCauIds,
+        tenMau,
+        moTa,
+        anhUrl,
+        giaThueNgay,
+        tienCoc,
+        trangThai: TRANG_THAI_HIEN_THI,
+      });
 
-    const mauMoi = await adminEquipmentModelRepository.layMauThietBiTheoId(
-      ketQua.id
-    );
+    const mauMoi =
+      await adminEquipmentModelRepository.layMauThietBiTheoId(
+        ketQua.id
+      );
 
     return new EquipmentModelModel(mauMoi);
   }
 
-  static async capNhatMauThietBiAdminService(id, body = {}, fileAnh = null) {
+  static async capNhatMauThietBiAdminService(
+    id,
+    body = {},
+    fileAnh = null
+  ) {
     const mauHienTai = await layMauBatBuocTonTai(id);
 
     const danhMucId =
@@ -249,7 +436,10 @@ class EquipmentModelModel {
 
     const giaThueNgay =
       body.gia_thue_ngay !== undefined
-        ? docSoTien(body.gia_thue_ngay, "Giá thuê/ngày")
+        ? docSoTien(
+            body.gia_thue_ngay,
+            "Giá thuê/ngày"
+          )
         : Number(mauHienTai.gia_thue_ngay);
 
     const tienCoc =
@@ -269,9 +459,82 @@ class EquipmentModelModel {
       throw new Error("Vui lòng nhập tên mẫu");
     }
 
-    await kiemTraDanhMucHopLe(danhMucId);
+    const danhMucMoi = await kiemTraDanhMucHopLe(
+      danhMucId
+    );
+
     await kiemTraHangHopLe(hangId);
     await kiemTraTenMauTrung(tenMau, id);
+
+    const danhMucCuCanNgam = laDanhMucCanNgam({
+      ten_danh_muc: mauHienTai.ten_danh_muc,
+    });
+    const danhMucMoiCanNgam =
+      laDanhMucCanNgam(danhMucMoi);
+
+    let ngamId = null;
+    let nhuCauIds = [];
+    let capNhatNhuCau = false;
+
+    if (danhMucMoiCanNgam) {
+      const coGuiNgam = coThuocTinh(
+        body,
+        "ngam_id"
+      );
+
+      ngamId = coGuiNgam
+        ? chuanHoaChuoi(body.ngam_id)
+        : mauHienTai.ngam_id;
+
+      if (!ngamId) {
+        throw new Error("Vui lòng chọn ngàm");
+      }
+
+      // Chỉ kiểm tra trạng thái ngàm khi người dùng đổi ngàm
+      // hoặc đổi từ danh mục không dùng ngàm sang Máy ảnh/Ống kính.
+      // Nhờ vậy bản ghi cũ vẫn cập nhật được khi ngàm cũ đã bị ẩn.
+      if (
+        coGuiNgam ||
+        !danhMucCuCanNgam ||
+        String(hangId) !== String(mauHienTai.hang_id)
+      ) {
+        const ngam = await kiemTraNgamHopLe(ngamId);
+
+        if (String(ngam.hang_so_huu_id) !== String(hangId)) {
+          throw new Error("Ngàm không thuộc hãng đã chọn");
+        }
+      }
+
+      const coGuiNhuCau = coThuocTinh(
+        body,
+        "nhu_cau_ids"
+      );
+
+      if (coGuiNhuCau || !danhMucCuCanNgam) {
+        nhuCauIds = docDanhSachId(
+          body.nhu_cau_ids
+        );
+
+        await kiemTraDanhSachNhuCauHopLe(
+          nhuCauIds
+        );
+
+        capNhatNhuCau = true;
+      } else {
+        nhuCauIds = (
+          mauHienTai.nhu_cau_su_dung || []
+        )
+          .map((item) => item.id)
+          .filter(Boolean);
+
+        capNhatNhuCau = false;
+      }
+    } else {
+      // Pin, sạc, thẻ nhớ... không dùng ngàm và nhu cầu.
+      ngamId = null;
+      nhuCauIds = [];
+      capNhatNhuCau = true;
+    }
 
     let anhUrl = mauHienTai.anh_url;
 
@@ -280,29 +543,41 @@ class EquipmentModelModel {
         throw new Error("File tải lên phải là ảnh");
       }
 
-      const ketQuaUpload = await uploadAnhLenCloudinary(fileAnh);
+      const ketQuaUpload =
+        await uploadAnhLenCloudinary(fileAnh);
+
       anhUrl = ketQuaUpload.secure_url;
     }
 
-    const ketQua = await adminEquipmentModelRepository.capNhatMauThietBi(id, {
-      danhMucId,
-      hangId,
-      tenMau,
-      moTa,
-      anhUrl,
-      giaThueNgay,
-      tienCoc,
-    });
+    const ketQua =
+      await adminEquipmentModelRepository.capNhatMauThietBi(
+        id,
+        {
+          danhMucId,
+          hangId,
+          ngamId,
+          nhuCauIds,
+          capNhatNhuCau,
+          tenMau,
+          moTa,
+          anhUrl,
+          giaThueNgay,
+          tienCoc,
+        }
+      );
 
     if (!ketQua) {
       throw new Error("Không tìm thấy mẫu thiết bị");
     }
 
-    const mauSauCapNhat = await adminEquipmentModelRepository.layMauThietBiTheoId(
-      id
-    );
+    const mauSauCapNhat =
+      await adminEquipmentModelRepository.layMauThietBiTheoId(
+        id
+      );
 
-    return new EquipmentModelModel(mauSauCapNhat);
+    return new EquipmentModelModel(
+      mauSauCapNhat
+    );
   }
 
   static async capNhatTrangThaiMauThietBiAdminService(id, body = {}) {

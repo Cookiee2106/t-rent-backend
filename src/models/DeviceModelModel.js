@@ -38,6 +38,31 @@ function docSoLuong(giaTri) {
   return soLuong;
 }
 
+
+function kiemTraUuid(giaTri) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    String(giaTri || "")
+  );
+}
+
+function docSoTienLoc(giaTri, tenTruong) {
+  if (giaTri === undefined || giaTri === null || giaTri === "") {
+    return null;
+  }
+
+  const soTien = Number(giaTri);
+
+  if (!Number.isFinite(soTien) || soTien < 0) {
+    throw new Error(`${tenTruong} phải là số không âm`);
+  }
+
+  return Math.floor(soTien);
+}
+
+function laDanhMucOngKinh(tenDanhMuc) {
+  return String(tenDanhMuc || "").trim().toLowerCase() === "ống kính";
+}
+
 function taoTenHienThiBoDiKem(item) {
   if (item.mau_thiet_bi_phu_id) {
     return `${item.ten_hang_phu || ""} ${
@@ -246,6 +271,9 @@ class DeviceModelModel {
     tinh_chat_id,
     hang_id,
     ten_hang,
+    ngam_id,
+    ten_ngam,
+    nhu_cau_su_dung,
     ten_mau,
     mo_ta,
     anh_url,
@@ -264,6 +292,13 @@ class DeviceModelModel {
     this.tinh_chat_id = tinh_chat_id || null;
     this.hang_id = hang_id || null;
     this.ten_hang = ten_hang || null;
+
+    this.ngam_id = ngam_id || null;
+    this.ten_ngam = ten_ngam || null;
+    this.nhu_cau_su_dung = Array.isArray(nhu_cau_su_dung)
+      ? nhu_cau_su_dung
+      : [];
+
     this.ten_mau = ten_mau;
     this.mo_ta = mo_ta || "";
     this.anh_url = anh_url || null;
@@ -312,16 +347,90 @@ class DeviceModelModel {
     });
   }
 
+  // Lấy dữ liệu cho bộ lọc khách hàng.
+  // Chỉ trả nhu cầu, máy ảnh và ngàm đang hiển thị.
+  static async layLuaChonBoLocService() {
+    const [nhuCau, mayAnh] = await Promise.all([
+      deviceModelRepository.layDanhSachNhuCauBoLoc(),
+      deviceModelRepository.layDanhSachMayAnhBoLoc(),
+    ]);
+
+    return {
+      nhu_cau: nhuCau,
+      may_anh: mayAnh,
+    };
+  }
+
   // Lấy danh sách mẫu thiết bị.
   static async layDanhSachMauThietBiService(query = {}) {
     const ngayNhan = query.ngay_nhan;
     const ngayTra = query.ngay_tra;
     const soLuongMuonThue = docSoLuong(query.so_luong || 1);
 
+    const hangId = query.hang_id || "";
+    const danhMucId = query.danh_muc_id || "";
+    const nhuCauId = query.nhu_cau_id || "";
+    const mayAnhId = query.may_anh_id || "";
+
+    if (hangId && !kiemTraUuid(hangId)) {
+      throw new Error("Hãng không hợp lệ");
+    }
+
+    if (danhMucId && !kiemTraUuid(danhMucId)) {
+      throw new Error("Danh mục không hợp lệ");
+    }
+
+    if (nhuCauId && !kiemTraUuid(nhuCauId)) {
+      throw new Error("Nhu cầu sử dụng không hợp lệ");
+    }
+
+    if (mayAnhId && !kiemTraUuid(mayAnhId)) {
+      throw new Error("Mẫu máy ảnh không hợp lệ");
+    }
+
+    const giaTu = docSoTienLoc(query.gia_tu, "Giá từ");
+    const giaDen = docSoTienLoc(query.gia_den, "Giá đến");
+
+    if (giaTu !== null && giaDen !== null && giaTu > giaDen) {
+      throw new Error("Giá từ không được lớn hơn giá đến");
+    }
+
+    if (nhuCauId) {
+      const nhuCau =
+        await deviceModelRepository.layNhuCauHienThiTheoId(
+          nhuCauId
+        );
+
+      if (!nhuCau) {
+        throw new Error("Nhu cầu sử dụng không tồn tại hoặc đã bị ẩn");
+      }
+    }
+
+    let ngamIdBatBuoc = "";
+
+    if (mayAnhId) {
+      const mayAnh =
+        await deviceModelRepository.layMayAnhTheoIdChoTuongThich(
+          mayAnhId
+        );
+
+      if (!mayAnh) {
+        throw new Error(
+          "Mẫu máy ảnh không tồn tại, đã bị ẩn hoặc ngàm đã bị ẩn"
+        );
+      }
+
+      ngamIdBatBuoc = mayAnh.ngam_id;
+    }
+
     const danhSach =
       await deviceModelRepository.layDanhSachMauThietBi({
-        hangId: query.hang_id || "",
-        danhMucId: query.danh_muc_id || "",
+        hangId,
+        danhMucId,
+        nhuCauId,
+        giaTu,
+        giaDen,
+        ngamIdBatBuoc,
       });
 
     const danhSachMauId = danhSach.map((mau) => mau.id);
@@ -401,7 +510,10 @@ class DeviceModelModel {
         deviceModelRepository.layBoDiKemCuaMau(id),
         deviceModelRepository.laySanPhamTuongTu(
           id,
-          mauThietBi.danh_muc_id
+          mauThietBi.danh_muc_id,
+          laDanhMucOngKinh(mauThietBi.ten_danh_muc)
+            ? mauThietBi.ngam_id_noi_bo || ""
+            : ""
         ),
       ]);
 

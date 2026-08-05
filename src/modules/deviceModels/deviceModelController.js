@@ -1,7 +1,26 @@
 const {
   layDanhSachMauThietBiService,
   layChiTietMauThietBiService,
+  layLuaChonBoLocService,
 } = require("../../models/DeviceModelModel");
+
+// Lấy nhu cầu và danh sách máy ảnh dùng cho bộ lọc.
+async function layLuaChonBoLoc(req, res) {
+  try {
+    const data = await layLuaChonBoLocService();
+
+    res.json({
+      success: true,
+      message: "Lấy dữ liệu bộ lọc thành công",
+      data,
+    });
+  } catch (loi) {
+    res.status(400).json({
+      success: false,
+      message: loi.message,
+    });
+  }
+}
 
 async function layDanhSachMauThietBi(req, res) {
   try {
@@ -45,6 +64,7 @@ async function layChiTietMauThietBi(req, res) {
 }
 
 module.exports = {
+  layLuaChonBoLoc,
   layDanhSachMauThietBi,
   layChiTietMauThietBi,
 };
