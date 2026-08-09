@@ -1,14 +1,21 @@
 const prisma = require("../config/prisma");
 
+const TRANG_THAI_DA_HUY = 1101;
 const TRANG_THAI_DA_GIU_CHO = 1102;
 const TRANG_THAI_DANG_THUE = 1103;
 const TRANG_THAI_QUA_HAN = 1105;
+
+const TRANG_THAI_YEU_CAU_HUY_CHO_XU_LY = 1701;
+const TRANG_THAI_YEU_CAU_HUY_DA_XAC_NHAN = 1702;
+const TRANG_THAI_YEU_CAU_HUY_TU_CHOI = 1703;
 
 const TRANG_THAI_THIET_BI_SAN_SANG = 501;
 const TRANG_THAI_THIET_BI_DANG_THUE = 502;
 
 const LOAI_TIEN_COC = 2301;
 const LOAI_TIEN_THUE = 2302;
+const LOAI_HOAN_COC = 2303;
+const LOAI_PHI_HUY_DON = 2306;
 
 async function demDonThue(trangThai, tuKhoa = "") {
   const tuKhoaTim = `%${tuKhoa}%`;
@@ -63,127 +70,6 @@ async function demDonThue(trangThai, tuKhoa = "") {
 async function layDanhSachDonThue({ trangThai, tuKhoa = "", limit, offset }) {
   const tuKhoaTim = `%${tuKhoa}%`;
 
-  if (trangThai && tuKhoa) {
-    return await prisma.$queryRaw`
-      SELECT
-        dt.id,
-        dt.ma_don,
-        dt.khach_hang_id,
-        nd.ho_ten AS ten_khach_hang,
-        nd.email AS email_khach_hang,
-        nd.so_dien_thoai AS sdt_khach_hang,
-        dt.ngay_nhan,
-        dt.ngay_tra,
-        dt.so_ngay_thue,
-        dt.tong_tien_thue::text AS tong_tien_thue,
-        dt.tong_tien_coc::text AS tong_tien_coc,
-        dt.trang_thai,
-        tt.ten_trang_thai,
-        dt.ban_giao_luc,
-        dt.tra_luc,
-        dt.huy_luc,
-        (
-          SELECT mtb.anh_url
-          FROM chi_tiet_don_thue ctdt
-          JOIN mau_thiet_bi mtb ON mtb.id = ctdt.mau_thiet_bi_id
-          WHERE ctdt.don_thue_id = dt.id
-          ORDER BY ctdt.created_at ASC
-          LIMIT 1
-        ) AS anh_url_mau_thiet_bi,
-        dt.created_at,
-        dt.updated_at
-      FROM don_thue dt
-      JOIN nguoi_dung nd ON nd.id = dt.khach_hang_id
-      LEFT JOIN trang_thai_he_thong tt ON tt.id = dt.trang_thai
-      WHERE dt.trang_thai = ${trangThai}
-        AND (
-          LOWER(dt.ma_don) LIKE LOWER(${tuKhoaTim})
-          OR LOWER(nd.ho_ten) LIKE LOWER(${tuKhoaTim})
-          OR LOWER(COALESCE(nd.so_dien_thoai, '')) LIKE LOWER(${tuKhoaTim})
-        )
-      ORDER BY dt.created_at DESC
-      LIMIT ${limit} OFFSET ${offset}
-    `;
-  }
-
-  if (trangThai) {
-    return await prisma.$queryRaw`
-      SELECT
-        dt.id,
-        dt.ma_don,
-        dt.khach_hang_id,
-        nd.ho_ten AS ten_khach_hang,
-        nd.email AS email_khach_hang,
-        nd.so_dien_thoai AS sdt_khach_hang,
-        dt.ngay_nhan,
-        dt.ngay_tra,
-        dt.so_ngay_thue,
-        dt.tong_tien_thue::text AS tong_tien_thue,
-        dt.tong_tien_coc::text AS tong_tien_coc,
-        dt.trang_thai,
-        tt.ten_trang_thai,
-        dt.ban_giao_luc,
-        dt.tra_luc,
-        dt.huy_luc,
-        (
-          SELECT mtb.anh_url
-          FROM chi_tiet_don_thue ctdt
-          JOIN mau_thiet_bi mtb ON mtb.id = ctdt.mau_thiet_bi_id
-          WHERE ctdt.don_thue_id = dt.id
-          ORDER BY ctdt.created_at ASC
-          LIMIT 1
-        ) AS anh_url_mau_thiet_bi,
-        dt.created_at,
-        dt.updated_at
-      FROM don_thue dt
-      JOIN nguoi_dung nd ON nd.id = dt.khach_hang_id
-      LEFT JOIN trang_thai_he_thong tt ON tt.id = dt.trang_thai
-      WHERE dt.trang_thai = ${trangThai}
-      ORDER BY dt.created_at DESC
-      LIMIT ${limit} OFFSET ${offset}
-    `;
-  }
-
-  if (tuKhoa) {
-    return await prisma.$queryRaw`
-      SELECT
-        dt.id,
-        dt.ma_don,
-        dt.khach_hang_id,
-        nd.ho_ten AS ten_khach_hang,
-        nd.email AS email_khach_hang,
-        nd.so_dien_thoai AS sdt_khach_hang,
-        dt.ngay_nhan,
-        dt.ngay_tra,
-        dt.so_ngay_thue,
-        dt.tong_tien_thue::text AS tong_tien_thue,
-        dt.tong_tien_coc::text AS tong_tien_coc,
-        dt.trang_thai,
-        tt.ten_trang_thai,
-        dt.ban_giao_luc,
-        dt.tra_luc,
-        dt.huy_luc,
-        (
-          SELECT mtb.anh_url
-          FROM chi_tiet_don_thue ctdt
-          JOIN mau_thiet_bi mtb ON mtb.id = ctdt.mau_thiet_bi_id
-          WHERE ctdt.don_thue_id = dt.id
-          ORDER BY ctdt.created_at ASC
-          LIMIT 1
-        ) AS anh_url_mau_thiet_bi,
-        dt.created_at,
-        dt.updated_at
-      FROM don_thue dt
-      JOIN nguoi_dung nd ON nd.id = dt.khach_hang_id
-      LEFT JOIN trang_thai_he_thong tt ON tt.id = dt.trang_thai
-      WHERE LOWER(dt.ma_don) LIKE LOWER(${tuKhoaTim})
-         OR LOWER(nd.ho_ten) LIKE LOWER(${tuKhoaTim})
-         OR LOWER(COALESCE(nd.so_dien_thoai, '')) LIKE LOWER(${tuKhoaTim})
-      ORDER BY dt.created_at DESC
-      LIMIT ${limit} OFFSET ${offset}
-    `;
-  }
-
   return await prisma.$queryRaw`
     SELECT
       dt.id,
@@ -197,6 +83,19 @@ async function layDanhSachDonThue({ trangThai, tuKhoa = "", limit, offset }) {
       dt.so_ngay_thue,
       dt.tong_tien_thue::text AS tong_tien_thue,
       dt.tong_tien_coc::text AS tong_tien_coc,
+
+      ychd.id AS yeu_cau_huy_id,
+      ychd.ly_do_huy AS ly_do_yeu_cau_huy,
+      ychd.trang_thai_id AS trang_thai_yeu_cau_huy_id,
+      ttychd.ten_trang_thai AS ten_trang_thai_yeu_cau_huy,
+      ychd.ty_le_phi_huy_snapshot::text AS ty_le_phi_huy_yeu_cau,
+      ychd.tong_tien_coc_snapshot::text AS tong_tien_coc_yeu_cau,
+      ychd.phi_huy::text AS phi_huy_yeu_cau,
+      ychd.tien_coc_hoan_lai::text AS tien_coc_hoan_lai_yeu_cau,
+      ychd.gui_luc AS gui_luc_yeu_cau,
+      ychd.xu_ly_luc AS xu_ly_luc_yeu_cau,
+      ychd.ghi_chu_xu_ly AS ghi_chu_xu_ly_yeu_cau,
+
       dt.trang_thai,
       tt.ten_trang_thai,
       dt.ban_giao_luc,
@@ -215,8 +114,73 @@ async function layDanhSachDonThue({ trangThai, tuKhoa = "", limit, offset }) {
     FROM don_thue dt
     JOIN nguoi_dung nd ON nd.id = dt.khach_hang_id
     LEFT JOIN trang_thai_he_thong tt ON tt.id = dt.trang_thai
-    ORDER BY dt.created_at DESC
+    LEFT JOIN yeu_cau_huy_don ychd ON ychd.don_thue_id = dt.id
+    LEFT JOIN trang_thai_he_thong ttychd ON ttychd.id = ychd.trang_thai_id
+    WHERE (
+      ${trangThai}::int IS NULL
+      OR dt.trang_thai = ${trangThai}
+    )
+      AND (
+        ${tuKhoa} = ''
+        OR LOWER(dt.ma_don) LIKE LOWER(${tuKhoaTim})
+        OR LOWER(nd.ho_ten) LIKE LOWER(${tuKhoaTim})
+        OR LOWER(COALESCE(nd.so_dien_thoai, '')) LIKE LOWER(${tuKhoaTim})
+      )
+    ORDER BY
+      CASE
+        WHEN ychd.trang_thai_id = ${TRANG_THAI_YEU_CAU_HUY_CHO_XU_LY} THEN 0
+        ELSE 1
+      END,
+      dt.created_at DESC
     LIMIT ${limit} OFFSET ${offset}
+  `;
+}
+
+
+async function layDanhSachYeuCauHuy({ tuKhoa = "" }) {
+  const tuKhoaTim = `%${tuKhoa}%`;
+
+  return await prisma.$queryRaw`
+    SELECT
+      dt.id,
+      dt.ma_don,
+      nd.ho_ten AS ten_khach_hang,
+      nd.so_dien_thoai AS sdt_khach_hang,
+      dt.ngay_nhan,
+      dt.ngay_tra,
+      dt.tong_tien_coc::text AS tong_tien_coc,
+      dt.trang_thai,
+      tt.ten_trang_thai,
+      dt.created_at,
+
+      ychd.id AS yeu_cau_huy_id,
+      ychd.ly_do_huy AS ly_do_yeu_cau_huy,
+      ychd.trang_thai_id AS trang_thai_yeu_cau_huy_id,
+      ttychd.ten_trang_thai AS ten_trang_thai_yeu_cau_huy,
+      ychd.ty_le_phi_huy_snapshot::text AS ty_le_phi_huy_yeu_cau,
+      ychd.tong_tien_coc_snapshot::text AS tong_tien_coc_yeu_cau,
+      ychd.phi_huy::text AS phi_huy_yeu_cau,
+      ychd.tien_coc_hoan_lai::text AS tien_coc_hoan_lai_yeu_cau,
+      ychd.gui_luc AS gui_luc_yeu_cau,
+      ychd.xu_ly_luc AS xu_ly_luc_yeu_cau,
+      ychd.ghi_chu_xu_ly AS ghi_chu_xu_ly_yeu_cau
+    FROM yeu_cau_huy_don ychd
+    JOIN don_thue dt ON dt.id = ychd.don_thue_id
+    JOIN nguoi_dung nd ON nd.id = dt.khach_hang_id
+    LEFT JOIN trang_thai_he_thong tt ON tt.id = dt.trang_thai
+    LEFT JOIN trang_thai_he_thong ttychd ON ttychd.id = ychd.trang_thai_id
+    WHERE (
+      ${tuKhoa} = ''
+      OR LOWER(dt.ma_don) LIKE LOWER(${tuKhoaTim})
+      OR LOWER(nd.ho_ten) LIKE LOWER(${tuKhoaTim})
+      OR LOWER(COALESCE(nd.so_dien_thoai, '')) LIKE LOWER(${tuKhoaTim})
+    )
+    ORDER BY
+      CASE
+        WHEN ychd.trang_thai_id = ${TRANG_THAI_YEU_CAU_HUY_CHO_XU_LY} THEN 0
+        ELSE 1
+      END,
+      COALESCE(ychd.gui_luc, ychd.created_at) DESC
   `;
 }
 
@@ -234,6 +198,20 @@ async function layDonThueTheoId(donThueId) {
       dt.so_ngay_thue,
       dt.tong_tien_thue::text AS tong_tien_thue,
       dt.tong_tien_coc::text AS tong_tien_coc,
+      dt.ty_le_phi_huy_snapshot::text AS ty_le_phi_huy_snapshot,
+
+      ychd.id AS yeu_cau_huy_id,
+      ychd.ly_do_huy AS ly_do_yeu_cau_huy,
+      ychd.trang_thai_id AS trang_thai_yeu_cau_huy_id,
+      ttychd.ten_trang_thai AS ten_trang_thai_yeu_cau_huy,
+      ychd.ty_le_phi_huy_snapshot::text AS ty_le_phi_huy_yeu_cau,
+      ychd.tong_tien_coc_snapshot::text AS tong_tien_coc_yeu_cau,
+      ychd.phi_huy::text AS phi_huy_yeu_cau,
+      ychd.tien_coc_hoan_lai::text AS tien_coc_hoan_lai_yeu_cau,
+      ychd.gui_luc AS gui_luc_yeu_cau,
+      ychd.xu_ly_luc AS xu_ly_luc_yeu_cau,
+      ychd.ghi_chu_xu_ly AS ghi_chu_xu_ly_yeu_cau,
+
       (
         SELECT COALESCE(SUM(th.so_tien), 0)::text
         FROM thanh_toan th
@@ -264,6 +242,8 @@ async function layDonThueTheoId(donThueId) {
     FROM don_thue dt
     JOIN nguoi_dung nd ON nd.id = dt.khach_hang_id
     LEFT JOIN trang_thai_he_thong tt ON tt.id = dt.trang_thai
+    LEFT JOIN yeu_cau_huy_don ychd ON ychd.don_thue_id = dt.id
+    LEFT JOIN trang_thai_he_thong ttychd ON ttychd.id = ychd.trang_thai_id
     LEFT JOIN nguoi_dung nv_bg ON nv_bg.id = dt.nguoi_ban_giao_id
     LEFT JOIN nguoi_dung nv_tra ON nv_tra.id = dt.nguoi_nhan_tra_id
     WHERE dt.id = ${donThueId}::uuid
@@ -284,6 +264,7 @@ async function layChiTietDonThue(donThueId) {
       dmtb.ten_danh_muc,
       ctdt.so_luong,
       ctdt.gia_thue_ngay_snapshot::text AS gia_thue_ngay_snapshot,
+      ctdt.gia_tri_thiet_bi_snapshot::text AS gia_tri_thiet_bi_snapshot,
       ctdt.tien_coc_snapshot::text AS tien_coc_snapshot,
       ctdt.tien_thue::text AS tien_thue,
       ctdt.tien_coc::text AS tien_coc
@@ -304,9 +285,10 @@ async function layVatPhamBanGiao(donThueId) {
       bgvp.bo_di_kem_id,
       bgvp.thiet_bi_id,
       tbvl.so_serial,
-      vt.ten_vi_tri AS ten_vi_tri_kho,
       bgvp.phu_kien_id,
+      bgvp.phu_kien_vi_tri_kho_id,
       pk.ten_phu_kien,
+      COALESCE(vt_tb.ten_vi_tri, vt_pk.ten_vi_tri, vt_legacy.ten_vi_tri) AS ten_vi_tri_kho,
       bgvp.ten_vat_pham_snapshot,
       bgvp.ma_tai_san_snapshot,
       bgvp.so_serial_snapshot,
@@ -316,8 +298,12 @@ async function layVatPhamBanGiao(donThueId) {
     FROM ban_giao_vat_pham bgvp
     JOIN chi_tiet_don_thue ctdt ON ctdt.id = bgvp.chi_tiet_don_thue_id
     LEFT JOIN thiet_bi_vat_ly tbvl ON tbvl.id = bgvp.thiet_bi_id
-    LEFT JOIN vi_tri_kho vt ON vt.id = tbvl.vi_tri_kho_id
+    LEFT JOIN vi_tri_kho vt_tb ON vt_tb.id = tbvl.vi_tri_kho_id
     LEFT JOIN phu_kien pk ON pk.id = bgvp.phu_kien_id
+    LEFT JOIN phu_kien_vi_tri_kho pkvt
+      ON pkvt.id = bgvp.phu_kien_vi_tri_kho_id
+    LEFT JOIN vi_tri_kho vt_pk ON vt_pk.id = pkvt.vi_tri_kho_id
+    LEFT JOIN vi_tri_kho vt_legacy ON vt_legacy.id = pk.vi_tri_kho_id
     WHERE ctdt.don_thue_id = ${donThueId}::uuid
     ORDER BY bgvp.created_at ASC
   `;
@@ -427,6 +413,18 @@ async function layDonDeBanGiao(donThueId) {
   return ketQua[0] || null;
 }
 
+async function coYeuCauHuyChoXuLy(donThueId) {
+  const ketQua = await prisma.$queryRaw`
+    SELECT id
+    FROM yeu_cau_huy_don
+    WHERE don_thue_id = ${donThueId}::uuid
+      AND trang_thai_id = ${TRANG_THAI_YEU_CAU_HUY_CHO_XU_LY}
+    LIMIT 1
+  `;
+
+  return ketQua.length > 0;
+}
+
 async function kiemTraDonDaCoc(donThueId) {
   const ketQua = await prisma.$queryRaw`
     SELECT id
@@ -503,6 +501,26 @@ async function layPhuKienTheoId(phuKienId) {
   return ketQua[0] || null;
 }
 
+async function layPhuKienViTriKhoTheoId(phuKienViTriKhoId) {
+  const ketQua = await prisma.$queryRaw`
+    SELECT
+      pkvt.id,
+      pkvt.phu_kien_id,
+      pkvt.vi_tri_kho_id,
+      pkvt.so_luong::int AS so_luong,
+      pkvt.dang_su_dung,
+      vt.ten_vi_tri,
+      vt.trang_thai AS trang_thai_vi_tri,
+      vt.da_xoa_luc AS vi_tri_da_xoa_luc
+    FROM phu_kien_vi_tri_kho pkvt
+    JOIN vi_tri_kho vt ON vt.id = pkvt.vi_tri_kho_id
+    WHERE pkvt.id = ${phuKienViTriKhoId}::uuid
+    LIMIT 1
+  `;
+
+  return ketQua[0] || null;
+}
+
 async function demSoLuongPhuKienDangGiao(phuKienId) {
   const ketQua = await prisma.$queryRaw`
     SELECT COALESCE(SUM(bgvp.so_luong_giao), 0)::int AS so_luong_dang_giao
@@ -516,6 +534,199 @@ async function demSoLuongPhuKienDangGiao(phuKienId) {
   return ketQua[0]?.so_luong_dang_giao || 0;
 }
 
+async function xacNhanYeuCauHuyDon({
+  yeuCauHuyId,
+  nhanVienId,
+  ghiChuXuLy,
+}) {
+  return await prisma.$transaction(async (tx) => {
+    const rows = await tx.$queryRaw`
+      SELECT
+        ychd.id,
+        ychd.don_thue_id,
+        ychd.ly_do_huy,
+        ychd.trang_thai_id,
+        ychd.ty_le_phi_huy_snapshot::text AS ty_le_phi_huy_snapshot,
+        ychd.tong_tien_coc_snapshot::text AS tong_tien_coc_snapshot,
+        dt.trang_thai AS trang_thai_don,
+        dt.ban_giao_luc
+      FROM yeu_cau_huy_don ychd
+      JOIN don_thue dt ON dt.id = ychd.don_thue_id
+      WHERE ychd.id = ${yeuCauHuyId}::uuid
+      FOR UPDATE OF ychd, dt
+    `;
+
+    const yeuCau = rows[0];
+
+    if (!yeuCau) {
+      throw new Error("Không tìm thấy yêu cầu hủy đơn");
+    }
+
+    if (
+      Number(yeuCau.trang_thai_id) !==
+      TRANG_THAI_YEU_CAU_HUY_CHO_XU_LY
+    ) {
+      throw new Error("Chỉ xử lý được yêu cầu hủy đang ở trạng thái Chờ xử lý");
+    }
+
+    if (
+      Number(yeuCau.trang_thai_don) !== TRANG_THAI_DA_GIU_CHO ||
+      yeuCau.ban_giao_luc
+    ) {
+      throw new Error("Đơn thuê không còn đủ điều kiện để xác nhận hủy");
+    }
+
+    const tyLePhiHuy = Number(yeuCau.ty_le_phi_huy_snapshot);
+    const tongTienCoc = Number(yeuCau.tong_tien_coc_snapshot);
+
+    if (
+      !Number.isFinite(tyLePhiHuy) ||
+      tyLePhiHuy < 0 ||
+      tyLePhiHuy > 100 ||
+      !Number.isFinite(tongTienCoc) ||
+      tongTienCoc < 0
+    ) {
+      throw new Error("Snapshot phí hủy của yêu cầu không hợp lệ");
+    }
+
+    const phiHuy = Math.round((tongTienCoc * tyLePhiHuy) / 100);
+    const tienCocHoanLai = Math.max(0, tongTienCoc - phiHuy);
+
+    await tx.$executeRaw`
+      UPDATE yeu_cau_huy_don
+      SET
+        trang_thai_id = ${TRANG_THAI_YEU_CAU_HUY_DA_XAC_NHAN},
+        phi_huy = ${phiHuy},
+        tien_coc_hoan_lai = ${tienCocHoanLai},
+        nguoi_xu_ly_id = ${nhanVienId}::uuid,
+        xu_ly_luc = NOW(),
+        ghi_chu_xu_ly = ${ghiChuXuLy || null},
+        updated_at = NOW()
+      WHERE id = ${yeuCauHuyId}::uuid
+    `;
+
+    await tx.$executeRaw`
+      UPDATE don_thue
+      SET
+        trang_thai = ${TRANG_THAI_DA_HUY},
+        huy_luc = NOW(),
+        ly_do_huy = ${yeuCau.ly_do_huy},
+        updated_at = NOW()
+      WHERE id = ${yeuCau.don_thue_id}::uuid
+    `;
+
+    await tx.$executeRaw`
+      INSERT INTO thanh_toan (
+        id,
+        don_thue_id,
+        so_tien,
+        loai_dong_tien_id,
+        nguoi_thuc_hien_id,
+        ghi_chu,
+        created_at
+      )
+      VALUES (
+        gen_random_uuid(),
+        ${yeuCau.don_thue_id}::uuid,
+        ${phiHuy},
+        ${LOAI_PHI_HUY_DON},
+        ${nhanVienId}::uuid,
+        'Ghi nhận phí hủy đơn khi xác nhận yêu cầu hủy',
+        NOW()
+      )
+    `;
+
+    await tx.$executeRaw`
+      INSERT INTO thanh_toan (
+        id,
+        don_thue_id,
+        so_tien,
+        loai_dong_tien_id,
+        nguoi_thuc_hien_id,
+        ghi_chu,
+        created_at
+      )
+      VALUES (
+        gen_random_uuid(),
+        ${yeuCau.don_thue_id}::uuid,
+        ${tienCocHoanLai},
+        ${LOAI_HOAN_COC},
+        ${nhanVienId}::uuid,
+        'Ghi nhận số tiền cọc cần hoàn lại sau khi hủy đơn',
+        NOW()
+      )
+    `;
+
+    return {
+      id: yeuCauHuyId,
+      don_thue_id: yeuCau.don_thue_id,
+      trang_thai_id: TRANG_THAI_YEU_CAU_HUY_DA_XAC_NHAN,
+      ty_le_phi_huy_snapshot: tyLePhiHuy,
+      tong_tien_coc_snapshot: tongTienCoc,
+      phi_huy: phiHuy,
+      tien_coc_hoan_lai: tienCocHoanLai,
+    };
+  });
+}
+
+async function tuChoiYeuCauHuyDon({
+  yeuCauHuyId,
+  nhanVienId,
+  ghiChuXuLy,
+}) {
+  return await prisma.$transaction(async (tx) => {
+    const rows = await tx.$queryRaw`
+      SELECT
+        ychd.id,
+        ychd.don_thue_id,
+        ychd.trang_thai_id,
+        dt.trang_thai AS trang_thai_don,
+        dt.ban_giao_luc
+      FROM yeu_cau_huy_don ychd
+      JOIN don_thue dt ON dt.id = ychd.don_thue_id
+      WHERE ychd.id = ${yeuCauHuyId}::uuid
+      FOR UPDATE OF ychd, dt
+    `;
+
+    const yeuCau = rows[0];
+
+    if (!yeuCau) {
+      throw new Error("Không tìm thấy yêu cầu hủy đơn");
+    }
+
+    if (
+      Number(yeuCau.trang_thai_id) !==
+      TRANG_THAI_YEU_CAU_HUY_CHO_XU_LY
+    ) {
+      throw new Error("Chỉ xử lý được yêu cầu hủy đang ở trạng thái Chờ xử lý");
+    }
+
+    if (
+      Number(yeuCau.trang_thai_don) !== TRANG_THAI_DA_GIU_CHO ||
+      yeuCau.ban_giao_luc
+    ) {
+      throw new Error("Đơn thuê không còn đủ điều kiện để từ chối yêu cầu hủy");
+    }
+
+    await tx.$executeRaw`
+      UPDATE yeu_cau_huy_don
+      SET
+        trang_thai_id = ${TRANG_THAI_YEU_CAU_HUY_TU_CHOI},
+        nguoi_xu_ly_id = ${nhanVienId}::uuid,
+        xu_ly_luc = NOW(),
+        ghi_chu_xu_ly = ${ghiChuXuLy || null},
+        updated_at = NOW()
+      WHERE id = ${yeuCauHuyId}::uuid
+    `;
+
+    return {
+      id: yeuCauHuyId,
+      don_thue_id: yeuCau.don_thue_id,
+      trang_thai_id: TRANG_THAI_YEU_CAU_HUY_TU_CHOI,
+    };
+  });
+}
+
 async function luuPhieuBanGiao({
   donThueId,
   nhanVienId,
@@ -527,6 +738,106 @@ async function luuPhieuBanGiao({
   tongTienThue,
 }) {
   await prisma.$transaction(async (tx) => {
+    const donRows = await tx.$queryRaw`
+      SELECT trang_thai
+      FROM don_thue
+      WHERE id = ${donThueId}::uuid
+      FOR UPDATE
+    `;
+
+    if (
+      !donRows[0] ||
+      Number(donRows[0].trang_thai) !== TRANG_THAI_DA_GIU_CHO
+    ) {
+      throw new Error("Đơn thuê không còn ở trạng thái Đã giữ chỗ");
+    }
+
+    const yeuCauHuyRows = await tx.$queryRaw`
+      SELECT id
+      FROM yeu_cau_huy_don
+      WHERE don_thue_id = ${donThueId}::uuid
+        AND trang_thai_id = ${TRANG_THAI_YEU_CAU_HUY_CHO_XU_LY}
+      LIMIT 1
+    `;
+
+    if (yeuCauHuyRows.length > 0) {
+      throw new Error("Đơn đang có yêu cầu hủy Chờ xử lý, không thể bàn giao");
+    }
+
+    const phanBoCanGiao = new Map();
+
+    for (const item of vatPham) {
+      if (!item.phu_kien_id) continue;
+
+      if (!item.phu_kien_vi_tri_kho_id) {
+        throw new Error("Vui lòng chọn vị trí kho cho phụ kiện");
+      }
+
+      const key = String(item.phu_kien_vi_tri_kho_id);
+      const hienTai = phanBoCanGiao.get(key);
+
+      if (hienTai && String(hienTai.phu_kien_id) !== String(item.phu_kien_id)) {
+        throw new Error("Vị trí phụ kiện không khớp với phụ kiện bàn giao");
+      }
+
+      phanBoCanGiao.set(key, {
+        phu_kien_id: item.phu_kien_id,
+        so_luong_giao:
+          Number(hienTai?.so_luong_giao || 0) + Number(item.so_luong_giao || 0),
+      });
+    }
+
+    for (const [phanBoId, thongTin] of phanBoCanGiao.entries()) {
+      const phanBoRows = await tx.$queryRaw`
+        SELECT
+          pkvt.id,
+          pkvt.phu_kien_id,
+          pkvt.so_luong::int AS so_luong,
+          pkvt.dang_su_dung,
+          vt.ten_vi_tri,
+          vt.trang_thai,
+          vt.da_xoa_luc
+        FROM phu_kien_vi_tri_kho pkvt
+        JOIN vi_tri_kho vt ON vt.id = pkvt.vi_tri_kho_id
+        WHERE pkvt.id = ${phanBoId}::uuid
+        FOR UPDATE OF pkvt
+      `;
+
+      const phanBo = phanBoRows[0];
+
+      if (!phanBo || String(phanBo.phu_kien_id) !== String(thongTin.phu_kien_id)) {
+        throw new Error("Vị trí kho không thuộc phụ kiện đang bàn giao");
+      }
+
+      if (
+        !phanBo.dang_su_dung ||
+        Number(phanBo.trang_thai) !== 601 ||
+        phanBo.da_xoa_luc
+      ) {
+        throw new Error(`Vị trí "${phanBo.ten_vi_tri}" không còn khả dụng`);
+      }
+
+      const dangThueRows = await tx.$queryRaw`
+        SELECT COALESCE(SUM(bgvp.so_luong_giao), 0)::int AS so_luong_dang_thue
+        FROM ban_giao_vat_pham bgvp
+        JOIN chi_tiet_don_thue ctdt
+          ON ctdt.id = bgvp.chi_tiet_don_thue_id
+        JOIN don_thue dt
+          ON dt.id = ctdt.don_thue_id
+        WHERE bgvp.phu_kien_vi_tri_kho_id = ${phanBoId}::uuid
+          AND dt.trang_thai IN (${TRANG_THAI_DANG_THUE}, ${TRANG_THAI_QUA_HAN})
+      `;
+
+      const soLuongDangThue = Number(dangThueRows[0]?.so_luong_dang_thue || 0);
+      const soLuongKhaDung = Math.max(Number(phanBo.so_luong || 0) - soLuongDangThue, 0);
+
+      if (Number(thongTin.so_luong_giao || 0) > soLuongKhaDung) {
+        throw new Error(
+          `Vị trí "${phanBo.ten_vi_tri}" chỉ còn ${soLuongKhaDung} phụ kiện, không đủ để bàn giao`
+        );
+      }
+    }
+
     for (const item of vatPham) {
       await tx.$executeRaw`
         INSERT INTO ban_giao_vat_pham (
@@ -535,6 +846,7 @@ async function luuPhieuBanGiao({
           bo_di_kem_id,
           thiet_bi_id,
           phu_kien_id,
+          phu_kien_vi_tri_kho_id,
           ten_vat_pham_snapshot,
           ma_tai_san_snapshot,
           so_serial_snapshot,
@@ -548,6 +860,7 @@ async function luuPhieuBanGiao({
           ${item.bo_di_kem_id}::uuid,
           ${item.thiet_bi_id}::uuid,
           ${item.phu_kien_id}::uuid,
+          ${item.phu_kien_vi_tri_kho_id}::uuid,
           ${item.ten_vat_pham_snapshot},
           ${item.ma_tai_san_snapshot},
           ${item.so_serial_snapshot},
@@ -662,10 +975,12 @@ async function luuPhieuBanGiao({
 
 module.exports = {
   TRANG_THAI_DA_GIU_CHO,
+  TRANG_THAI_YEU_CAU_HUY_CHO_XU_LY,
   TRANG_THAI_THIET_BI_SAN_SANG,
 
   demDonThue,
   layDanhSachDonThue,
+  layDanhSachYeuCauHuy,
   layDonThueTheoId,
   layChiTietDonThue,
   layVatPhamBanGiao,
@@ -674,11 +989,15 @@ module.exports = {
   layThietBiSanSang,
 
   layDonDeBanGiao,
+  coYeuCauHuyChoXuLy,
   kiemTraDonDaCoc,
   layChiTietDonDeBanGiao,
   layBoDiKemTheoMauIds,
   layThietBiVatLyTheoId,
   layPhuKienTheoId,
+  layPhuKienViTriKhoTheoId,
   demSoLuongPhuKienDangGiao,
+  xacNhanYeuCauHuyDon,
+  tuChoiYeuCauHuyDon,
   luuPhieuBanGiao,
 };

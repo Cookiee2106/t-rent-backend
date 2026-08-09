@@ -1,4 +1,5 @@
 const {
+  layXacNhanThueService,
   taoPhienThanhToanCocService,
   layTrangThaiPhienThanhToanService,
   xuLyReturnVnpayService,
@@ -9,6 +10,25 @@ function guiLoi(res, loi) {
     success: false,
     message: loi.message,
   });
+}
+
+// POST /api/cart/checkout/preview
+async function layXacNhanThue(req, res) {
+  try {
+    const nguoiDungId = req.nguoiDung.id;
+    const ketQua = await layXacNhanThueService(
+      nguoiDungId,
+      req.body || {}
+    );
+
+    res.json({
+      success: true,
+      message: "Kiểm tra thông tin thuê thành công",
+      data: ketQua,
+    });
+  } catch (loi) {
+    guiLoi(res, loi);
+  }
 }
 
 // POST /api/cart/checkout
@@ -78,6 +98,7 @@ async function nhanReturnVnpay(req, res) {
 }
 
 module.exports = {
+  layXacNhanThue,
   taoPhienThanhToanCoc,
   layTrangThaiPhienThanhToan,
   nhanReturnVnpay,

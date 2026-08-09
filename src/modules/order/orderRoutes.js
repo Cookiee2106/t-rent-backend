@@ -9,6 +9,10 @@ const {
   layChiTietDonThue,
   layThietBiSanSang,
   lapPhieuBanGiao,
+  layChinhSachThue,
+  capNhatChinhSachThue,
+  xacNhanYeuCauHuy,
+  tuChoiYeuCauHuy,
 } = require("./orderController");
 
 const router = express.Router();
@@ -21,6 +25,36 @@ const upload = multer({
 });
 
 const vaiTroNoiBo = ["NHAN_VIEN", "QUAN_TRI", "QUAN_TRI_VIEN"];
+
+router.get(
+  "/admin/rental-policy",
+  xacThucDangNhap,
+  kiemTraVaiTro(vaiTroNoiBo),
+  layChinhSachThue
+);
+
+router.put(
+  "/admin/rental-policy",
+  xacThucDangNhap,
+  kiemTraVaiTro(vaiTroNoiBo),
+  capNhatChinhSachThue
+);
+
+router.patch(
+  "/admin/cancel-requests/:id/confirm",
+  xacThucDangNhap,
+  kiemTraVaiTro(vaiTroNoiBo),
+  xacNhanYeuCauHuy
+);
+
+router.patch(
+  "/admin/cancel-requests/:id/reject",
+  xacThucDangNhap,
+  kiemTraVaiTro(vaiTroNoiBo),
+  tuChoiYeuCauHuy
+);
+
+
 
 router.get(
   "/admin/orders",

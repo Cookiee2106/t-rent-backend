@@ -12,47 +12,109 @@ function chuanHoaChuoi(giaTri) {
   return ketQua || null;
 }
 
+function chuanHoaTenDeSoSanh(giaTri) {
+  return String(giaTri || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/\s+/g, " ");
+}
+
+function laDanhMucCapSau(danhMuc) {
+  return chuanHoaTenDeSoSanh(danhMuc?.ten_danh_muc) === "cap sau";
+}
+
 function docSoLuong(giaTri) {
   const so = Number(giaTri);
 
   if (!Number.isInteger(so) || so < 0) {
-    throw new Error("Tổng số lượng phải là số nguyên lớn hơn hoặc bằng 0");
+    throw new Error("Số lượng tại vị trí phải là số nguyên lớn hơn hoặc bằng 0");
   }
 
   return so;
 }
 
-async function kiemTraTonTaiDuLieuLienQuan({ hangId, danhMucId, viTriKhoId }) {
-  let hang = null;
+function docDanhSachViTri(body = {}) {
+  let danhSach = Array.isArray(body.vi_tri_kho) ? body.vi_tri_kho : null;
 
-  if (hangId) {
-    hang = await adminAccessoryRepository.layHangDangHienThiTheoId(hangId);
+  if (!danhSach) {
+    const viTriKhoId = chuanHoaChuoi(body.vi_tri_kho_id);
 
-    if (!hang) {
-      throw new Error("Hãng không hợp lệ hoặc đã bị ẩn");
+    if (viTriKhoId) {
+      danhSach = [
+        {
+          vi_tri_kho_id: viTriKhoId,
+          so_luong: body.tong_so_luong ?? 0,
+        },
+      ];
     }
   }
 
-  const danhMuc = await adminAccessoryRepository.layDanhMucPhuKienDangHienThiTheoId(
-    danhMucId
-  );
+  if (!Array.isArray(danhSach) || danhSach.length === 0) {
+    throw new Error("Vui lòng thêm ít nhất một vị trí kho cho phụ kiện");
+  }
+
+  const daChon = new Set();
+
+  return danhSach.map((item) => {
+    const viTriKhoId = chuanHoaChuoi(item?.vi_tri_kho_id);
+    const soLuong = docSoLuong(item?.so_luong ?? 0);
+
+    if (!viTriKhoId) {
+      throw new Error("Vui lòng chọn đầy đủ vị trí kho cho phụ kiện");
+    }
+
+    if (daChon.has(viTriKhoId)) {
+      throw new Error("Một vị trí kho không được chọn lặp lại cho cùng phụ kiện");
+    }
+
+    daChon.add(viTriKhoId);
+
+    return {
+      viTriKhoId,
+      soLuong,
+    };
+  });
+}
+
+async function kiemTraTonTaiDuLieuLienQuan({
+  ngamId,
+  danhMucId,
+}) {
+  const danhMuc =
+    await adminAccessoryRepository.layDanhMucPhuKienDangHienThiTheoId(
+      danhMucId
+    );
 
   if (!danhMuc) {
     throw new Error("Vui lòng chọn danh mục phụ kiện đang hiển thị");
   }
 
-  const viTriKho = await adminAccessoryRepository.layViTriKhoDangHienThiTheoId(
-    viTriKhoId
-  );
+  const laCapSau = laDanhMucCapSau(danhMuc);
+  let ngam = null;
 
-  if (!viTriKho) {
-    throw new Error("Vui lòng chọn vị trí kho đang hiển thị");
+  if (laCapSau) {
+    if (!ngamId) {
+      throw new Error("Vui lòng chọn ngàm cho phụ kiện Cáp sau");
+    }
+
+    ngam =
+      await adminAccessoryRepository.layNgamDangHienThiTheoId(
+        ngamId
+      );
+
+    if (!ngam) {
+      throw new Error("Ngàm không hợp lệ, đã bị ẩn hoặc hãng của ngàm đã bị ẩn");
+    }
+  } else if (ngamId) {
+    throw new Error("Chỉ phụ kiện thuộc danh mục Cáp sau mới được chọn ngàm");
   }
 
   return {
-    hang,
+    ngam,
     danhMuc,
-    viTriKho,
   };
 }
 
@@ -67,30 +129,68 @@ async function kiemTraTenTrung(tenPhuKien, idBoQua = null) {
   }
 }
 
-async function kiemTraSucChuaViTri({ viTriKho, viTriKhoId, tongSoLuong, idBoQua = null }) {
-  const soLuongDangChua = await adminAccessoryRepository.tinhSoLuongDangChuaTaiViTri(
-    viTriKhoId,
-    idBoQua
+async function kiemTraDanhSachViTri({ danhSachViTri, idBoQua = null }) {
+  for (const item of danhSachViTri) {
+    const viTriKho =
+      await adminAccessoryRepository.layViTriKhoDangHienThiTheoId(
+        item.viTriKhoId
+      );
+
+    if (!viTriKho) {
+      throw new Error("Vui lòng chọn vị trí kho đang hiển thị");
+    }
+
+    const soLuongDangChua =
+      await adminAccessoryRepository.tinhSoLuongDangChuaTaiViTri(
+        item.viTriKhoId,
+        idBoQua
+      );
+
+    const sucChuaToiDa = Number(viTriKho.suc_chua_toi_da || 0);
+
+    if (
+      sucChuaToiDa > 0 &&
+      soLuongDangChua + item.soLuong > sucChuaToiDa
+    ) {
+      throw new Error(
+        `Vị trí "${viTriKho.ten_vi_tri}" chỉ còn ${Math.max(
+          sucChuaToiDa - soLuongDangChua,
+          0
+        )} chỗ trống`
+      );
+    }
+  }
+}
+
+async function kiemTraKhongGiamDuoiSoLuongDangThue(phuKienId, danhSachViTriMoi) {
+  const danhSachCu =
+    await adminAccessoryRepository.layPhanBoViTriCuaPhuKien(phuKienId);
+
+  const soLuongMoiTheoViTri = new Map(
+    danhSachViTriMoi.map((item) => [String(item.viTriKhoId), item.soLuong])
   );
 
-  const sucChuaToiDa = Number(viTriKho.suc_chua_toi_da || 0);
+  for (const viTriCu of danhSachCu) {
+    const soLuongDangThue =
+      await adminAccessoryRepository.tinhSoLuongDangThueTaiPhanBo(viTriCu.id);
 
-  if (sucChuaToiDa > 0 && soLuongDangChua + tongSoLuong > sucChuaToiDa) {
-    throw new Error(
-      `Vị trí "${viTriKho.ten_vi_tri}" chỉ còn ${Math.max(
-        sucChuaToiDa - soLuongDangChua,
-        0
-      )} chỗ trống`
+    const soLuongMoi = Number(
+      soLuongMoiTheoViTri.get(String(viTriCu.vi_tri_kho_id)) || 0
     );
+
+    if (soLuongMoi < soLuongDangThue) {
+      throw new Error(
+        `Vị trí "${viTriCu.ten_vi_tri}" đang có ${soLuongDangThue} phụ kiện được bàn giao, không thể giảm xuống ${soLuongMoi}`
+      );
+    }
   }
 }
 
 function docDuLieuPhuKien(body = {}) {
   const tenPhuKien = chuanHoaChuoi(body.ten_phu_kien);
-  const hangId = chuanHoaChuoi(body.hang_id);
+  const ngamId = chuanHoaChuoi(body.ngam_id);
   const danhMucId = chuanHoaChuoi(body.danh_muc_id);
-  const viTriKhoId = chuanHoaChuoi(body.vi_tri_kho_id);
-  const tongSoLuong = docSoLuong(body.tong_so_luong ?? 0);
+  const danhSachViTri = docDanhSachViTri(body);
   const moTa = chuanHoaChuoi(body.mo_ta);
 
   if (!tenPhuKien) {
@@ -101,15 +201,16 @@ function docDuLieuPhuKien(body = {}) {
     throw new Error("Vui lòng chọn danh mục phụ kiện");
   }
 
-  if (!viTriKhoId) {
-    throw new Error("Vui lòng chọn vị trí kho");
-  }
+  const tongSoLuong = danhSachViTri.reduce(
+    (tong, item) => tong + item.soLuong,
+    0
+  );
 
   return {
     tenPhuKien,
-    hangId,
+    ngamId,
     danhMucId,
-    viTriKhoId,
+    danhSachViTri,
     tongSoLuong,
     moTa,
   };
@@ -121,8 +222,8 @@ class AccessoryModel {
     ten_phu_kien,
     trang_thai,
 
-    hang_id,
-    ten_hang,
+    ngam_id,
+    ten_ngam,
 
     danh_muc_id,
     ten_danh_muc,
@@ -130,6 +231,7 @@ class AccessoryModel {
     vi_tri_kho_id,
     ten_vi_tri,
     suc_chua_toi_da,
+    vi_tri_kho = [],
 
     tong_so_luong,
     so_luong_dang_su_dung,
@@ -145,19 +247,40 @@ class AccessoryModel {
     this.ten_trang_thai =
       this.trang_thai === TRANG_THAI_HIEN_THI ? "Hiện" : "Ẩn";
 
-    this.hang_id = hang_id || null;
-    this.ten_hang = ten_hang || null;
+    this.ngam_id = ngam_id || null;
+    this.ten_ngam = ten_ngam || null;
 
     this.danh_muc_id = danh_muc_id || null;
     this.ten_danh_muc = ten_danh_muc || null;
 
-    this.vi_tri_kho_id = vi_tri_kho_id || null;
-    this.ten_vi_tri = ten_vi_tri || null;
-    this.suc_chua_toi_da = Number(suc_chua_toi_da || 0);
+    this.vi_tri_kho = Array.isArray(vi_tri_kho)
+      ? vi_tri_kho.map((item) => ({
+          id: item.id || null,
+          vi_tri_kho_id: item.vi_tri_kho_id || null,
+          ten_vi_tri: item.ten_vi_tri || null,
+          suc_chua_toi_da: Number(item.suc_chua_toi_da || 0),
+          so_luong: Number(item.so_luong || 0),
+        }))
+      : [];
+
+    const viTriDauTien = this.vi_tri_kho[0] || null;
+
+    this.vi_tri_kho_id = viTriDauTien?.vi_tri_kho_id || vi_tri_kho_id || null;
+    this.ten_vi_tri =
+      this.vi_tri_kho.length > 0
+        ? this.vi_tri_kho.map((item) => item.ten_vi_tri).filter(Boolean).join(", ")
+        : ten_vi_tri || null;
+    this.suc_chua_toi_da = Number(
+      viTriDauTien?.suc_chua_toi_da || suc_chua_toi_da || 0
+    );
 
     this.tong_so_luong = Number(tong_so_luong || 0);
     this.so_luong_dang_su_dung = Number(so_luong_dang_su_dung || 0);
     this.so_luong_mat_hu_hong = Number(so_luong_mat_hu_hong || 0);
+    this.so_luong_kha_dung = Math.max(
+      this.tong_so_luong - this.so_luong_dang_su_dung,
+      0
+    );
 
     this.mo_ta = mo_ta || null;
     this.created_at = created_at || null;
@@ -185,16 +308,13 @@ class AccessoryModel {
 
     await kiemTraTenTrung(duLieu.tenPhuKien);
 
-    const { viTriKho } = await kiemTraTonTaiDuLieuLienQuan({
-      hangId: duLieu.hangId,
+    await kiemTraTonTaiDuLieuLienQuan({
+      ngamId: duLieu.ngamId,
       danhMucId: duLieu.danhMucId,
-      viTriKhoId: duLieu.viTriKhoId,
     });
 
-    await kiemTraSucChuaViTri({
-      viTriKho,
-      viTriKhoId: duLieu.viTriKhoId,
-      tongSoLuong: duLieu.tongSoLuong,
+    await kiemTraDanhSachViTri({
+      danhSachViTri: duLieu.danhSachViTri,
     });
 
     const phuKienMoi = await adminAccessoryRepository.taoPhuKien(duLieu);
@@ -213,11 +333,27 @@ class AccessoryModel {
 
     await kiemTraTenTrung(duLieu.tenPhuKien, id);
 
-    const { viTriKho } = await kiemTraTonTaiDuLieuLienQuan({
-      hangId: duLieu.hangId,
+    await kiemTraTonTaiDuLieuLienQuan({
+      ngamId: duLieu.ngamId,
       danhMucId: duLieu.danhMucId,
-      viTriKhoId: duLieu.viTriKhoId,
     });
+
+    const dangNamTrongBoDiKem =
+      await adminAccessoryRepository.timBoDiKemTheoPhuKien(id);
+
+    const doiDanhMuc =
+      String(phuKienCu.danh_muc_id || "") !==
+      String(duLieu.danhMucId || "");
+
+    const doiNgam =
+      String(phuKienCu.ngam_id || "") !==
+      String(duLieu.ngamId || "");
+
+    if (dangNamTrongBoDiKem && (doiDanhMuc || doiNgam)) {
+      throw new Error(
+        "Không thể đổi danh mục hoặc ngàm vì phụ kiện đang được cấu hình trong bộ đi kèm"
+      );
+    }
 
     const soLuongDangCamKet =
       await adminAccessoryRepository.tinhSoLuongDangCamKetCuaPhuKien(
@@ -230,10 +366,13 @@ class AccessoryModel {
       );
     }
 
-    await kiemTraSucChuaViTri({
-      viTriKho,
-      viTriKhoId: duLieu.viTriKhoId,
-      tongSoLuong: duLieu.tongSoLuong,
+    await kiemTraKhongGiamDuoiSoLuongDangThue(
+      id,
+      duLieu.danhSachViTri
+    );
+
+    await kiemTraDanhSachViTri({
+      danhSachViTri: duLieu.danhSachViTri,
       idBoQua: id,
     });
 
@@ -299,10 +438,27 @@ class AccessoryModel {
 
     if (hanhDong === "HIEN") {
       await kiemTraTonTaiDuLieuLienQuan({
-        hangId: phuKien.hang_id,
+        ngamId: phuKien.ngam_id,
         danhMucId: phuKien.danh_muc_id,
-        viTriKhoId: phuKien.vi_tri_kho_id,
       });
+
+      const danhSachViTri =
+        await adminAccessoryRepository.layPhanBoViTriCuaPhuKien(id);
+
+      if (danhSachViTri.length === 0) {
+        throw new Error("Phụ kiện chưa được phân bổ vào vị trí kho");
+      }
+
+      for (const viTri of danhSachViTri) {
+        if (
+          Number(viTri.trang_thai) !== TRANG_THAI_HIEN_THI ||
+          viTri.da_xoa_luc
+        ) {
+          throw new Error(
+            `Vị trí "${viTri.ten_vi_tri}" đã bị ẩn hoặc xóa, không thể hiện phụ kiện`
+          );
+        }
+      }
     }
 
     await adminAccessoryRepository.capNhatTrangThaiPhuKien(

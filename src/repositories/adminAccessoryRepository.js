@@ -25,28 +25,61 @@ async function layDanhSachPhuKien() {
       pk.ten_phu_kien,
       pk.trang_thai,
 
-      pk.hang_id,
-      h.ten_hang,
+      pk.ngam_id,
+      n.ten_ngam,
 
       pk.danh_muc_id,
       dmtb.ten_danh_muc,
 
       pk.vi_tri_kho_id,
-      vtk.ten_vi_tri,
-      vtk.suc_chua_toi_da,
+      (
+        SELECT vt.ten_vi_tri
+        FROM phu_kien_vi_tri_kho pkvt
+        JOIN vi_tri_kho vt ON vt.id = pkvt.vi_tri_kho_id
+        WHERE pkvt.phu_kien_id = pk.id
+          AND pkvt.dang_su_dung = TRUE
+        ORDER BY pkvt.created_at ASC
+        LIMIT 1
+      ) AS ten_vi_tri,
+      (
+        SELECT vt.suc_chua_toi_da
+        FROM phu_kien_vi_tri_kho pkvt
+        JOIN vi_tri_kho vt ON vt.id = pkvt.vi_tri_kho_id
+        WHERE pkvt.phu_kien_id = pk.id
+          AND pkvt.dang_su_dung = TRUE
+        ORDER BY pkvt.created_at ASC
+        LIMIT 1
+      ) AS suc_chua_toi_da,
+
+      COALESCE((
+        SELECT jsonb_agg(
+          jsonb_build_object(
+            'id', pkvt.id,
+            'vi_tri_kho_id', pkvt.vi_tri_kho_id,
+            'ten_vi_tri', vt.ten_vi_tri,
+            'suc_chua_toi_da', vt.suc_chua_toi_da,
+            'so_luong', pkvt.so_luong
+          )
+          ORDER BY vt.ten_vi_tri ASC
+        )
+        FROM phu_kien_vi_tri_kho pkvt
+        JOIN vi_tri_kho vt ON vt.id = pkvt.vi_tri_kho_id
+        WHERE pkvt.phu_kien_id = pk.id
+          AND pkvt.dang_su_dung = TRUE
+      ), '[]'::jsonb) AS vi_tri_kho,
 
       pk.tong_so_luong::int AS tong_so_luong,
       pk.so_luong_mat_hu_hong::int AS so_luong_mat_hu_hong,
 
       -- Chỉ đơn đã bàn giao và đơn quá hạn mới được tính là đang dùng.
       COALESCE((
-        SELECT SUM(ctdt.so_luong * bdk.so_luong)::int
-        FROM bo_di_kem bdk
+        SELECT SUM(bgvp.so_luong_giao)::int
+        FROM ban_giao_vat_pham bgvp
         JOIN chi_tiet_don_thue ctdt
-          ON ctdt.mau_thiet_bi_id = bdk.mau_thiet_bi_chinh_id
+          ON ctdt.id = bgvp.chi_tiet_don_thue_id
         JOIN don_thue dt
           ON dt.id = ctdt.don_thue_id
-        WHERE bdk.phu_kien_id = pk.id
+        WHERE bgvp.phu_kien_id = pk.id
           AND dt.trang_thai IN (${DON_DANG_THUE}, ${DON_QUA_HAN})
       ), 0)::int AS so_luong_dang_su_dung,
 
@@ -56,14 +89,12 @@ async function layDanhSachPhuKien() {
 
     FROM phu_kien pk
 
-    LEFT JOIN hang_thiet_bi h
-      ON h.id = pk.hang_id
+    LEFT JOIN ngam_thiet_bi n
+      ON n.id = pk.ngam_id
+      AND n.da_xoa_luc IS NULL
 
     LEFT JOIN danh_muc_thiet_bi dmtb
       ON dmtb.id = pk.danh_muc_id
-
-    LEFT JOIN vi_tri_kho vtk
-      ON vtk.id = pk.vi_tri_kho_id
 
     WHERE pk.da_xoa_luc IS NULL
 
@@ -78,28 +109,61 @@ async function layPhuKienTheoId(id) {
       pk.ten_phu_kien,
       pk.trang_thai,
 
-      pk.hang_id,
-      h.ten_hang,
+      pk.ngam_id,
+      n.ten_ngam,
 
       pk.danh_muc_id,
       dmtb.ten_danh_muc,
 
       pk.vi_tri_kho_id,
-      vtk.ten_vi_tri,
-      vtk.suc_chua_toi_da,
+      (
+        SELECT vt.ten_vi_tri
+        FROM phu_kien_vi_tri_kho pkvt
+        JOIN vi_tri_kho vt ON vt.id = pkvt.vi_tri_kho_id
+        WHERE pkvt.phu_kien_id = pk.id
+          AND pkvt.dang_su_dung = TRUE
+        ORDER BY pkvt.created_at ASC
+        LIMIT 1
+      ) AS ten_vi_tri,
+      (
+        SELECT vt.suc_chua_toi_da
+        FROM phu_kien_vi_tri_kho pkvt
+        JOIN vi_tri_kho vt ON vt.id = pkvt.vi_tri_kho_id
+        WHERE pkvt.phu_kien_id = pk.id
+          AND pkvt.dang_su_dung = TRUE
+        ORDER BY pkvt.created_at ASC
+        LIMIT 1
+      ) AS suc_chua_toi_da,
+
+      COALESCE((
+        SELECT jsonb_agg(
+          jsonb_build_object(
+            'id', pkvt.id,
+            'vi_tri_kho_id', pkvt.vi_tri_kho_id,
+            'ten_vi_tri', vt.ten_vi_tri,
+            'suc_chua_toi_da', vt.suc_chua_toi_da,
+            'so_luong', pkvt.so_luong
+          )
+          ORDER BY vt.ten_vi_tri ASC
+        )
+        FROM phu_kien_vi_tri_kho pkvt
+        JOIN vi_tri_kho vt ON vt.id = pkvt.vi_tri_kho_id
+        WHERE pkvt.phu_kien_id = pk.id
+          AND pkvt.dang_su_dung = TRUE
+      ), '[]'::jsonb) AS vi_tri_kho,
 
       pk.tong_so_luong::int AS tong_so_luong,
       pk.so_luong_mat_hu_hong::int AS so_luong_mat_hu_hong,
 
       -- Chỉ đơn đã bàn giao và đơn quá hạn mới được tính là đang dùng.
       COALESCE((
-        SELECT SUM(ctdt.so_luong * bdk.so_luong)::int
-        FROM bo_di_kem bdk
+        SELECT SUM(bgvp.so_luong_giao)::int
+        FROM ban_giao_vat_pham bgvp
         JOIN chi_tiet_don_thue ctdt
-          ON ctdt.mau_thiet_bi_id = bdk.mau_thiet_bi_chinh_id
+          ON ctdt.id = bgvp.chi_tiet_don_thue_id
         JOIN don_thue dt
           ON dt.id = ctdt.don_thue_id
-        WHERE bdk.phu_kien_id = pk.id
+        WHERE bgvp.phu_kien_id = pk.id
           AND dt.trang_thai IN (${DON_DANG_THUE}, ${DON_QUA_HAN})
       ), 0)::int AS so_luong_dang_su_dung,
 
@@ -109,14 +173,12 @@ async function layPhuKienTheoId(id) {
 
     FROM phu_kien pk
 
-    LEFT JOIN hang_thiet_bi h
-      ON h.id = pk.hang_id
+    LEFT JOIN ngam_thiet_bi n
+      ON n.id = pk.ngam_id
+      AND n.da_xoa_luc IS NULL
 
     LEFT JOIN danh_muc_thiet_bi dmtb
       ON dmtb.id = pk.danh_muc_id
-
-    LEFT JOIN vi_tri_kho vtk
-      ON vtk.id = pk.vi_tri_kho_id
 
     WHERE pk.id = ${id}::uuid
       AND pk.da_xoa_luc IS NULL
@@ -125,6 +187,41 @@ async function layPhuKienTheoId(id) {
   `;
 
   return rows[0] || null;
+}
+
+async function layPhanBoViTriCuaPhuKien(phuKienId) {
+  return await prisma.$queryRaw`
+    SELECT
+      pkvt.id,
+      pkvt.phu_kien_id,
+      pkvt.vi_tri_kho_id,
+      pkvt.so_luong::int AS so_luong,
+      pkvt.dang_su_dung,
+      vt.ten_vi_tri,
+      vt.suc_chua_toi_da,
+      vt.trang_thai,
+      vt.da_xoa_luc
+    FROM phu_kien_vi_tri_kho pkvt
+    JOIN vi_tri_kho vt ON vt.id = pkvt.vi_tri_kho_id
+    WHERE pkvt.phu_kien_id = ${phuKienId}::uuid
+      AND pkvt.dang_su_dung = TRUE
+    ORDER BY vt.ten_vi_tri ASC
+  `;
+}
+
+async function tinhSoLuongDangThueTaiPhanBo(phuKienViTriKhoId) {
+  const rows = await prisma.$queryRaw`
+    SELECT COALESCE(SUM(bgvp.so_luong_giao), 0)::int AS so_luong_dang_thue
+    FROM ban_giao_vat_pham bgvp
+    JOIN chi_tiet_don_thue ctdt
+      ON ctdt.id = bgvp.chi_tiet_don_thue_id
+    JOIN don_thue dt
+      ON dt.id = ctdt.don_thue_id
+    WHERE bgvp.phu_kien_vi_tri_kho_id = ${phuKienViTriKhoId}::uuid
+      AND dt.trang_thai IN (${DON_DANG_THUE}, ${DON_QUA_HAN})
+  `;
+
+  return Number(rows[0]?.so_luong_dang_thue || 0);
 }
 
 async function timPhuKienTrungTen(tenPhuKien, idBoQua = null) {
@@ -147,13 +244,20 @@ async function timPhuKienTrungTen(tenPhuKien, idBoQua = null) {
   return phuKienTrung || null;
 }
 
-async function layHangDangHienThiTheoId(id) {
+async function layNgamDangHienThiTheoId(id) {
   const rows = await prisma.$queryRaw`
-    SELECT id, ten_hang
-    FROM hang_thiet_bi
-    WHERE id = ${id}::uuid
-      AND trang_thai = ${TRANG_THAI_HIEN_THI}
-      AND da_xoa_luc IS NULL
+    SELECT
+      n.id,
+      n.ten_ngam,
+      n.hang_so_huu_id
+    FROM ngam_thiet_bi n
+    JOIN hang_thiet_bi h
+      ON h.id = n.hang_so_huu_id
+    WHERE n.id = ${id}::uuid
+      AND n.trang_thai = ${TRANG_THAI_HIEN_THI}
+      AND n.da_xoa_luc IS NULL
+      AND h.trang_thai = ${TRANG_THAI_HIEN_THI}
+      AND h.da_xoa_luc IS NULL
     LIMIT 1
   `;
 
@@ -198,9 +302,11 @@ async function tinhSoLuongDangChuaTaiViTri(viTriKhoId, phuKienIdBoQua = null) {
       )
       +
       (
-        SELECT COALESCE(SUM(pk.tong_so_luong), 0)::int
-        FROM phu_kien pk
-        WHERE pk.vi_tri_kho_id = ${viTriKhoId}::uuid
+        SELECT COALESCE(SUM(pkvt.so_luong), 0)::int
+        FROM phu_kien_vi_tri_kho pkvt
+        JOIN phu_kien pk ON pk.id = pkvt.phu_kien_id
+        WHERE pkvt.vi_tri_kho_id = ${viTriKhoId}::uuid
+          AND pkvt.dang_su_dung = TRUE
           AND pk.da_xoa_luc IS NULL
           AND (${phuKienIdBoQua}::uuid IS NULL OR pk.id <> ${phuKienIdBoQua}::uuid)
       ) AS so_luong_dang_chua
@@ -213,13 +319,13 @@ async function tinhSoLuongDangChuaTaiViTri(viTriKhoId, phuKienIdBoQua = null) {
 // Đơn Đã giữ chỗ chưa bàn giao không được tính là đang dùng.
 async function tinhSoLuongDangSuDungCuaPhuKien(phuKienId) {
   const rows = await prisma.$queryRaw`
-    SELECT COALESCE(SUM(ctdt.so_luong * bdk.so_luong), 0)::int AS so_luong_dang_su_dung
-    FROM bo_di_kem bdk
+    SELECT COALESCE(SUM(bgvp.so_luong_giao), 0)::int AS so_luong_dang_su_dung
+    FROM ban_giao_vat_pham bgvp
     JOIN chi_tiet_don_thue ctdt
-      ON ctdt.mau_thiet_bi_id = bdk.mau_thiet_bi_chinh_id
+      ON ctdt.id = bgvp.chi_tiet_don_thue_id
     JOIN don_thue dt
       ON dt.id = ctdt.don_thue_id
-    WHERE bdk.phu_kien_id = ${phuKienId}::uuid
+    WHERE bgvp.phu_kien_id = ${phuKienId}::uuid
       AND dt.trang_thai IN (${DON_DANG_THUE}, ${DON_QUA_HAN})
   `;
 
@@ -282,70 +388,144 @@ async function layDanhSachMauDangDungPhuKien(phuKienId) {
 
 async function taoPhuKien({
   tenPhuKien,
-  hangId,
+  ngamId,
   danhMucId,
-  viTriKhoId,
+  danhSachViTri,
   tongSoLuong,
   moTa,
 }) {
-  const rows = await prisma.$queryRaw`
-    INSERT INTO phu_kien (
-      id,
-      ten_phu_kien,
-      hang_id,
-      danh_muc_id,
-      vi_tri_kho_id,
-      tong_so_luong,
-      trang_thai,
-      mo_ta,
-      created_at,
-      updated_at
-    )
-    VALUES (
-      gen_random_uuid(),
-      ${tenPhuKien},
-      ${hangId}::uuid,
-      ${danhMucId}::uuid,
-      ${viTriKhoId}::uuid,
-      ${tongSoLuong},
-      ${TRANG_THAI_HIEN_THI},
-      ${moTa},
-      NOW(),
-      NOW()
-    )
-    RETURNING id
-  `;
+  return await prisma.$transaction(async (tx) => {
+    const viTriDauTien = danhSachViTri[0]?.viTriKhoId || null;
 
-  return rows[0];
+    const rows = await tx.$queryRaw`
+      INSERT INTO phu_kien (
+        id,
+        ten_phu_kien,
+        ngam_id,
+        danh_muc_id,
+        vi_tri_kho_id,
+        tong_so_luong,
+        trang_thai,
+        mo_ta,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        gen_random_uuid(),
+        ${tenPhuKien},
+        ${ngamId}::uuid,
+        ${danhMucId}::uuid,
+        ${viTriDauTien}::uuid,
+        ${tongSoLuong},
+        ${TRANG_THAI_HIEN_THI},
+        ${moTa},
+        NOW(),
+        NOW()
+      )
+      RETURNING id
+    `;
+
+    const phuKienMoi = rows[0];
+
+    for (const viTri of danhSachViTri) {
+      await tx.$executeRaw`
+        INSERT INTO phu_kien_vi_tri_kho (
+          id,
+          phu_kien_id,
+          vi_tri_kho_id,
+          so_luong,
+          dang_su_dung,
+          created_at,
+          updated_at
+        )
+        VALUES (
+          gen_random_uuid(),
+          ${phuKienMoi.id}::uuid,
+          ${viTri.viTriKhoId}::uuid,
+          ${viTri.soLuong},
+          TRUE,
+          NOW(),
+          NOW()
+        )
+      `;
+    }
+
+    return phuKienMoi;
+  });
 }
 
 async function capNhatPhuKien(
   id,
   {
     tenPhuKien,
-    hangId,
+    ngamId,
     danhMucId,
-    viTriKhoId,
+    danhSachViTri,
     tongSoLuong,
     moTa,
   }
 ) {
-  const rows = await prisma.$queryRaw`
-    UPDATE phu_kien
-    SET
-      ten_phu_kien = ${tenPhuKien},
-      hang_id = ${hangId}::uuid,
-      danh_muc_id = ${danhMucId}::uuid,
-      vi_tri_kho_id = ${viTriKhoId}::uuid,
-      tong_so_luong = ${tongSoLuong},
-      mo_ta = ${moTa},
-      updated_at = NOW()
-    WHERE id = ${id}::uuid
-      AND da_xoa_luc IS NULL
-    RETURNING id
-  `;
+  return await prisma.$transaction(async (tx) => {
+    const viTriDauTien = danhSachViTri[0]?.viTriKhoId || null;
 
-  return rows[0] || null;
+    const rows = await tx.$queryRaw`
+      UPDATE phu_kien
+      SET
+        ten_phu_kien = ${tenPhuKien},
+        ngam_id = ${ngamId}::uuid,
+        danh_muc_id = ${danhMucId}::uuid,
+        vi_tri_kho_id = ${viTriDauTien}::uuid,
+        tong_so_luong = ${tongSoLuong},
+        mo_ta = ${moTa},
+        updated_at = NOW()
+      WHERE id = ${id}::uuid
+        AND da_xoa_luc IS NULL
+      RETURNING id
+    `;
+
+    if (!rows[0]) {
+      return null;
+    }
+
+    await tx.$executeRaw`
+      UPDATE phu_kien_vi_tri_kho
+      SET
+        so_luong = 0,
+        dang_su_dung = FALSE,
+        updated_at = NOW()
+      WHERE phu_kien_id = ${id}::uuid
+    `;
+
+    for (const viTri of danhSachViTri) {
+      await tx.$executeRaw`
+        INSERT INTO phu_kien_vi_tri_kho (
+          id,
+          phu_kien_id,
+          vi_tri_kho_id,
+          so_luong,
+          dang_su_dung,
+          created_at,
+          updated_at
+        )
+        VALUES (
+          gen_random_uuid(),
+          ${id}::uuid,
+          ${viTri.viTriKhoId}::uuid,
+          ${viTri.soLuong},
+          TRUE,
+          NOW(),
+          NOW()
+        )
+        ON CONFLICT (phu_kien_id, vi_tri_kho_id)
+        DO UPDATE SET
+          so_luong = EXCLUDED.so_luong,
+          dang_su_dung = TRUE,
+          updated_at = NOW()
+      `;
+    }
+
+    return rows[0];
+  });
 }
 
 async function capNhatTrangThaiPhuKien(id, trangThai) {
@@ -380,8 +560,10 @@ async function xoaMemPhuKien(id) {
 module.exports = {
   layDanhSachPhuKien,
   layPhuKienTheoId,
+  layPhanBoViTriCuaPhuKien,
+  tinhSoLuongDangThueTaiPhanBo,
   timPhuKienTrungTen,
-  layHangDangHienThiTheoId,
+  layNgamDangHienThiTheoId,
   layDanhMucPhuKienDangHienThiTheoId,
   layViTriKhoDangHienThiTheoId,
   tinhSoLuongDangChuaTaiViTri,

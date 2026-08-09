@@ -19,7 +19,14 @@ function docMangJson(giaTri, tenTruong) {
 }
 
 function taoKeyPhuKien(item) {
-  return `${item.chi_tiet_don_thue_id}_${item.bo_di_kem_id || ""}_${item.phu_kien_id}`;
+  const banGiaoVatPhamId =
+    item.ban_giao_vat_pham_id || item.id || null;
+
+  if (banGiaoVatPhamId) {
+    return `BGVP_${banGiaoVatPhamId}`;
+  }
+
+  return `${item.chi_tiet_don_thue_id}_${item.bo_di_kem_id || ""}_${item.phu_kien_id}_${item.phu_kien_vi_tri_kho_id || ""}`;
 }
 
 function gomSanPhamKemSerial(danhSachVatPham) {
@@ -50,12 +57,14 @@ function gomSanPhamKemSerial(danhSachVatPham) {
       bo_di_kem_id: item.bo_di_kem_id,
       thiet_bi_id: item.thiet_bi_id,
       phu_kien_id: item.phu_kien_id,
+      phu_kien_vi_tri_kho_id: item.phu_kien_vi_tri_kho_id || null,
       ten_phu_kien: item.ten_phu_kien,
       ten_vat_pham_snapshot: item.ten_vat_pham_snapshot,
       so_serial: item.so_serial,
       so_serial_snapshot: item.so_serial_snapshot,
       ten_vi_tri_kho: item.ten_vi_tri_kho,
       so_luong_giao: item.so_luong_giao,
+      so_luong_tra_lai: item.so_luong_tra_lai,
       ghi_chu_ban_giao: item.ghi_chu_ban_giao,
       created_at: item.created_at,
     };
@@ -231,12 +240,18 @@ class SettlementModel {
       bo_di_kem_id: item.bo_di_kem_id || null,
       thiet_bi_id: item.thiet_bi_id || null,
       phu_kien_id: item.phu_kien_id || null,
+      phu_kien_vi_tri_kho_id: item.phu_kien_vi_tri_kho_id || null,
       ten_phu_kien: item.ten_phu_kien || "",
       ten_vat_pham_snapshot: item.ten_vat_pham_snapshot || "",
       so_serial: item.so_serial || "",
       so_serial_snapshot: item.so_serial_snapshot || "",
       ten_vi_tri_kho: item.ten_vi_tri_kho || "",
       so_luong_giao: Number(item.so_luong_giao || 0),
+      so_luong_tra_lai:
+        item.so_luong_tra_lai === null ||
+        item.so_luong_tra_lai === undefined
+          ? null
+          : Number(item.so_luong_tra_lai),
       ghi_chu_ban_giao: item.ghi_chu_ban_giao || null,
       created_at: item.created_at || null,
     };
@@ -306,7 +321,9 @@ class SettlementModel {
 
   static taoDanhSachThietBiCanCapNhat(thietBiDaBanGiao, danhSachKiemTra) {
     const mapKiemTra = new Map();
-    const tapThietBiHopLe = new Set(thietBiDaBanGiao.map((item) => String(item.thiet_bi_id)));
+    const tapThietBiHopLe = new Set(
+      thietBiDaBanGiao.map((item) => String(item.thiet_bi_id))
+    );
 
     for (const item of danhSachKiemTra) {
       if (!item.thiet_bi_id) {
@@ -343,36 +360,56 @@ class SettlementModel {
       }
 
       mapKiemTra.set(thietBiId, {
+        thiet_bi_id: item.thiet_bi_id,
         trang_thai_sau_tra: trangThaiSauTra,
         ly_do_bao_tri: lyDoBaoTri || null,
       });
     }
 
+    if (mapKiemTra.size !== thietBiDaBanGiao.length) {
+      throw new Error("Vui lòng kiểm tra đầy đủ tất cả thiết bị đã bàn giao");
+    }
+
     return thietBiDaBanGiao.map((item) => {
       const kiemTra = mapKiemTra.get(String(item.thiet_bi_id));
 
-      return {
-        thiet_bi_id: item.thiet_bi_id,
-        trang_thai_sau_tra:
-          kiemTra?.trang_thai_sau_tra ||
-          settlementRepository.TRANG_THAI_THIET_BI_SAN_SANG,
-        ly_do_bao_tri: kiemTra?.ly_do_bao_tri || null,
-      };
+      if (!kiemTra) {
+        throw new Error("Vui lòng kiểm tra đầy đủ tất cả thiết bị đã bàn giao");
+      }
+
+      return kiemTra;
     });
   }
 
   static kiemTraPhuKienTraLai(phuKienDaBanGiao, danhSachKiemTra) {
     const mapKiemTra = new Map();
-    const tapPhuKienHopLe = new Set(phuKienDaBanGiao.map((item) => taoKeyPhuKien(item)));
+    const mapPhuKienHopLe = new Map(
+      phuKienDaBanGiao.map((item) => [
+        taoKeyPhuKien(item),
+        item,
+      ])
+    );
 
     for (const item of danhSachKiemTra) {
       const key = taoKeyPhuKien(item);
 
-      if (!item.chi_tiet_don_thue_id || !item.phu_kien_id) {
+      if (
+        !item.ban_giao_vat_pham_id ||
+        !item.chi_tiet_don_thue_id ||
+        !item.phu_kien_id ||
+        !item.phu_kien_vi_tri_kho_id
+      ) {
         throw new Error("Thiếu thông tin phụ kiện cần kiểm tra");
       }
 
-      if (!tapPhuKienHopLe.has(key)) {
+      const phuKienBanGiao = mapPhuKienHopLe.get(key);
+
+      if (
+        !phuKienBanGiao ||
+        String(phuKienBanGiao.phu_kien_id) !== String(item.phu_kien_id) ||
+        String(phuKienBanGiao.phu_kien_vi_tri_kho_id) !==
+          String(item.phu_kien_vi_tri_kho_id)
+      ) {
         throw new Error("Có phụ kiện không thuộc đơn thuê này");
       }
 
@@ -380,39 +417,60 @@ class SettlementModel {
         throw new Error("Một phụ kiện không được kiểm tra nhiều lần");
       }
 
+      const soLuongGiao = Number(phuKienBanGiao.so_luong_giao || 0);
       const soLuongTraLai = Number(item.so_luong_tra_lai);
 
       if (!Number.isInteger(soLuongTraLai) || soLuongTraLai < 0) {
         throw new Error("Số lượng phụ kiện trả lại không hợp lệ");
       }
 
+      if (soLuongTraLai > soLuongGiao) {
+        throw new Error("Số lượng phụ kiện trả lại không được lớn hơn số lượng giao");
+      }
+
       mapKiemTra.set(key, soLuongTraLai);
+    }
+
+    if (mapKiemTra.size !== phuKienDaBanGiao.length) {
+      throw new Error("Vui lòng kiểm tra đầy đủ tất cả phụ kiện đã bàn giao");
     }
 
     let tongSoLuongGiao = 0;
     let tongSoLuongTraLai = 0;
     let tongSoLuongThieu = 0;
-    const mapPhuKienThieu = new Map();
+    const danhSachPhuKienKiemKe = [];
+    const danhSachPhuKienThieu = [];
 
     for (const phuKien of phuKienDaBanGiao) {
       const key = taoKeyPhuKien(phuKien);
-      const soLuongGiao = Number(phuKien.so_luong_giao || 0);
-      const soLuongTraLai = mapKiemTra.has(key) ? Number(mapKiemTra.get(key)) : soLuongGiao;
 
-      if (soLuongTraLai > soLuongGiao) {
-        throw new Error("Số lượng phụ kiện trả lại không được lớn hơn số lượng giao");
+      if (!mapKiemTra.has(key)) {
+        throw new Error("Vui lòng kiểm tra đầy đủ tất cả phụ kiện đã bàn giao");
       }
 
+      const soLuongGiao = Number(phuKien.so_luong_giao || 0);
+      const soLuongTraLai = Number(mapKiemTra.get(key));
       const soLuongThieu = soLuongGiao - soLuongTraLai;
 
       tongSoLuongGiao += soLuongGiao;
       tongSoLuongTraLai += soLuongTraLai;
       tongSoLuongThieu += soLuongThieu;
 
+      const ketQuaKiemKe = {
+        ban_giao_vat_pham_id: phuKien.ban_giao_vat_pham_id,
+        chi_tiet_don_thue_id: phuKien.chi_tiet_don_thue_id,
+        bo_di_kem_id: phuKien.bo_di_kem_id || null,
+        phu_kien_id: phuKien.phu_kien_id,
+        phu_kien_vi_tri_kho_id: phuKien.phu_kien_vi_tri_kho_id,
+        so_luong_giao: soLuongGiao,
+        so_luong_tra_lai: soLuongTraLai,
+        so_luong_thieu: soLuongThieu,
+      };
+
+      danhSachPhuKienKiemKe.push(ketQuaKiemKe);
+
       if (soLuongThieu > 0) {
-        const phuKienId = String(phuKien.phu_kien_id);
-        const soLuongCu = mapPhuKienThieu.get(phuKienId) || 0;
-        mapPhuKienThieu.set(phuKienId, soLuongCu + soLuongThieu);
+        danhSachPhuKienThieu.push(ketQuaKiemKe);
       }
     }
 
@@ -420,12 +478,8 @@ class SettlementModel {
       tong_so_luong_giao: tongSoLuongGiao,
       tong_so_luong_tra_lai: tongSoLuongTraLai,
       tong_so_luong_thieu: tongSoLuongThieu,
-      danh_sach_phu_kien_thieu: Array.from(mapPhuKienThieu.entries()).map(
-        ([phu_kien_id, so_luong_thieu]) => ({
-          phu_kien_id,
-          so_luong_thieu,
-        })
-      ),
+      danh_sach_phu_kien_kiem_ke: danhSachPhuKienKiemKe,
+      danh_sach_phu_kien_thieu: danhSachPhuKienThieu,
     };
   }
 
@@ -561,7 +615,10 @@ class SettlementModel {
       tienKhauTru: tien.tienKhauTru,
       tienPhuThu: tien.tienPhuThu,
       danhSachAnhKhiTra,
-      danhSachPhuKienThieu: ketQuaKiemTraPhuKien.danh_sach_phu_kien_thieu,
+      danhSachPhuKienKiemKe:
+        ketQuaKiemTraPhuKien.danh_sach_phu_kien_kiem_ke,
+      danhSachPhuKienThieu:
+        ketQuaKiemTraPhuKien.danh_sach_phu_kien_thieu,
     });
 
     return {

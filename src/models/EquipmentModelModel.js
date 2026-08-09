@@ -7,6 +7,9 @@ const equipmentNeedRepository = require("../repositories/equipmentNeedRepository
 const TRANG_THAI_HIEN_THI = 601;
 const TRANG_THAI_DA_AN = 602;
 
+// Tỷ lệ tiền cọc mặc định được quản lý tại Backend.
+const TY_LE_COC_MAC_DINH = 30;
+
 function chuanHoaChuoi(giaTri) {
   if (giaTri === undefined || giaTri === null) {
     return "";
@@ -87,6 +90,30 @@ function laDanhMucCanNgam(danhMuc) {
   );
 }
 
+function chuanHoaTenDanhMuc(giaTri) {
+  return String(giaTri || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/\s+/g, " ");
+}
+
+function laDanhMucOngKinh(danhMuc) {
+  return (
+    chuanHoaTenDanhMuc(danhMuc?.ten_danh_muc) ===
+    "ong kinh"
+  );
+}
+
+function laDanhMucCapSau(danhMuc) {
+  return (
+    chuanHoaTenDanhMuc(danhMuc?.ten_danh_muc) ===
+    "cap sau"
+  );
+}
+
 function docSoTien(giaTri, tenTruong) {
   const so = Number(giaTri);
 
@@ -95,6 +122,22 @@ function docSoTien(giaTri, tenTruong) {
   }
 
   return so;
+}
+
+function docTyLePhanTram(giaTri, tenTruong) {
+  const so = Number(giaTri);
+
+  if (!Number.isFinite(so) || so < 0 || so > 100) {
+    throw new Error(`${tenTruong} phải từ 0 đến 100`);
+  }
+
+  return so;
+}
+
+function tinhTienCoc(giaTriThietBi, tyLeCoc) {
+  return Math.round(
+    Number(giaTriThietBi) * Number(tyLeCoc) / 100
+  );
 }
 
 function docTrangThai(giaTri) {
@@ -239,6 +282,8 @@ class EquipmentModelModel {
     mo_ta,
     anh_url,
     gia_thue_ngay,
+    gia_tri_thiet_bi,
+    ty_le_coc,
     tien_coc,
     trang_thai,
     ten_trang_thai,
@@ -273,6 +318,16 @@ class EquipmentModelModel {
     this.anh_url = anh_url || null;
 
     this.gia_thue_ngay = Number(gia_thue_ngay || 0);
+    this.gia_tri_thiet_bi =
+      gia_tri_thiet_bi === undefined ||
+      gia_tri_thiet_bi === null
+        ? null
+        : Number(gia_tri_thiet_bi);
+    this.ty_le_coc =
+      ty_le_coc === undefined ||
+      ty_le_coc === null
+        ? null
+        : Number(ty_le_coc);
     this.tien_coc = Number(tien_coc || 0);
 
     this.trang_thai = trang_thai;
@@ -297,6 +352,7 @@ class EquipmentModelModel {
     return {
       ngam,
       nhu_cau: nhuCau,
+      ty_le_coc_mac_dinh: TY_LE_COC_MAC_DINH,
     };
   }
 
@@ -326,9 +382,24 @@ class EquipmentModelModel {
       body.gia_thue_ngay || 0,
       "Giá thuê/ngày"
     );
-    const tienCoc = docSoTien(
-      body.tien_coc || 0,
-      "Tiền cọc"
+    const giaTriThietBi = docSoTien(
+      body.gia_tri_thiet_bi,
+      "Giá trị thiết bị"
+    );
+
+    const tyLeCoc = docTyLePhanTram(
+      body.ty_le_coc === undefined ||
+      body.ty_le_coc === null ||
+      String(body.ty_le_coc).trim() === ""
+        ? TY_LE_COC_MAC_DINH
+        : body.ty_le_coc,
+      "Tỷ lệ tiền cọc"
+    );
+
+    // Tiền cọc do Backend tự tính, không nhận số tiền cọc do Frontend quyết định.
+    const tienCoc = tinhTienCoc(
+      giaTriThietBi,
+      tyLeCoc
     );
 
     if (!danhMucId) {
@@ -395,6 +466,8 @@ class EquipmentModelModel {
         moTa,
         anhUrl,
         giaThueNgay,
+        giaTriThietBi,
+        tyLeCoc,
         tienCoc,
         trangThai: TRANG_THAI_HIEN_THI,
       });
@@ -442,10 +515,44 @@ class EquipmentModelModel {
           )
         : Number(mauHienTai.gia_thue_ngay);
 
-    const tienCoc =
-      body.tien_coc !== undefined
-        ? docSoTien(body.tien_coc, "Tiền cọc")
-        : Number(mauHienTai.tien_coc);
+    const giaTriThietBi =
+      body.gia_tri_thiet_bi !== undefined
+        ? docSoTien(
+            body.gia_tri_thiet_bi,
+            "Giá trị thiết bị"
+          )
+        : mauHienTai.gia_tri_thiet_bi !== null &&
+          mauHienTai.gia_tri_thiet_bi !== undefined
+          ? Number(mauHienTai.gia_tri_thiet_bi)
+          : null;
+
+    if (giaTriThietBi === null) {
+      throw new Error("Vui lòng nhập giá trị thiết bị");
+    }
+
+    const tyLeCoc =
+      body.ty_le_coc !== undefined &&
+      String(body.ty_le_coc).trim() !== ""
+        ? docTyLePhanTram(
+            body.ty_le_coc,
+            "Tỷ lệ tiền cọc"
+          )
+        : mauHienTai.ty_le_coc !== null &&
+          mauHienTai.ty_le_coc !== undefined
+          ? docTyLePhanTram(
+              mauHienTai.ty_le_coc,
+              "Tỷ lệ tiền cọc"
+            )
+          : docTyLePhanTram(
+              TY_LE_COC_MAC_DINH,
+              "Tỷ lệ tiền cọc"
+            );
+
+    // Luôn tính lại tiền cọc từ giá trị thiết bị và tỷ lệ hiện tại của mẫu.
+    const tienCoc = tinhTienCoc(
+      giaTriThietBi,
+      tyLeCoc
+    );
 
     if (!danhMucId) {
       throw new Error("Vui lòng chọn danh mục");
@@ -562,6 +669,8 @@ class EquipmentModelModel {
           moTa,
           anhUrl,
           giaThueNgay,
+          giaTriThietBi,
+          tyLeCoc,
           tienCoc,
         }
       );
@@ -637,6 +746,7 @@ class EquipmentModelModel {
 
     const phuKien = await adminEquipmentModelRepository.layGoiYPhuKien(
       mauThietBiChinhId,
+      mauChinh,
       khoaTim
     );
 
@@ -704,6 +814,25 @@ class EquipmentModelModel {
 
       if (!phuKien) {
         throw new Error("Phụ kiện không tồn tại hoặc đã bị ẩn");
+      }
+
+      if (laDanhMucCapSau(phuKien)) {
+        if (!laDanhMucOngKinh(mauChinh)) {
+          throw new Error(
+            "Cáp sau chỉ được cấu hình cho mẫu Ống kính"
+          );
+        }
+
+        if (
+          !mauChinh.ngam_id ||
+          !phuKien.ngam_id ||
+          String(mauChinh.ngam_id) !==
+            String(phuKien.ngam_id)
+        ) {
+          throw new Error(
+            "Cáp sau phải có cùng ngàm với mẫu Ống kính"
+          );
+        }
       }
 
       const tonTai = await adminEquipmentModelRepository.timBoDiKemTheoPhuKien(

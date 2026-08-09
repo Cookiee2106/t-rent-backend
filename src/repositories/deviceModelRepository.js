@@ -22,8 +22,10 @@ async function layBoDiKemCuaMau(mauThietBiId) {
 
       pk.id AS phu_kien_id,
       pk.ten_phu_kien,
-      h_pk.ten_hang AS ten_hang_phu_kien,
-      dmtb_pk.ten_danh_muc AS ten_danh_muc_phu_kien
+      NULL::text AS ten_hang_phu_kien,
+      dmtb_pk.ten_danh_muc AS ten_danh_muc_phu_kien,
+      pk.ngam_id AS ngam_id_phu_kien,
+      n_pk.ten_ngam AS ten_ngam_phu_kien
 
     FROM bo_di_kem bdk
 
@@ -39,11 +41,12 @@ async function layBoDiKemCuaMau(mauThietBiId) {
     LEFT JOIN phu_kien pk
       ON pk.id = bdk.phu_kien_id
 
-    LEFT JOIN hang_thiet_bi h_pk
-      ON h_pk.id = pk.hang_id
-
     LEFT JOIN danh_muc_thiet_bi dmtb_pk
       ON dmtb_pk.id = pk.danh_muc_id
+
+    LEFT JOIN ngam_thiet_bi n_pk
+      ON n_pk.id = pk.ngam_id
+      AND n_pk.da_xoa_luc IS NULL
 
     WHERE bdk.mau_thiet_bi_chinh_id = ${mauThietBiId}::uuid
 
@@ -77,8 +80,10 @@ async function layBoDiKemCuaNhieuMau(danhSachMauId = []) {
 
       pk.id AS phu_kien_id,
       pk.ten_phu_kien,
-      h_pk.ten_hang AS ten_hang_phu_kien,
-      dmtb_pk.ten_danh_muc AS ten_danh_muc_phu_kien
+      NULL::text AS ten_hang_phu_kien,
+      dmtb_pk.ten_danh_muc AS ten_danh_muc_phu_kien,
+      pk.ngam_id AS ngam_id_phu_kien,
+      n_pk.ten_ngam AS ten_ngam_phu_kien
 
     FROM bo_di_kem bdk
 
@@ -94,11 +99,12 @@ async function layBoDiKemCuaNhieuMau(danhSachMauId = []) {
     LEFT JOIN phu_kien pk
       ON pk.id = bdk.phu_kien_id
 
-    LEFT JOIN hang_thiet_bi h_pk
-      ON h_pk.id = pk.hang_id
-
     LEFT JOIN danh_muc_thiet_bi dmtb_pk
       ON dmtb_pk.id = pk.danh_muc_id
+
+    LEFT JOIN ngam_thiet_bi n_pk
+      ON n_pk.id = pk.ngam_id
+      AND n_pk.da_xoa_luc IS NULL
 
     WHERE bdk.mau_thiet_bi_chinh_id IN (${danhSachIdSql})
 

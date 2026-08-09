@@ -1,5 +1,6 @@
 const express = require("express");
 const {
+  layXacNhanThue,
   taoPhienThanhToanCoc,
   layTrangThaiPhienThanhToan,
   nhanReturnVnpay,
@@ -7,6 +8,13 @@ const {
 const xacThucDangNhap = require("../../middlewares/authMiddleware");
 
 const router = express.Router();
+
+// Xem trước thông tin thuê trước khi tạo phiên thanh toán.
+router.post(
+  "/cart/checkout/preview",
+  xacThucDangNhap,
+  layXacNhanThue
+);
 
 // Tạo phiên thanh toán cọc từ giỏ hàng.
 // URL đầy đủ nếu paymentRoutes mount ở /api: POST /api/cart/checkout

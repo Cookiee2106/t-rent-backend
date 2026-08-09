@@ -1,8 +1,13 @@
 const qs = require("qs");
 const crypto = require("crypto");
 const paymentRepository = require("../repositories/paymentRepository");
+const rentalPolicyRepository = require("../repositories/rentalPolicyRepository");
 
 const TRANG_THAI_XAC_MINH_DA_DUYET = 203;
+
+// Tỷ lệ phí hủy đơn mặc định được quản lý trực tiếp tại Backend.
+// Muốn đổi chính sách cho đơn mới chỉ sửa số này rồi restart Backend.
+// Hiện tại tỷ lệ phí hủy được đọc từ bảng chinh_sach_huy_don để có thể cập nhật trên giao diện.
 
 function layEnv(tenBien) {
   return (process.env[tenBien] || "").trim();
@@ -255,6 +260,148 @@ async function kiemTraSoTienVnpay(maThamChieu, vnpAmount) {
   };
 }
 
+
+async function chuanBiDuLieuCheckout(nguoiDungId, body = {}) {
+  const itemIds = Array.isArray(body.item_ids)
+    ? body.item_ids.filter(Boolean)
+    : [];
+
+  const khachHang = await paymentRepository.layKhachHangTheoId(nguoiDungId);
+
+  if (!khachHang) {
+    throw new Error("Không tìm thấy khách hàng");
+  }
+
+  if (Number(khachHang.trang_thai_xac_minh) !== TRANG_THAI_XAC_MINH_DA_DUYET) {
+    throw new Error("Khách hàng cần xác minh thành công trước khi đặt cọc");
+  }
+
+  const gioHang = await paymentRepository.layGioHangTheoKhachHang(nguoiDungId);
+
+  if (!gioHang) {
+    throw new Error("Giỏ hàng trống");
+  }
+
+  const danhSachItem = await paymentRepository.layItemGioHangDuocChon(
+    gioHang.id,
+    itemIds
+  );
+
+  if (danhSachItem.length === 0) {
+    throw new Error("Giỏ hàng trống hoặc sản phẩm không hợp lệ");
+  }
+
+  kiemTraCungNgayThue(danhSachItem);
+  await kiemTraThietBiKhaDung(danhSachItem);
+
+  const chinhSachThue = await rentalPolicyRepository.layChinhSachThue();
+
+  if (!chinhSachThue) {
+    throw new Error("Chưa cấu hình chính sách phí hủy đơn");
+  }
+
+  const tyLePhiHuy = Number(chinhSachThue.ty_le_phi_huy);
+
+  if (
+    !Number.isFinite(tyLePhiHuy) ||
+    tyLePhiHuy < 0 ||
+    tyLePhiHuy > 100
+  ) {
+    throw new Error("Tỷ lệ phí hủy đơn không hợp lệ");
+  }
+
+  const danhSachTinhTien = danhSachItem.map((item) => {
+    const ngayNhan = new Date(item.ngay_nhan);
+    const ngayTra = new Date(item.ngay_tra);
+
+    if (ngayTra <= ngayNhan) {
+      throw new Error("Ngày trả phải sau ngày nhận");
+    }
+
+    if (
+      item.gia_thue_ngay_hien_tai === null ||
+      item.gia_thue_ngay_hien_tai === undefined ||
+      item.gia_tri_thiet_bi_hien_tai === null ||
+      item.gia_tri_thiet_bi_hien_tai === undefined ||
+      item.ty_le_coc_hien_tai === null ||
+      item.ty_le_coc_hien_tai === undefined
+    ) {
+      throw new Error(
+        `Mẫu thiết bị ${item.ten_hang || ""} ${item.ten_mau} chưa có đủ giá thuê, giá trị thiết bị hoặc tỷ lệ cọc. Vui lòng liên hệ cửa hàng.`
+      );
+    }
+
+    const soNgayThue = tinhSoNgayThue(item.ngay_nhan, item.ngay_tra);
+    const soLuong = Number(item.so_luong || 0);
+    const giaThueNgay = Number(item.gia_thue_ngay_hien_tai);
+    const giaTriThietBi = Number(item.gia_tri_thiet_bi_hien_tai);
+    const tyLeCoc = Number(item.ty_le_coc_hien_tai);
+
+    if (
+      !Number.isFinite(giaThueNgay) ||
+      giaThueNgay < 0 ||
+      !Number.isFinite(giaTriThietBi) ||
+      giaTriThietBi < 0 ||
+      !Number.isFinite(tyLeCoc) ||
+      tyLeCoc < 0 ||
+      tyLeCoc > 100
+    ) {
+      throw new Error(`Dữ liệu giá thuê hoặc tiền cọc của mẫu ${item.ten_mau} không hợp lệ`);
+    }
+
+    const tienCocMotMau = Math.round(
+      (giaTriThietBi * tyLeCoc) / 100
+    );
+
+    return {
+      ...item,
+      gia_thue_ngay_snapshot: giaThueNgay,
+      gia_tri_thiet_bi_snapshot: giaTriThietBi,
+      ty_le_coc_snapshot: tyLeCoc,
+      tien_coc_snapshot: tienCocMotMau,
+      so_ngay_thue: soNgayThue,
+      tien_thue: giaThueNgay * soLuong * soNgayThue,
+      tien_coc: tienCocMotMau * soLuong,
+    };
+  });
+
+  const tongTienThue = danhSachTinhTien.reduce(
+    (tong, item) => tong + item.tien_thue,
+    0
+  );
+
+  const tongTienCoc = danhSachTinhTien.reduce(
+    (tong, item) => tong + item.tien_coc,
+    0
+  );
+
+  if (tongTienCoc <= 0) {
+    throw new Error("Tiền cọc phải lớn hơn 0");
+  }
+
+  const ngayNhan = danhSachTinhTien[0].ngay_nhan;
+  const ngayTra = danhSachTinhTien[0].ngay_tra;
+  const soNgayThue = danhSachTinhTien[0].so_ngay_thue;
+
+  const phiHuyDuKien = Math.round(
+    (tongTienCoc * tyLePhiHuy) / 100
+  );
+
+  return {
+    gio_hang_id: gioHang.id,
+    item_ids: danhSachTinhTien.map((item) => item.id),
+    ngay_nhan: ngayNhan,
+    ngay_tra: ngayTra,
+    so_ngay_thue: soNgayThue,
+    tong_tien_thue: tongTienThue,
+    tong_tien_coc: tongTienCoc,
+    ty_le_phi_huy: tyLePhiHuy,
+    phi_huy_du_kien: phiHuyDuKien,
+    tien_coc_hoan_lai_du_kien: tongTienCoc - phiHuyDuKien,
+    danh_sach_item: danhSachTinhTien,
+  };
+}
+
 class PaymentSessionModel {
   constructor({
     id,
@@ -265,6 +412,7 @@ class PaymentSessionModel {
 
     tong_tien_coc,
     tong_tien_thue,
+    ty_le_phi_huy_snapshot,
 
     ma_tham_chieu,
     checkout_url,
@@ -286,6 +434,7 @@ class PaymentSessionModel {
 
     this.tong_tien_coc = Number(tong_tien_coc || 0);
     this.tong_tien_thue = Number(tong_tien_thue || 0);
+    this.ty_le_phi_huy_snapshot = Number(ty_le_phi_huy_snapshot || 0);
 
     this.ma_tham_chieu = ma_tham_chieu || "";
     this.checkout_url = checkout_url || "";
@@ -310,6 +459,8 @@ class PaymentSessionModel {
       ngay_tra: item.ngay_tra || null,
 
       gia_thue_ngay_snapshot: Number(item.gia_thue_ngay_snapshot || 0),
+      gia_tri_thiet_bi_snapshot: Number(item.gia_tri_thiet_bi_snapshot || 0),
+      ty_le_coc_snapshot: Number(item.ty_le_coc_snapshot || 0),
       tien_coc_snapshot: Number(item.tien_coc_snapshot || 0),
 
       tien_thue: Number(item.tien_thue || 0),
@@ -317,84 +468,79 @@ class PaymentSessionModel {
     }));
   }
 
+  static async layXacNhanThueService(nguoiDungId, body = {}) {
+    const duLieu = await chuanBiDuLieuCheckout(
+      nguoiDungId,
+      body
+    );
+
+    await paymentRepository.capNhatSnapshotGioHangKhiXacNhan(
+      duLieu.gio_hang_id,
+      duLieu.danh_sach_item
+    );
+
+    return {
+      item_ids: duLieu.item_ids,
+      ngay_nhan: duLieu.ngay_nhan,
+      ngay_tra: duLieu.ngay_tra,
+      so_ngay_thue: duLieu.so_ngay_thue,
+      tong_tien_thue: duLieu.tong_tien_thue,
+      tong_tien_coc: duLieu.tong_tien_coc,
+      ty_le_phi_huy: duLieu.ty_le_phi_huy,
+      phi_huy_du_kien: duLieu.phi_huy_du_kien,
+      tien_coc_hoan_lai_du_kien:
+        duLieu.tien_coc_hoan_lai_du_kien,
+    };
+  }
+
   static async taoPhienThanhToanCocService(nguoiDungId, body, ip) {
-    const itemIds = Array.isArray(body.item_ids)
-      ? body.item_ids.filter(Boolean)
-      : [];
-
-    const khachHang = await paymentRepository.layKhachHangTheoId(nguoiDungId);
-
-    if (!khachHang) {
-      throw new Error("Không tìm thấy khách hàng");
-    }
-
-    if (Number(khachHang.trang_thai_xac_minh) !== TRANG_THAI_XAC_MINH_DA_DUYET) {
-      throw new Error("Khách hàng cần xác minh thành công trước khi đặt cọc");
-    }
-
-    const gioHang = await paymentRepository.layGioHangTheoKhachHang(nguoiDungId);
-
-    if (!gioHang) {
-      throw new Error("Giỏ hàng trống");
-    }
-
-    const danhSachItem = await paymentRepository.layItemGioHangDuocChon(
-      gioHang.id,
-      itemIds
+    // Khi khách bấm Đồng ý, Backend kiểm tra lại toàn bộ dữ liệu
+    // để không sử dụng kết quả preview đã cũ.
+    const duLieu = await chuanBiDuLieuCheckout(
+      nguoiDungId,
+      body
     );
 
-    if (danhSachItem.length === 0) {
-      throw new Error("Giỏ hàng trống hoặc sản phẩm không hợp lệ");
+    await paymentRepository.capNhatSnapshotGioHangKhiXacNhan(
+      duLieu.gio_hang_id,
+      duLieu.danh_sach_item
+    );
+
+    const tongTienThueXacNhan = Number(body?.tong_tien_thue_xac_nhan);
+    const tongTienCocXacNhan = Number(body?.tong_tien_coc_xac_nhan);
+    const tyLePhiHuyXacNhan = Number(body?.ty_le_phi_huy_xac_nhan);
+
+    if (
+      !Number.isFinite(tongTienThueXacNhan) ||
+      !Number.isFinite(tongTienCocXacNhan) ||
+      !Number.isFinite(tyLePhiHuyXacNhan)
+    ) {
+      throw new Error("Thông tin giá thuê/tiền cọc của mẫu thiết bị đã thay đổi. Vui lòng xác nhận lại thông tin mới nhất.");
     }
 
-    kiemTraCungNgayThue(danhSachItem);
-    await kiemTraThietBiKhaDung(danhSachItem);
-
-    const danhSachTinhTien = danhSachItem.map((item) => {
-      const ngayNhan = new Date(item.ngay_nhan);
-      const ngayTra = new Date(item.ngay_tra);
-
-      if (ngayTra <= ngayNhan) {
-        throw new Error("Ngày trả phải sau ngày nhận");
-      }
-
-      const soNgayThue = tinhSoNgayThue(item.ngay_nhan, item.ngay_tra);
-      const soLuong = Number(item.so_luong || 0);
-      const giaThueNgay = Number(item.gia_thue_ngay_snapshot || 0);
-      const tienCocSnapshot = Number(item.tien_coc_snapshot || 0);
-
-      return {
-        ...item,
-        so_ngay_thue: soNgayThue,
-        tien_thue: giaThueNgay * soLuong * soNgayThue,
-        tien_coc: tienCocSnapshot * soLuong,
-      };
-    });
-
-    const tongTienThue = danhSachTinhTien.reduce(
-      (tong, item) => tong + item.tien_thue,
-      0
-    );
-
-    const tongTienCoc = danhSachTinhTien.reduce(
-      (tong, item) => tong + item.tien_coc,
-      0
-    );
-
-    if (tongTienCoc <= 0) {
-      throw new Error("Tiền cọc phải lớn hơn 0");
+    if (
+      tongTienThueXacNhan !== Number(duLieu.tong_tien_thue) ||
+      tongTienCocXacNhan !== Number(duLieu.tong_tien_coc) ||
+      tyLePhiHuyXacNhan !== Number(duLieu.ty_le_phi_huy)
+    ) {
+      throw new Error("Thông tin giá thuê/tiền cọc của mẫu thiết bị đã thay đổi. Vui lòng xác nhận lại thông tin mới nhất.");
     }
 
     const maThamChieu = taoMaThamChieu();
-    const checkoutUrl = taoCheckoutUrlVnpay({ maThamChieu, soTienCoc: tongTienCoc, ip });
+    const checkoutUrl = taoCheckoutUrlVnpay({
+      maThamChieu,
+      soTienCoc: duLieu.tong_tien_coc,
+      ip,
+    });
 
     const phien = await paymentRepository.taoPhienThanhToan({
       khachHangId: nguoiDungId,
-      danhSachItem: danhSachTinhTien,
-      tongTienCoc,
-      tongTienThue,
+      danhSachItem: duLieu.danh_sach_item,
+      tongTienCoc: duLieu.tong_tien_coc,
+      tongTienThue: duLieu.tong_tien_thue,
       maThamChieu,
       checkoutUrl,
+      tyLePhiHuySnapshot: duLieu.ty_le_phi_huy,
     });
 
     return new PaymentSessionModel(phien);

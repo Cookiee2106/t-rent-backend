@@ -61,12 +61,23 @@ class CustomerOrderModel {
 
     tong_tien_thue,
     tong_tien_coc,
+    ty_le_phi_huy_snapshot,
 
     trang_thai,
     ten_trang_thai,
 
     huy_luc,
     ly_do_huy,
+
+    yeu_cau_huy_id,
+    ly_do_yeu_cau_huy,
+    trang_thai_yeu_cau_huy_id,
+    ten_trang_thai_yeu_cau_huy,
+    ty_le_phi_huy_yeu_cau,
+    tong_tien_coc_yeu_cau,
+    phi_huy_yeu_cau,
+    tien_coc_hoan_lai_yeu_cau,
+    gui_luc_yeu_cau,
 
     ban_giao_luc,
     nguoi_ban_giao_id,
@@ -94,12 +105,27 @@ class CustomerOrderModel {
 
     this.tong_tien_thue = Number(tong_tien_thue || 0);
     this.tong_tien_coc = Number(tong_tien_coc || 0);
+    this.ty_le_phi_huy_snapshot = Number(ty_le_phi_huy_snapshot || 0);
 
     this.trang_thai = trang_thai;
     this.ten_trang_thai = ten_trang_thai || null;
 
     this.huy_luc = huy_luc || null;
     this.ly_do_huy = ly_do_huy || null;
+
+    this.yeu_cau_huy = yeu_cau_huy_id
+      ? {
+          id: yeu_cau_huy_id,
+          ly_do_huy: ly_do_yeu_cau_huy || "",
+          trang_thai_id: Number(trang_thai_yeu_cau_huy_id || 0),
+          ten_trang_thai: ten_trang_thai_yeu_cau_huy || null,
+          ty_le_phi_huy_snapshot: Number(ty_le_phi_huy_yeu_cau || 0),
+          tong_tien_coc_snapshot: Number(tong_tien_coc_yeu_cau || 0),
+          phi_huy: Number(phi_huy_yeu_cau || 0),
+          tien_coc_hoan_lai: Number(tien_coc_hoan_lai_yeu_cau || 0),
+          gui_luc: gui_luc_yeu_cau || null,
+        }
+      : null;
 
     this.ban_giao_luc = ban_giao_luc || null;
     this.nguoi_ban_giao_id = nguoi_ban_giao_id || null;
@@ -162,7 +188,7 @@ class CustomerOrderModel {
     };
   }
 
-  static async huyDonCuaToiService(nguoiDungId, donThueId, body) {
+  static async guiYeuCauHuyDonCuaToiService(nguoiDungId, donThueId, body) {
     const lyDoHuy = chuanHoaLyDoHuy(body.ly_do_huy);
 
     if (!lyDoHuy) {
@@ -179,32 +205,82 @@ class CustomerOrderModel {
     }
 
     if (trangThai === customerOrderRepository.TRANG_THAI_DANG_THUE) {
-      throw new Error("Đơn đã bàn giao, không thể hủy");
+      throw new Error("Đơn đã bàn giao, không thể gửi yêu cầu hủy");
     }
 
     if (trangThai === customerOrderRepository.TRANG_THAI_HOAN_THANH) {
-      throw new Error("Đơn đã hoàn thành, không thể hủy");
+      throw new Error("Đơn đã hoàn thành, không thể gửi yêu cầu hủy");
     }
 
     if (trangThai === customerOrderRepository.TRANG_THAI_QUA_HAN) {
-      throw new Error("Đơn đã quá hạn, không thể hủy");
+      throw new Error("Đơn đã quá hạn, không thể gửi yêu cầu hủy");
     }
 
     if (trangThai !== customerOrderRepository.TRANG_THAI_DA_GIU_CHO) {
-      throw new Error("Chỉ được hủy đơn khi đơn còn ở trạng thái đã giữ chỗ");
+      throw new Error(
+        "Chỉ được gửi yêu cầu hủy khi đơn còn ở trạng thái đã giữ chỗ"
+      );
     }
 
-    const ketQua = await customerOrderRepository.capNhatHuyDon(
+    const yeuCauHienTai =
+      await customerOrderRepository.layYeuCauHuyDonTheoDon(donThueId);
+
+    if (
+      Number(yeuCauHienTai?.trang_thai_id) ===
+      customerOrderRepository.TRANG_THAI_YEU_CAU_HUY_CHO_XU_LY
+    ) {
+      throw new Error("Yêu cầu hủy đơn này đang chờ cửa hàng xác nhận");
+    }
+
+    if (
+      Number(yeuCauHienTai?.trang_thai_id) ===
+      customerOrderRepository.TRANG_THAI_YEU_CAU_HUY_DA_XAC_NHAN
+    ) {
+      throw new Error("Yêu cầu hủy đơn này đã được xác nhận");
+    }
+
+    if (
+      donThue.ty_le_phi_huy_snapshot === null ||
+      donThue.ty_le_phi_huy_snapshot === undefined
+    ) {
+      throw new Error("Đơn thuê chưa có chính sách phí hủy");
+    }
+
+    const tyLePhiHuy = Number(donThue.ty_le_phi_huy_snapshot);
+    const tongTienCoc = Number(donThue.tong_tien_coc || 0);
+
+    if (
+      !Number.isFinite(tyLePhiHuy) ||
+      tyLePhiHuy < 0 ||
+      tyLePhiHuy > 100
+    ) {
+      throw new Error("Tỷ lệ phí hủy của đơn thuê không hợp lệ");
+    }
+
+    const phiHuy = Math.round((tongTienCoc * tyLePhiHuy) / 100);
+    const tienCocHoanLai = Math.max(0, tongTienCoc - phiHuy);
+
+    const ketQua = await customerOrderRepository.guiYeuCauHuyDon({
       donThueId,
-      nguoiDungId,
-      lyDoHuy
-    );
+      lyDoHuy,
+      tyLePhiHuySnapshot: tyLePhiHuy,
+      tongTienCocSnapshot: tongTienCoc,
+      phiHuy,
+      tienCocHoanLai,
+    });
 
     if (!ketQua) {
-      throw new Error("Không tìm thấy đơn thuê");
+      throw new Error("Không thể gửi lại yêu cầu hủy đơn ở trạng thái hiện tại");
     }
 
-    return ketQua;
+    return {
+      ...ketQua,
+      trang_thai_id: Number(ketQua.trang_thai_id || 0),
+      ty_le_phi_huy_snapshot: Number(ketQua.ty_le_phi_huy_snapshot || 0),
+      tong_tien_coc_snapshot: Number(ketQua.tong_tien_coc_snapshot || 0),
+      phi_huy: Number(ketQua.phi_huy || 0),
+      tien_coc_hoan_lai: Number(ketQua.tien_coc_hoan_lai || 0),
+    };
   }
 }
 

@@ -54,6 +54,7 @@ class AdminReportLogModel {
   static mapBaoCaoDoanhThu({
     tuNgay,
     denNgay,
+    tongQuanDoanhThu,
     danhSachTheoThang,
     danhSachTheoMau,
   }) {
@@ -68,14 +69,20 @@ class AdminReportLogModel {
     return {
       from: tuNgay,
       to: denNgay,
-      tong_doanh_thu: data.reduce(
-        (tong, item) => tong + Number(item.tong_doanh_thu || 0),
-        0
-      ),
-      tong_don_thue: data.reduce(
-        (tong, item) => tong + Number(item.so_don_thue || 0),
-        0
-      ),
+      tong_doanh_thu:
+        tongQuanDoanhThu?.tong_doanh_thu !== undefined
+          ? Number(tongQuanDoanhThu.tong_doanh_thu || 0)
+          : data.reduce(
+              (tong, item) => tong + Number(item.tong_doanh_thu || 0),
+              0
+            ),
+      tong_don_thue:
+        tongQuanDoanhThu?.tong_don_thue !== undefined
+          ? Number(tongQuanDoanhThu.tong_don_thue || 0)
+          : data.reduce(
+              (tong, item) => tong + Number(item.so_don_thue || 0),
+              0
+            ),
       data,
       revenue_by_models: revenueByModels,
     };
@@ -88,7 +95,6 @@ class AdminReportLogModel {
         thiet_bi_san_sang: Number(tongQuan?.thiet_bi_san_sang || 0),
         thiet_bi_dang_thue: Number(tongQuan?.thiet_bi_dang_thue || 0),
         thiet_bi_dang_bao_tri: Number(tongQuan?.thiet_bi_dang_bao_tri || 0),
-        thiet_bi_da_thanh_ly: Number(tongQuan?.thiet_bi_da_thanh_ly || 0),
         thiet_bi_hu_hong: Number(tongQuan?.thiet_bi_hu_hong || 0),
         thiet_bi_bi_mat: Number(tongQuan?.thiet_bi_bi_mat || 0),
         tong_phu_kien: Number(tongQuan?.tong_phu_kien || 0),
@@ -104,14 +110,12 @@ class AdminReportLogModel {
         san_sang: Number(item.san_sang || 0),
         dang_thue: Number(item.dang_thue || 0),
         dang_bao_tri: Number(item.dang_bao_tri || 0),
-        da_thanh_ly: Number(item.da_thanh_ly || 0),
         hu_hong: Number(item.hu_hong || 0),
         bi_mat: Number(item.bi_mat || 0),
       })),
       accessories: (phuKien || []).map((item) => ({
         id: item.id,
         ten_phu_kien: item.ten_phu_kien || "",
-        ten_hang: item.ten_hang || "",
         ten_danh_muc: item.ten_danh_muc || "",
         tong_so_luong: Number(item.tong_so_luong || 0),
         dang_thue: Number(item.dang_thue || 0),
@@ -167,8 +171,9 @@ class AdminReportLogModel {
   }
 
   static async layBaoCaoDoanhThuService(query = {}) {
-    const tuNgay = query.from || null;
-    const denNgay = query.to || null;
+    const namHienTai = new Date().getFullYear();
+    const tuNgay = query.from || `${namHienTai}-01-01`;
+    const denNgay = query.to || `${namHienTai}-12-31`;
 
     kiemTraKhoangNgay(tuNgay, denNgay);
 

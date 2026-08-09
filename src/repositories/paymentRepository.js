@@ -41,6 +41,7 @@ async function layGioHangTheoKhachHang(khachHangId) {
   return rows[0] || null;
 }
 
+
 async function layItemGioHangDuocChon(gioHangId, itemIds = []) {
   if (itemIds.length > 0) {
     return await prisma.$queryRaw`
@@ -50,14 +51,13 @@ async function layItemGioHangDuocChon(gioHangId, itemIds = []) {
         c.so_luong,
         c.ngay_nhan,
         c.ngay_tra,
-        CASE
-          WHEN c.gia_thue_ngay_snapshot > 0 THEN c.gia_thue_ngay_snapshot
-          ELSE mtb.gia_thue_ngay
-        END AS gia_thue_ngay_snapshot,
-        CASE
-          WHEN c.tien_coc_snapshot > 0 THEN c.tien_coc_snapshot
-          ELSE mtb.tien_coc
-        END AS tien_coc_snapshot,
+        c.gia_thue_ngay_snapshot,
+        c.gia_tri_thiet_bi_snapshot,
+        c.ty_le_coc_snapshot,
+        c.tien_coc_snapshot,
+        mtb.gia_thue_ngay AS gia_thue_ngay_hien_tai,
+        mtb.gia_tri_thiet_bi AS gia_tri_thiet_bi_hien_tai,
+        mtb.ty_le_coc AS ty_le_coc_hien_tai,
         h.ten_hang,
         mtb.ten_mau
       FROM chi_tiet_gio_hang c
@@ -80,14 +80,13 @@ async function layItemGioHangDuocChon(gioHangId, itemIds = []) {
       c.so_luong,
       c.ngay_nhan,
       c.ngay_tra,
-      CASE
-        WHEN c.gia_thue_ngay_snapshot > 0 THEN c.gia_thue_ngay_snapshot
-        ELSE mtb.gia_thue_ngay
-      END AS gia_thue_ngay_snapshot,
-      CASE
-        WHEN c.tien_coc_snapshot > 0 THEN c.tien_coc_snapshot
-        ELSE mtb.tien_coc
-      END AS tien_coc_snapshot,
+      c.gia_thue_ngay_snapshot,
+      c.gia_tri_thiet_bi_snapshot,
+      c.ty_le_coc_snapshot,
+      c.tien_coc_snapshot,
+      mtb.gia_thue_ngay AS gia_thue_ngay_hien_tai,
+      mtb.gia_tri_thiet_bi AS gia_tri_thiet_bi_hien_tai,
+      mtb.ty_le_coc AS ty_le_coc_hien_tai,
       h.ten_hang,
       mtb.ten_mau
     FROM chi_tiet_gio_hang c
@@ -100,6 +99,27 @@ async function layItemGioHangDuocChon(gioHangId, itemIds = []) {
       AND mtb.trang_thai = ${TRANG_THAI_MAU_THIET_BI_HIEN_THI}
     ORDER BY c.created_at ASC
   `;
+}
+
+async function capNhatSnapshotGioHangKhiXacNhan(gioHangId, danhSachItem = []) {
+  if (!Array.isArray(danhSachItem) || danhSachItem.length === 0) {
+    return;
+  }
+
+  await prisma.$transaction(async (tx) => {
+    for (const item of danhSachItem) {
+      await tx.$executeRaw`
+        UPDATE chi_tiet_gio_hang
+        SET
+          gia_thue_ngay_snapshot = ${Number(item.gia_thue_ngay_snapshot)},
+          gia_tri_thiet_bi_snapshot = ${Number(item.gia_tri_thiet_bi_snapshot)},
+          ty_le_coc_snapshot = ${Number(item.ty_le_coc_snapshot)},
+          tien_coc_snapshot = ${Number(item.tien_coc_snapshot)}
+        WHERE id = ${item.id}::uuid
+          AND gio_hang_id = ${gioHangId}::uuid
+      `;
+    }
+  });
 }
 
 async function tinhSoLuongKhaDungCuaMau(mauThietBiId, ngayNhan, ngayTra, db = prisma) {
@@ -191,6 +211,7 @@ async function taoPhienThanhToan({
   tongTienThue,
   maThamChieu,
   checkoutUrl,
+  tyLePhiHuySnapshot,
 }) {
   return await prisma.$transaction(async (tx) => {
     const rows = await tx.$queryRaw`
@@ -199,6 +220,7 @@ async function taoPhienThanhToan({
         trang_thai,
         tong_tien_coc,
         tong_tien_thue,
+        ty_le_phi_huy_snapshot,
         ma_tham_chieu,
         checkout_url,
         het_han_luc
@@ -208,6 +230,7 @@ async function taoPhienThanhToan({
         ${PHIEN_CHO_THANH_TOAN},
         ${tongTienCoc},
         ${tongTienThue},
+        ${tyLePhiHuySnapshot},
         ${maThamChieu},
         ${checkoutUrl},
         NOW() + INTERVAL '30 minutes'
@@ -218,6 +241,7 @@ async function taoPhienThanhToan({
         trang_thai,
         tong_tien_coc::text AS tong_tien_coc,
         tong_tien_thue::text AS tong_tien_thue,
+        ty_le_phi_huy_snapshot::text AS ty_le_phi_huy_snapshot,
         ma_tham_chieu,
         checkout_url,
         het_han_luc
@@ -234,6 +258,8 @@ async function taoPhienThanhToan({
           ngay_nhan,
           ngay_tra,
           gia_thue_ngay_snapshot,
+          gia_tri_thiet_bi_snapshot,
+          ty_le_coc_snapshot,
           tien_coc_snapshot,
           tien_thue,
           tien_coc
@@ -245,6 +271,8 @@ async function taoPhienThanhToan({
           ${item.ngay_nhan},
           ${item.ngay_tra},
           ${Number(item.gia_thue_ngay_snapshot)},
+          ${Number(item.gia_tri_thiet_bi_snapshot)},
+          ${Number(item.ty_le_coc_snapshot)},
           ${Number(item.tien_coc_snapshot)},
           ${Number(item.tien_thue)},
           ${Number(item.tien_coc)}
@@ -265,6 +293,7 @@ async function layPhienTheoIdVaKhachHang(phienId, khachHangId) {
       tt.ten_trang_thai AS ten_trang_thai,
       p.tong_tien_coc::text AS tong_tien_coc,
       p.tong_tien_thue::text AS tong_tien_thue,
+      p.ty_le_phi_huy_snapshot::text AS ty_le_phi_huy_snapshot,
       p.ma_tham_chieu,
       p.checkout_url,
       p.het_han_luc,
@@ -307,6 +336,8 @@ async function layChiTietPhienThanhToan(phienId) {
       ct.ngay_nhan,
       ct.ngay_tra,
       ct.gia_thue_ngay_snapshot::text AS gia_thue_ngay_snapshot,
+      ct.gia_tri_thiet_bi_snapshot::text AS gia_tri_thiet_bi_snapshot,
+      ct.ty_le_coc_snapshot::text AS ty_le_coc_snapshot,
       ct.tien_coc_snapshot::text AS tien_coc_snapshot,
       ct.tien_thue::text AS tien_thue,
       ct.tien_coc::text AS tien_coc
@@ -328,6 +359,7 @@ async function layPhienTheoMaThamChieu(maThamChieu) {
       trang_thai,
       tong_tien_coc,
       tong_tien_thue,
+      ty_le_phi_huy_snapshot,
       ma_tham_chieu,
       het_han_luc
     FROM phien_thanh_toan
@@ -428,6 +460,7 @@ async function xuLyThanhToanThanhCong({
           trang_thai,
           tong_tien_coc,
           tong_tien_thue,
+          ty_le_phi_huy_snapshot,
           het_han_luc
         FROM phien_thanh_toan
         WHERE id = ${phien.id}::uuid
@@ -477,6 +510,8 @@ async function xuLyThanhToanThanhCong({
           ngay_nhan,
           ngay_tra,
           gia_thue_ngay_snapshot,
+          gia_tri_thiet_bi_snapshot,
+          ty_le_coc_snapshot,
           tien_coc_snapshot,
           tien_thue,
           tien_coc
@@ -506,6 +541,7 @@ async function xuLyThanhToanThanhCong({
           so_ngay_thue,
           tong_tien_thue,
           tong_tien_coc,
+          ty_le_phi_huy_snapshot,
           trang_thai
         )
         VALUES (
@@ -517,6 +553,7 @@ async function xuLyThanhToanThanhCong({
           ${soNgayThue},
           ${Number(phienKhoa.tong_tien_thue)},
           ${Number(phienKhoa.tong_tien_coc)},
+          ${Number(phienKhoa.ty_le_phi_huy_snapshot)},
           ${DON_DA_GIU_CHO}
         )
         RETURNING id, ma_don
@@ -531,6 +568,8 @@ async function xuLyThanhToanThanhCong({
             mau_thiet_bi_id,
             so_luong,
             gia_thue_ngay_snapshot,
+            gia_tri_thiet_bi_snapshot,
+            ty_le_coc_snapshot,
             tien_coc_snapshot,
             tien_thue,
             tien_coc
@@ -540,6 +579,8 @@ async function xuLyThanhToanThanhCong({
             ${item.mau_thiet_bi_id}::uuid,
             ${Number(item.so_luong)},
             ${Number(item.gia_thue_ngay_snapshot)},
+            ${Number(item.gia_tri_thiet_bi_snapshot)},
+            ${Number(item.ty_le_coc_snapshot)},
             ${Number(item.tien_coc_snapshot)},
             ${Number(item.tien_thue)},
             ${Number(item.tien_coc)}
@@ -670,6 +711,7 @@ module.exports = {
   layKhachHangTheoId,
   layGioHangTheoKhachHang,
   layItemGioHangDuocChon,
+  capNhatSnapshotGioHangKhiXacNhan,
   tinhSoLuongKhaDungCuaMau,
   tinhSoLuongKhaDungCuaPhuKien,
   layBoDiKemCuaMau,

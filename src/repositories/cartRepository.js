@@ -40,6 +40,8 @@ async function layDanhSachItemTheoGioHang(gioHangId) {
       ctgh.ngay_nhan,
       ctgh.ngay_tra,
       ctgh.gia_thue_ngay_snapshot::text AS gia_thue_ngay_snapshot,
+      ctgh.gia_tri_thiet_bi_snapshot::text AS gia_tri_thiet_bi_snapshot,
+      ctgh.ty_le_coc_snapshot::text AS ty_le_coc_snapshot,
       ctgh.tien_coc_snapshot::text AS tien_coc_snapshot,
 
       h.ten_hang,
@@ -70,6 +72,8 @@ async function layMauThietBiDangHienThi(mauThietBiId) {
       id,
       ten_mau,
       gia_thue_ngay,
+      gia_tri_thiet_bi,
+      ty_le_coc,
       tien_coc
     FROM mau_thiet_bi
     WHERE id = ${mauThietBiId}::uuid
@@ -101,6 +105,8 @@ async function themItemVaoGioHang({
   ngayNhan,
   ngayTra,
   giaThueNgay,
+  giaTriThietBi,
+  tyLeCoc,
   tienCoc,
 }) {
   await prisma.$executeRaw`
@@ -112,6 +118,8 @@ async function themItemVaoGioHang({
       ngay_nhan,
       ngay_tra,
       gia_thue_ngay_snapshot,
+      gia_tri_thiet_bi_snapshot,
+      ty_le_coc_snapshot,
       tien_coc_snapshot,
       created_at,
       updated_at
@@ -124,6 +132,8 @@ async function themItemVaoGioHang({
       ${ngayNhan}::timestamptz,
       ${ngayTra}::timestamptz,
       ${giaThueNgay},
+      ${giaTriThietBi},
+      ${tyLeCoc},
       ${tienCoc},
       NOW(),
       NOW()
@@ -137,9 +147,16 @@ async function capNhatItemTrongGio({
   ngayNhan,
   ngayTra,
   giaThueNgay = null,
+  giaTriThietBi = null,
+  tyLeCoc = null,
   tienCoc = null,
 }) {
-  if (giaThueNgay !== null && tienCoc !== null) {
+  if (
+    giaThueNgay !== null &&
+    giaTriThietBi !== null &&
+    tyLeCoc !== null &&
+    tienCoc !== null
+  ) {
     await prisma.$executeRaw`
       UPDATE chi_tiet_gio_hang
       SET
@@ -147,6 +164,8 @@ async function capNhatItemTrongGio({
         ngay_nhan = ${ngayNhan}::timestamptz,
         ngay_tra = ${ngayTra}::timestamptz,
         gia_thue_ngay_snapshot = ${giaThueNgay},
+        gia_tri_thiet_bi_snapshot = ${giaTriThietBi},
+        ty_le_coc_snapshot = ${tyLeCoc},
         tien_coc_snapshot = ${tienCoc},
         updated_at = NOW()
       WHERE id = ${itemId}::uuid

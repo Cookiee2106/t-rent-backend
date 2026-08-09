@@ -69,6 +69,16 @@ class WarehouseLocationModel {
     return await warehouseLocationRepository.layDanhSachViTriKhoDangHienThi();
   }
 
+  static async layDanhSachViTriPhuKienKhaDungService(phuKienId) {
+    if (!phuKienId) {
+      throw new Error("Thiếu phụ kiện cần lấy vị trí kho");
+    }
+
+    return await warehouseLocationRepository.layDanhSachViTriKhaDungCuaPhuKien(
+      phuKienId
+    );
+  }
+
   static async taoViTriKhoService(body = {}) {
     const tenViTri = chuanHoaChuoi(body.ten_vi_tri);
     const sucChuaToiDa = docSoLuong(body.suc_chua_toi_da);

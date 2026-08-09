@@ -1,5 +1,6 @@
 const cloudinary = require("../config/cloudinary");
 const orderRepository = require("../repositories/orderRepository");
+const rentalPolicyRepository = require("../repositories/rentalPolicyRepository");
 
 function taoSoNguyen(giaTri, macDinh) {
   const so = Number(giaTri);
@@ -76,6 +77,7 @@ class AdminOrderModel {
 
     tong_tien_thue,
     tong_tien_coc,
+    ty_le_phi_huy_snapshot,
     tien_coc_da_thanh_toan,
     tien_thue_da_thanh_toan,
 
@@ -84,6 +86,18 @@ class AdminOrderModel {
 
     huy_luc,
     ly_do_huy,
+
+    yeu_cau_huy_id,
+    ly_do_yeu_cau_huy,
+    trang_thai_yeu_cau_huy_id,
+    ten_trang_thai_yeu_cau_huy,
+    ty_le_phi_huy_yeu_cau,
+    tong_tien_coc_yeu_cau,
+    phi_huy_yeu_cau,
+    tien_coc_hoan_lai_yeu_cau,
+    gui_luc_yeu_cau,
+    xu_ly_luc_yeu_cau,
+    ghi_chu_xu_ly_yeu_cau,
 
     ban_giao_luc,
     nguoi_ban_giao_id,
@@ -122,6 +136,7 @@ class AdminOrderModel {
 
     this.tong_tien_thue = Number(tong_tien_thue || 0);
     this.tong_tien_coc = Number(tong_tien_coc || 0);
+    this.ty_le_phi_huy_snapshot = Number(ty_le_phi_huy_snapshot || 0);
     this.tien_coc_da_thanh_toan = Number(tien_coc_da_thanh_toan || 0);
     this.tien_thue_da_thanh_toan = Number(tien_thue_da_thanh_toan || 0);
 
@@ -130,6 +145,22 @@ class AdminOrderModel {
 
     this.huy_luc = huy_luc || null;
     this.ly_do_huy = ly_do_huy || null;
+
+    this.yeu_cau_huy = yeu_cau_huy_id
+      ? {
+          id: yeu_cau_huy_id,
+          ly_do_huy: ly_do_yeu_cau_huy || "",
+          trang_thai_id: Number(trang_thai_yeu_cau_huy_id || 0),
+          ten_trang_thai: ten_trang_thai_yeu_cau_huy || null,
+          ty_le_phi_huy_snapshot: Number(ty_le_phi_huy_yeu_cau || 0),
+          tong_tien_coc_snapshot: Number(tong_tien_coc_yeu_cau || 0),
+          phi_huy: Number(phi_huy_yeu_cau || 0),
+          tien_coc_hoan_lai: Number(tien_coc_hoan_lai_yeu_cau || 0),
+          gui_luc: gui_luc_yeu_cau || null,
+          xu_ly_luc: xu_ly_luc_yeu_cau || null,
+          ghi_chu_xu_ly: ghi_chu_xu_ly_yeu_cau || null,
+        }
+      : null;
 
     this.ban_giao_luc = ban_giao_luc || null;
     this.nguoi_ban_giao_id = nguoi_ban_giao_id || null;
@@ -158,6 +189,7 @@ class AdminOrderModel {
       anh_url: item.anh_url || "",
       so_luong: Number(item.so_luong || 0),
       gia_thue_ngay_snapshot: Number(item.gia_thue_ngay_snapshot || 0),
+      gia_tri_thiet_bi_snapshot: Number(item.gia_tri_thiet_bi_snapshot || 0),
       tien_coc_snapshot: Number(item.tien_coc_snapshot || 0),
       tien_thue: Number(item.tien_thue || 0),
       tien_coc: Number(item.tien_coc || 0),
@@ -169,6 +201,7 @@ class AdminOrderModel {
       bo_di_kem_id: item.bo_di_kem_id || null,
       thiet_bi_id: item.thiet_bi_id || null,
       phu_kien_id: item.phu_kien_id || null,
+      phu_kien_vi_tri_kho_id: item.phu_kien_vi_tri_kho_id || null,
       ten_phu_kien: item.ten_phu_kien || "",
       ten_vat_pham_snapshot: item.ten_vat_pham_snapshot || "",
       so_serial: item.so_serial || "",
@@ -205,9 +238,92 @@ class AdminOrderModel {
     }));
   }
 
+  static async layChinhSachThueService() {
+    const chinhSach = await rentalPolicyRepository.layChinhSachThue();
+
+    if (!chinhSach) {
+      throw new Error("Chưa cấu hình chính sách phí hủy đơn");
+    }
+
+    return {
+      ...chinhSach,
+      ty_le_phi_huy: Number(chinhSach.ty_le_phi_huy || 0),
+    };
+  }
+
+  static async capNhatChinhSachThueService(nguoiCapNhatId, body = {}) {
+    const tyLePhiHuy = Number(body.ty_le_phi_huy);
+
+    if (
+      !Number.isFinite(tyLePhiHuy) ||
+      tyLePhiHuy < 0 ||
+      tyLePhiHuy > 100
+    ) {
+      throw new Error("Tỷ lệ phí hủy phải từ 0 đến 100");
+    }
+
+    const chinhSach = await rentalPolicyRepository.capNhatTyLePhiHuy(
+      nguoiCapNhatId,
+      tyLePhiHuy
+    );
+
+    if (!chinhSach) {
+      throw new Error("Không tìm thấy chính sách phí hủy đơn");
+    }
+
+    return {
+      ...chinhSach,
+      ty_le_phi_huy: Number(chinhSach.ty_le_phi_huy || 0),
+    };
+  }
+
+  static async xacNhanYeuCauHuyService(
+    nhanVienId,
+    yeuCauHuyId,
+    body = {}
+  ) {
+    const ghiChuXuLy = String(body.ghi_chu_xu_ly || "").trim();
+
+    return await orderRepository.xacNhanYeuCauHuyDon({
+      yeuCauHuyId,
+      nhanVienId,
+      ghiChuXuLy,
+    });
+  }
+
+  static async tuChoiYeuCauHuyService(
+    nhanVienId,
+    yeuCauHuyId,
+    body = {}
+  ) {
+    const ghiChuXuLy = String(body.ghi_chu_xu_ly || "").trim();
+
+    return await orderRepository.tuChoiYeuCauHuyDon({
+      yeuCauHuyId,
+      nhanVienId,
+      ghiChuXuLy,
+    });
+  }
+
+
+  static async layDanhSachYeuCauHuyService({ tu_khoa = "" } = {}) {
+    const tuKhoa = String(tu_khoa || "").trim();
+    const danhSach = await orderRepository.layDanhSachYeuCauHuy({ tuKhoa });
+    const data = danhSach.map((don) => new AdminOrderModel(don));
+
+    return {
+      data,
+      tong_yeu_cau: data.length,
+      so_luong_cho_xu_ly: data.filter(
+        (item) => Number(item.yeu_cau_huy?.trang_thai_id) === orderRepository.TRANG_THAI_YEU_CAU_HUY_CHO_XU_LY
+      ).length,
+    };
+  }
+
   static async layDanhSachDonThueService({
     trang_thai,
     tu_khoa,
+    yeu_cau_huy,
     page = 1,
     limit = 10,
   }) {
@@ -216,6 +332,29 @@ class AdminOrderModel {
     const offset = (trangHienTai - 1) * soDong;
     const trangThai = trang_thai ? Number(trang_thai) : null;
     const tuKhoa = String(tu_khoa || "").trim();
+    const chiLayYeuCauHuy = String(yeu_cau_huy || "") === "1";
+
+    if (chiLayYeuCauHuy) {
+      const danhSachYeuCauHuy = await orderRepository.layDanhSachYeuCauHuy({
+        tuKhoa,
+      });
+
+      const data = danhSachYeuCauHuy.map(
+        (don) => new AdminOrderModel(don)
+      );
+
+      return {
+        data,
+        total: data.length,
+        so_luong_cho_xu_ly: data.filter(
+          (don) =>
+            Number(don.yeu_cau_huy?.trang_thai_id) ===
+            orderRepository.TRANG_THAI_YEU_CAU_HUY_CHO_XU_LY
+        ).length,
+        page: 1,
+        limit: data.length || soDong,
+      };
+    }
 
     const [danhSach, total] = await Promise.all([
       orderRepository.layDanhSachDonThue({
@@ -319,6 +458,12 @@ class AdminOrderModel {
       throw new Error("Chỉ bàn giao được đơn ở trạng thái Đã giữ chỗ");
     }
 
+    const dangChoXuLyHuy = await orderRepository.coYeuCauHuyChoXuLy(donThueId);
+
+    if (dangChoXuLyHuy) {
+      throw new Error("Đơn đang có yêu cầu hủy Chờ xử lý, không thể bàn giao");
+    }
+
     const daCoc = await orderRepository.kiemTraDonDaCoc(donThueId);
 
     if (!daCoc) {
@@ -357,6 +502,7 @@ class AdminOrderModel {
     const soLuongBoDiKem = new Map();
     const thietBiDaChon = new Set();
     const phuKienGiaoMap = new Map();
+    const phuKienBoDiKemDaChon = new Set();
 
     const vatPhamCanLuu = [];
     const thietBiCanCapNhat = [];
@@ -407,6 +553,7 @@ class AdminOrderModel {
           bo_di_kem_id: null,
           thiet_bi_id: thietBiId,
           phu_kien_id: null,
+          phu_kien_vi_tri_kho_id: null,
           ten_vat_pham_snapshot: thietBi.ten_mau,
           ma_tai_san_snapshot: thietBi.ma_tai_san || null,
           so_serial_snapshot: thietBi.so_serial || null,
@@ -465,6 +612,7 @@ class AdminOrderModel {
           bo_di_kem_id: cauHinhBoDiKem.id,
           thiet_bi_id: thietBiId,
           phu_kien_id: null,
+          phu_kien_vi_tri_kho_id: null,
           ten_vat_pham_snapshot: thietBi.ten_mau,
           ma_tai_san_snapshot: thietBi.ma_tai_san || null,
           so_serial_snapshot: thietBi.so_serial || null,
@@ -476,9 +624,19 @@ class AdminOrderModel {
 
       if (cauHinhBoDiKem.phu_kien_id) {
         const soLuongGiao = Number(vatPham.so_luong_giao || 0);
+        const soLuongCan =
+          Number(cauHinhBoDiKem.so_luong || 1) * Number(chiTiet.so_luong || 0);
 
-        if (soLuongGiao <= 0) {
-          throw new Error("Số lượng phụ kiện bàn giao phải lớn hơn 0");
+        if (phuKienBoDiKemDaChon.has(keyBoDiKem)) {
+          throw new Error(
+            "Mỗi phụ kiện trong bộ đi kèm chỉ được chọn một vị trí kho"
+          );
+        }
+
+        if (!Number.isInteger(soLuongGiao) || soLuongGiao !== soLuongCan) {
+          throw new Error(
+            `Số lượng phụ kiện bàn giao phải bằng ${soLuongCan}`
+          );
         }
 
         if (!cungId(vatPham.phu_kien_id, cauHinhBoDiKem.phu_kien_id)) {
@@ -493,10 +651,30 @@ class AdminOrderModel {
           throw new Error("Không tìm thấy phụ kiện trong bộ đi kèm");
         }
 
-        soLuongBoDiKem.set(
-          keyBoDiKem,
-          (soLuongBoDiKem.get(keyBoDiKem) || 0) + soLuongGiao
+        const phuKienViTriKhoId = String(
+          vatPham.phu_kien_vi_tri_kho_id || ""
+        ).trim();
+
+        if (!phuKienViTriKhoId) {
+          throw new Error(`Vui lòng chọn vị trí kho cho ${phuKien.ten_phu_kien}`);
+        }
+
+        const phanBoViTri = await orderRepository.layPhuKienViTriKhoTheoId(
+          phuKienViTriKhoId
         );
+
+        if (
+          !phanBoViTri ||
+          !cungId(phanBoViTri.phu_kien_id, phuKien.id) ||
+          !phanBoViTri.dang_su_dung ||
+          Number(phanBoViTri.trang_thai_vi_tri) !== 601 ||
+          phanBoViTri.vi_tri_da_xoa_luc
+        ) {
+          throw new Error("Vị trí kho không hợp lệ cho phụ kiện bàn giao");
+        }
+
+        phuKienBoDiKemDaChon.add(keyBoDiKem);
+        soLuongBoDiKem.set(keyBoDiKem, soLuongGiao);
 
         phuKienGiaoMap.set(
           String(phuKien.id),
@@ -508,6 +686,7 @@ class AdminOrderModel {
           bo_di_kem_id: cauHinhBoDiKem.id,
           thiet_bi_id: null,
           phu_kien_id: phuKien.id,
+          phu_kien_vi_tri_kho_id: phuKienViTriKhoId,
           ten_vat_pham_snapshot: phuKien.ten_phu_kien,
           ma_tai_san_snapshot: null,
           so_serial_snapshot: null,

@@ -240,12 +240,14 @@ async function layVatPhamBanGiao(donThueId) {
       bgvp.bo_di_kem_id,
       bgvp.thiet_bi_id,
       bgvp.phu_kien_id,
+      bgvp.phu_kien_vi_tri_kho_id,
       pk.ten_phu_kien,
       bgvp.ten_vat_pham_snapshot,
       tb.so_serial,
       bgvp.so_serial_snapshot,
-      vt.ten_vi_tri AS ten_vi_tri_kho,
+      COALESCE(vt_tb.ten_vi_tri, vt_pk.ten_vi_tri, vt_legacy.ten_vi_tri) AS ten_vi_tri_kho,
       bgvp.so_luong_giao,
+      bgvp.so_luong_tra_lai,
       bgvp.ghi_chu_ban_giao,
       bgvp.created_at
     FROM ban_giao_vat_pham bgvp
@@ -254,8 +256,12 @@ async function layVatPhamBanGiao(donThueId) {
     LEFT JOIN hang_thiet_bi h ON h.id = mtb.hang_id
     LEFT JOIN danh_muc_thiet_bi dm ON dm.id = mtb.danh_muc_id
     LEFT JOIN thiet_bi_vat_ly tb ON tb.id = bgvp.thiet_bi_id
-    LEFT JOIN vi_tri_kho vt ON vt.id = tb.vi_tri_kho_id
+    LEFT JOIN vi_tri_kho vt_tb ON vt_tb.id = tb.vi_tri_kho_id
     LEFT JOIN phu_kien pk ON pk.id = bgvp.phu_kien_id
+    LEFT JOIN phu_kien_vi_tri_kho pkvt
+      ON pkvt.id = bgvp.phu_kien_vi_tri_kho_id
+    LEFT JOIN vi_tri_kho vt_pk ON vt_pk.id = pkvt.vi_tri_kho_id
+    LEFT JOIN vi_tri_kho vt_legacy ON vt_legacy.id = pk.vi_tri_kho_id
     WHERE ctdt.don_thue_id = ${donThueId}::uuid
     ORDER BY mtb.ten_mau ASC, bgvp.created_at ASC
   `;
@@ -346,15 +352,17 @@ async function layThietBiDaBanGiao(donThueId) {
 async function layPhuKienDaBanGiao(donThueId) {
   return await prisma.$queryRaw`
     SELECT
+      bgvp.id AS ban_giao_vat_pham_id,
       ctdt.id AS chi_tiet_don_thue_id,
       bgvp.bo_di_kem_id,
       bgvp.phu_kien_id,
-      SUM(bgvp.so_luong_giao)::int AS so_luong_giao
+      bgvp.phu_kien_vi_tri_kho_id,
+      bgvp.so_luong_giao::int AS so_luong_giao
     FROM ban_giao_vat_pham bgvp
     JOIN chi_tiet_don_thue ctdt ON ctdt.id = bgvp.chi_tiet_don_thue_id
     WHERE ctdt.don_thue_id = ${donThueId}::uuid
       AND bgvp.phu_kien_id IS NOT NULL
-    GROUP BY ctdt.id, bgvp.bo_di_kem_id, bgvp.phu_kien_id
+    ORDER BY bgvp.created_at ASC
   `;
 }
 
@@ -369,9 +377,44 @@ async function luuThanhLy({
   tienKhauTru,
   tienPhuThu,
   danhSachAnhKhiTra,
+  danhSachPhuKienKiemKe = [],
   danhSachPhuKienThieu = [],
 }) {
   await prisma.$transaction(async (tx) => {
+    const donRows = await tx.$queryRaw`
+      SELECT trang_thai
+      FROM don_thue
+      WHERE id = ${donThueId}::uuid
+      FOR UPDATE
+    `;
+
+    const don = donRows[0];
+
+    if (
+      !don ||
+      ![
+        TRANG_THAI_DANG_THUE,
+        TRANG_THAI_QUA_HAN,
+      ].includes(Number(don.trang_thai))
+    ) {
+      throw new Error("Đơn thuê không còn ở trạng thái có thể thanh lý");
+    }
+
+    const thanhLyRows = await tx.$queryRaw`
+      SELECT id
+      FROM thanh_toan
+      WHERE don_thue_id = ${donThueId}::uuid
+        AND loai_dong_tien_id IN (
+          ${LOAI_HOAN_COC},
+          ${LOAI_KHAU_TRU_COC},
+          ${LOAI_PHU_THU}
+        )
+      LIMIT 1
+    `;
+
+    if (thanhLyRows.length > 0) {
+      throw new Error("Đơn này đã có dòng tiền thanh lý");
+    }
     for (const item of danhSachThietBiCapNhat) {
       await tx.$executeRaw`
         UPDATE thiet_bi_vat_ly
@@ -419,10 +462,47 @@ async function luuThanhLy({
       }
     }
 
+    for (const phuKien of danhSachPhuKienKiemKe) {
+      const soDongKiemKe = await tx.$executeRaw`
+        UPDATE ban_giao_vat_pham
+        SET so_luong_tra_lai = ${Number(phuKien.so_luong_tra_lai || 0)}
+        WHERE id = ${phuKien.ban_giao_vat_pham_id}::uuid
+          AND phu_kien_id = ${phuKien.phu_kien_id}::uuid
+          AND phu_kien_vi_tri_kho_id =
+            ${phuKien.phu_kien_vi_tri_kho_id}::uuid
+      `;
+
+      if (soDongKiemKe !== 1) {
+        throw new Error("Không thể lưu số lượng phụ kiện trả lại");
+      }
+    }
+
     for (const phuKien of danhSachPhuKienThieu) {
       const soLuongThieu = Number(phuKien.so_luong_thieu || 0);
 
       if (soLuongThieu <= 0) continue;
+
+      const phanBoId = String(
+        phuKien.phu_kien_vi_tri_kho_id || ""
+      ).trim();
+
+      if (!phanBoId) {
+        throw new Error("Thiếu vị trí kho của phụ kiện bị thiếu");
+      }
+
+      const soDongPhanBo = await tx.$executeRaw`
+        UPDATE phu_kien_vi_tri_kho
+        SET
+          so_luong = so_luong - ${soLuongThieu},
+          updated_at = NOW()
+        WHERE id = ${phanBoId}::uuid
+          AND phu_kien_id = ${phuKien.phu_kien_id}::uuid
+          AND so_luong >= ${soLuongThieu}
+      `;
+
+      if (soDongPhanBo === 0) {
+        throw new Error("Không thể trừ số lượng phụ kiện bị thiếu tại vị trí kho");
+      }
 
       const soDongCapNhat = await tx.$executeRaw`
         UPDATE phu_kien
@@ -449,6 +529,10 @@ async function luuThanhLy({
         trang_thai = ${TRANG_THAI_HOAN_THANH},
         updated_at = NOW()
       WHERE id = ${donThueId}::uuid
+        AND trang_thai IN (
+          ${TRANG_THAI_DANG_THUE},
+          ${TRANG_THAI_QUA_HAN}
+        )
     `;
 
     async function taoDongTien(soTien, loaiDongTienId, ghiChu) {

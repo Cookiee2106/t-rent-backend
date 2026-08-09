@@ -57,6 +57,36 @@ function docSoLuong(soLuong) {
   return giaTri;
 }
 
+function docCauHinhTienCocMau(mau) {
+  if (
+    mau?.gia_tri_thiet_bi === null ||
+    mau?.gia_tri_thiet_bi === undefined ||
+    mau?.ty_le_coc === null ||
+    mau?.ty_le_coc === undefined
+  ) {
+    throw new Error(
+      `Mẫu thiết bị "${mau?.ten_mau || ""}" chưa được cấu hình giá trị thiết bị và tỷ lệ tiền cọc`
+    );
+  }
+
+  const giaTriThietBi = Number(mau.gia_tri_thiet_bi);
+  const tyLeCoc = Number(mau.ty_le_coc);
+
+  if (!Number.isInteger(giaTriThietBi) || giaTriThietBi < 0) {
+    throw new Error("Giá trị thiết bị không hợp lệ");
+  }
+
+  if (!Number.isFinite(tyLeCoc) || tyLeCoc < 0 || tyLeCoc > 100) {
+    throw new Error("Tỷ lệ tiền cọc phải từ 0 đến 100");
+  }
+
+  return {
+    giaTriThietBi,
+    tyLeCoc,
+    tienCoc: Math.round((giaTriThietBi * tyLeCoc) / 100),
+  };
+}
+
 async function tinhSoLuongKhaDungCuaMau(mauThietBiId, ngayNhan, ngayTra) {
   const tong = await cartRepository.demThietBiSanSangCuaMau(mauThietBiId);
   const daDat = await cartRepository.tinhSoLuongDaDatCuaMau(
@@ -146,6 +176,8 @@ class CartModel {
       ngay_tra: item.ngay_tra || null,
 
       gia_thue_ngay_snapshot: Number(item.gia_thue_ngay_snapshot || 0),
+      gia_tri_thiet_bi_snapshot: Number(item.gia_tri_thiet_bi_snapshot || 0),
+      ty_le_coc_snapshot: Number(item.ty_le_coc_snapshot || 0),
       tien_coc_snapshot: Number(item.tien_coc_snapshot || 0),
 
       ten_hang: item.ten_hang || "",
@@ -158,7 +190,53 @@ class CartModel {
   // Lấy giỏ hàng của khách hàng.
   static async layGioHangService(khachHangId) {
     const gioHang = await layHoacTaoGioHang(khachHangId);
-    const items = await cartRepository.layDanhSachItemTheoGioHang(gioHang.id);
+    let items = await cartRepository.layDanhSachItemTheoGioHang(gioHang.id);
+    let coGiaThayDoi = false;
+
+    for (const item of items) {
+      const mau = await cartRepository.layMauThietBiDangHienThi(
+        item.mau_thiet_bi_id
+      );
+
+      if (!mau) {
+        continue;
+      }
+
+      const {
+        giaTriThietBi,
+        tyLeCoc,
+        tienCoc,
+      } = docCauHinhTienCocMau(mau);
+
+      const giaThueNgay = Number(mau.gia_thue_ngay || 0);
+
+      const giaDaThayDoi =
+        Number(item.gia_thue_ngay_snapshot || 0) !== giaThueNgay ||
+        Number(item.gia_tri_thiet_bi_snapshot || 0) !== giaTriThietBi ||
+        Number(item.ty_le_coc_snapshot || 0) !== tyLeCoc ||
+        Number(item.tien_coc_snapshot || 0) !== tienCoc;
+
+      if (!giaDaThayDoi) {
+        continue;
+      }
+
+      await cartRepository.capNhatItemTrongGio({
+        itemId: item.id,
+        soLuong: Number(item.so_luong || 1),
+        ngayNhan: item.ngay_nhan,
+        ngayTra: item.ngay_tra,
+        giaThueNgay,
+        giaTriThietBi,
+        tyLeCoc,
+        tienCoc,
+      });
+
+      coGiaThayDoi = true;
+    }
+
+    if (coGiaThayDoi) {
+      items = await cartRepository.layDanhSachItemTheoGioHang(gioHang.id);
+    }
 
     return new CartModel({
       gio_hang_id: gioHang.id,
@@ -184,6 +262,14 @@ class CartModel {
     if (!mau) {
       throw new Error("Mẫu thiết bị không tồn tại hoặc đang bị ẩn");
     }
+
+    // Chỉ dòng mẫu được thuê trực tiếp mới snapshot giá trị và tiền cọc.
+    // Các món trong bộ đi kèm chỉ được kiểm tra khả dụng, không cộng thêm tiền thuê/cọc.
+    const {
+      giaTriThietBi,
+      tyLeCoc,
+      tienCoc,
+    } = docCauHinhTienCocMau(mau);
 
     const gioHang = await layHoacTaoGioHang(khachHangId);
     const itemCungMau = await cartRepository.layItemCungMauTrongGio(
@@ -224,7 +310,9 @@ class CartModel {
         ngayNhan,
         ngayTra,
         giaThueNgay: mau.gia_thue_ngay,
-        tienCoc: mau.tien_coc,
+        giaTriThietBi,
+        tyLeCoc,
+        tienCoc,
       });
 
       for (const item of itemCungMau.slice(1)) {
@@ -238,7 +326,9 @@ class CartModel {
         ngayNhan,
         ngayTra,
         giaThueNgay: mau.gia_thue_ngay,
-        tienCoc: mau.tien_coc,
+        giaTriThietBi,
+        tyLeCoc,
+        tienCoc,
       });
     }
 

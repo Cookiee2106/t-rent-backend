@@ -65,6 +65,8 @@ async function layMauThietBiTheoId(id) {
       mtb.mo_ta,
       mtb.anh_url,
       mtb.gia_thue_ngay::text AS gia_thue_ngay,
+      mtb.gia_tri_thiet_bi::text AS gia_tri_thiet_bi,
+      mtb.ty_le_coc::text AS ty_le_coc,
       mtb.tien_coc::text AS tien_coc,
       mtb.trang_thai,
       tt.ten_trang_thai,
@@ -151,6 +153,8 @@ async function layDanhSachMauThietBiAdmin() {
       mtb.mo_ta,
       mtb.anh_url,
       mtb.gia_thue_ngay::text AS gia_thue_ngay,
+      mtb.gia_tri_thiet_bi::text AS gia_tri_thiet_bi,
+      mtb.ty_le_coc::text AS ty_le_coc,
       mtb.tien_coc::text AS tien_coc,
       mtb.trang_thai,
       tt.ten_trang_thai,
@@ -283,6 +287,8 @@ async function taoMauThietBi({
   moTa,
   anhUrl,
   giaThueNgay,
+  giaTriThietBi,
+  tyLeCoc,
   tienCoc,
   trangThai,
 }) {
@@ -297,6 +303,8 @@ async function taoMauThietBi({
         mo_ta,
         anh_url,
         gia_thue_ngay,
+        gia_tri_thiet_bi,
+        ty_le_coc,
         tien_coc,
         trang_thai,
         created_at,
@@ -311,6 +319,8 @@ async function taoMauThietBi({
         ${moTa},
         ${anhUrl},
         ${giaThueNgay},
+        ${giaTriThietBi},
+        ${tyLeCoc},
         ${tienCoc},
         ${trangThai},
         NOW(),
@@ -341,6 +351,8 @@ async function capNhatMauThietBi(id, {
   moTa,
   anhUrl,
   giaThueNgay,
+  giaTriThietBi,
+  tyLeCoc,
   tienCoc,
 }) {
   return await prisma.$transaction(async (tx) => {
@@ -354,6 +366,8 @@ async function capNhatMauThietBi(id, {
         mo_ta = ${moTa},
         anh_url = ${anhUrl},
         gia_thue_ngay = ${giaThueNgay},
+        gia_tri_thiet_bi = ${giaTriThietBi},
+        ty_le_coc = ${tyLeCoc},
         tien_coc = ${tienCoc},
         updated_at = NOW()
       WHERE id = ${id}::uuid
@@ -409,6 +423,8 @@ async function layThongTinMauThietBiChinh(id) {
       mtb.id,
       mtb.hang_id,
       h.ten_hang,
+      mtb.ngam_id,
+      n.ten_ngam,
       mtb.ten_mau,
       mtb.danh_muc_id,
       dmtb.ten_danh_muc
@@ -419,6 +435,10 @@ async function layThongTinMauThietBiChinh(id) {
 
     LEFT JOIN hang_thiet_bi h
       ON h.id = mtb.hang_id
+
+    LEFT JOIN ngam_thiet_bi n
+      ON n.id = mtb.ngam_id
+      AND n.da_xoa_luc IS NULL
 
     WHERE mtb.id = ${id}::uuid
       AND mtb.da_xoa_luc IS NULL
@@ -444,8 +464,11 @@ async function layDanhSachBoDiKem(mauThietBiChinhId) {
       pk.id AS phu_kien_id,
       pk.ten_phu_kien,
       pk.trang_thai AS trang_thai_phu_kien,
-      h_pk.ten_hang AS ten_hang_phu_kien,
-      dmtb_pk.ten_danh_muc AS ten_danh_muc_phu_kien
+      pk.tong_so_luong::int AS tong_so_luong,
+      pk.danh_muc_id AS danh_muc_id_phu_kien,
+      dmtb_pk.ten_danh_muc AS ten_danh_muc_phu_kien,
+      pk.ngam_id AS ngam_id_phu_kien,
+      n_pk.ten_ngam AS ten_ngam_phu_kien
 
     FROM bo_di_kem bdk
 
@@ -461,11 +484,12 @@ async function layDanhSachBoDiKem(mauThietBiChinhId) {
     LEFT JOIN phu_kien pk
       ON pk.id = bdk.phu_kien_id
 
-    LEFT JOIN hang_thiet_bi h_pk
-      ON h_pk.id = pk.hang_id
-
     LEFT JOIN danh_muc_thiet_bi dmtb_pk
       ON dmtb_pk.id = pk.danh_muc_id
+
+    LEFT JOIN ngam_thiet_bi n_pk
+      ON n_pk.id = pk.ngam_id
+      AND n_pk.da_xoa_luc IS NULL
 
     WHERE bdk.mau_thiet_bi_chinh_id = ${mauThietBiChinhId}::uuid
 
@@ -527,43 +551,58 @@ async function layGoiYThietBiPhu(mauThietBiChinhId, mauChinh, khoaTim) {
   `;
 }
 
-async function layGoiYPhuKien(mauThietBiChinhId, khoaTim) {
+async function layGoiYPhuKien(
+  mauThietBiChinhId,
+  mauChinh,
+  khoaTim
+) {
+  const laOngKinh =
+    chuanHoaTenDeSoSanh(mauChinh?.ten_danh_muc) ===
+    chuanHoaTenDeSoSanh("Ống kính");
+
+  const ngamIdCuaOngKinh =
+    laOngKinh && mauChinh?.ngam_id
+      ? mauChinh.ngam_id
+      : null;
+
   return await prisma.$queryRaw`
     SELECT
       pk.id,
       pk.ten_phu_kien,
-      pk.hang_id,
-      h.ten_hang,
       pk.danh_muc_id,
-      dmtb.ten_danh_muc
+      dmtb.ten_danh_muc,
+      pk.ngam_id,
+      n.ten_ngam,
+      pk.tong_so_luong::int AS tong_so_luong
 
     FROM phu_kien pk
 
-    LEFT JOIN hang_thiet_bi h
-      ON h.id = pk.hang_id
-
     LEFT JOIN danh_muc_thiet_bi dmtb
       ON dmtb.id = pk.danh_muc_id
+
+    LEFT JOIN ngam_thiet_bi n
+      ON n.id = pk.ngam_id
+      AND n.da_xoa_luc IS NULL
 
     WHERE pk.da_xoa_luc IS NULL
       AND pk.trang_thai = ${TRANG_THAI_HIEN_THI}
 
       AND (
-        -- Riêng danh mục Thẻ nhớ: lấy tất cả, không phân biệt hãng.
-        COALESCE(dmtb.ten_danh_muc, '') ILIKE ${"Thẻ nhớ"}
+        COALESCE(dmtb.ten_danh_muc, '') NOT ILIKE ${"Cáp sau"}
 
-        -- Phụ kiện không gán hãng vẫn được sử dụng.
-        OR pk.hang_id IS NULL
-
-        -- Phụ kiện có hãng phải cùng hãng với mẫu thiết bị chính.
-        OR pk.hang_id = (
-          SELECT mtb_chinh.hang_id
-          FROM mau_thiet_bi mtb_chinh
-          WHERE mtb_chinh.id = ${mauThietBiChinhId}::uuid
-            AND mtb_chinh.da_xoa_luc IS NULL
-          LIMIT 1
+        OR (
+          ${laOngKinh}
+          AND ${ngamIdCuaOngKinh}::uuid IS NOT NULL
+          AND pk.ngam_id = ${ngamIdCuaOngKinh}::uuid
         )
       )
+
+      -- Các ghi chú cũ dưới đây được giữ lại để đối chiếu lịch sử:
+      -- Riêng danh mục Thẻ nhớ: lấy tất cả, không phân biệt hãng.
+      -- Phụ kiện không gán hãng vẫn được sử dụng.
+      -- Phụ kiện có hãng phải cùng hãng với mẫu thiết bị chính.
+      -- Từ phiên bản này phụ kiện không còn cột hãng.
+      -- Chỉ Cáp sau của Ống kính mới được lọc theo ngàm.
 
       AND NOT EXISTS (
         SELECT 1
@@ -574,8 +613,8 @@ async function layGoiYPhuKien(mauThietBiChinhId, khoaTim) {
       AND (
         ${khoaTim} = ''
         OR pk.ten_phu_kien ILIKE ${khoaTim}
-        OR COALESCE(h.ten_hang, '') ILIKE ${khoaTim}
         OR COALESCE(dmtb.ten_danh_muc, '') ILIKE ${khoaTim}
+        OR COALESCE(n.ten_ngam, '') ILIKE ${khoaTim}
       )
 
     ORDER BY pk.ten_phu_kien ASC
@@ -616,18 +655,19 @@ async function layPhuKienTheoId(id) {
       pk.id,
       pk.ten_phu_kien,
       pk.tong_so_luong,
-      pk.hang_id,
-      h.ten_hang,
       pk.danh_muc_id,
-      dmtb.ten_danh_muc
+      dmtb.ten_danh_muc,
+      pk.ngam_id,
+      n.ten_ngam
 
     FROM phu_kien pk
 
-    LEFT JOIN hang_thiet_bi h
-      ON h.id = pk.hang_id
-
     LEFT JOIN danh_muc_thiet_bi dmtb
       ON dmtb.id = pk.danh_muc_id
+
+    LEFT JOIN ngam_thiet_bi n
+      ON n.id = pk.ngam_id
+      AND n.da_xoa_luc IS NULL
 
     WHERE pk.id = ${id}::uuid
       AND pk.da_xoa_luc IS NULL

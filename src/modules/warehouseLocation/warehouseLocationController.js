@@ -1,6 +1,7 @@
 const {
   layDanhSachViTriKhoService,
   layDanhSachViTriKhoDangHienThiService,
+  layDanhSachViTriPhuKienKhaDungService,
   taoViTriKhoService,
   capNhatViTriKhoService,
   capNhatTrangThaiViTriKhoService,
@@ -37,11 +38,17 @@ async function layDanhSachViTriKho(req, res) {
 
 async function layDanhSachViTriKhoDangHienThi(req, res) {
   try {
-    const data = await layDanhSachViTriKhoDangHienThiService();
+    const phuKienId = String(req.query.phu_kien_id || "").trim();
+
+    const data = phuKienId
+      ? await layDanhSachViTriPhuKienKhaDungService(phuKienId)
+      : await layDanhSachViTriKhoDangHienThiService();
 
     res.json({
       success: true,
-      message: "Lấy danh sách vị trí kho thành công",
+      message: phuKienId
+        ? "Lấy danh sách vị trí còn phụ kiện thành công"
+        : "Lấy danh sách vị trí kho thành công",
       data,
     });
   } catch (loi) {

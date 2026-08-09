@@ -9,26 +9,30 @@ datasource db {
 }
 
 model ban_giao_vat_pham {
-  id                    String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  chi_tiet_don_thue_id  String            @db.Uuid
-  bo_di_kem_id          String?           @db.Uuid
-  thiet_bi_id           String?           @db.Uuid
-  phu_kien_id           String?           @db.Uuid
-  ten_vat_pham_snapshot String            @db.VarChar(255)
-  ma_tai_san_snapshot   String?           @db.VarChar(100)
-  so_serial_snapshot    String?           @db.VarChar(255)
-  so_luong_giao         Int               @default(1)
-  ghi_chu_ban_giao      String?
-  created_at            DateTime          @default(now()) @db.Timestamptz(6)
-  bo_di_kem             bo_di_kem?        @relation(fields: [bo_di_kem_id], references: [id], onUpdate: NoAction)
-  chi_tiet_don_thue     chi_tiet_don_thue @relation(fields: [chi_tiet_don_thue_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  phu_kien              phu_kien?         @relation(fields: [phu_kien_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  thiet_bi_vat_ly       thiet_bi_vat_ly?  @relation(fields: [thiet_bi_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  id                     String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  chi_tiet_don_thue_id   String               @db.Uuid
+  bo_di_kem_id           String?              @db.Uuid
+  thiet_bi_id            String?              @db.Uuid
+  phu_kien_id            String?              @db.Uuid
+  ten_vat_pham_snapshot  String               @db.VarChar(255)
+  ma_tai_san_snapshot    String?              @db.VarChar(100)
+  so_serial_snapshot     String?              @db.VarChar(255)
+  so_luong_giao          Int                  @default(1)
+  ghi_chu_ban_giao       String?
+  created_at             DateTime             @default(now()) @db.Timestamptz(6)
+  phu_kien_vi_tri_kho_id String?              @db.Uuid
+  so_luong_tra_lai       Int?
+  bo_di_kem              bo_di_kem?           @relation(fields: [bo_di_kem_id], references: [id], onUpdate: NoAction)
+  chi_tiet_don_thue      chi_tiet_don_thue    @relation(fields: [chi_tiet_don_thue_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  phu_kien               phu_kien?            @relation(fields: [phu_kien_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  thiet_bi_vat_ly        thiet_bi_vat_ly?     @relation(fields: [thiet_bi_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  phu_kien_vi_tri_kho    phu_kien_vi_tri_kho? @relation(fields: [phu_kien_vi_tri_kho_id, phu_kien_id], references: [id, phu_kien_id], onDelete: Restrict, onUpdate: NoAction, map: "fk_bgvp_phu_kien_vi_tri_kho")
 
   @@unique([chi_tiet_don_thue_id, thiet_bi_id], map: "uq_ban_giao_vat_pham_chi_tiet_thiet_bi", where: raw("(thiet_bi_id IS NOT NULL)"))
   @@index([chi_tiet_don_thue_id], map: "idx_ban_giao_vat_pham_chi_tiet")
   @@index([phu_kien_id], map: "idx_ban_giao_vat_pham_phu_kien")
   @@index([thiet_bi_id], map: "idx_ban_giao_vat_pham_thiet_bi")
+  @@index([phu_kien_vi_tri_kho_id], map: "idx_bgvp_phu_kien_vi_tri_kho", where: raw("(phu_kien_vi_tri_kho_id IS NOT NULL)"))
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -47,41 +51,48 @@ model bo_di_kem {
   @@unique([mau_thiet_bi_chinh_id, mau_thiet_bi_phu_id], map: "uq_bo_di_kem_mau_phu", where: raw("(mau_thiet_bi_phu_id IS NOT NULL)"))
   @@unique([mau_thiet_bi_chinh_id, phu_kien_id], map: "uq_bo_di_kem_phu_kien", where: raw("(phu_kien_id IS NOT NULL)"))
   @@index([mau_thiet_bi_chinh_id], map: "idx_bo_di_kem_mau_chinh")
+  @@index([mau_thiet_bi_phu_id], map: "idx_bo_di_kem_mau_phu", where: raw("(mau_thiet_bi_phu_id IS NOT NULL)"))
+  @@index([phu_kien_id], map: "idx_bo_di_kem_phu_kien", where: raw("(phu_kien_id IS NOT NULL)"))
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model chi_tiet_don_thue {
-  id                     String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  don_thue_id            String              @db.Uuid
-  mau_thiet_bi_id        String              @db.Uuid
-  so_luong               Int                 @default(1)
-  gia_thue_ngay_snapshot BigInt              @default(0)
-  tien_coc_snapshot      BigInt              @default(0)
-  tien_thue              BigInt              @default(0)
-  tien_coc               BigInt              @default(0)
-  created_at             DateTime            @default(now()) @db.Timestamptz(6)
-  updated_at             DateTime            @default(now()) @db.Timestamptz(6)
-  ban_giao_vat_pham      ban_giao_vat_pham[]
-  don_thue               don_thue            @relation(fields: [don_thue_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  mau_thiet_bi           mau_thiet_bi        @relation(fields: [mau_thiet_bi_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  id                        String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  don_thue_id               String              @db.Uuid
+  mau_thiet_bi_id           String              @db.Uuid
+  so_luong                  Int                 @default(1)
+  gia_thue_ngay_snapshot    BigInt              @default(0)
+  tien_coc_snapshot         BigInt              @default(0)
+  tien_thue                 BigInt              @default(0)
+  tien_coc                  BigInt              @default(0)
+  created_at                DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime            @default(now()) @db.Timestamptz(6)
+  gia_tri_thiet_bi_snapshot BigInt?
+  ty_le_coc_snapshot        Decimal?            @db.Decimal(5, 2)
+  ban_giao_vat_pham         ban_giao_vat_pham[]
+  don_thue                  don_thue            @relation(fields: [don_thue_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  mau_thiet_bi              mau_thiet_bi        @relation(fields: [mau_thiet_bi_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([don_thue_id], map: "idx_chi_tiet_don_thue_don")
+  @@index([mau_thiet_bi_id, don_thue_id], map: "idx_ctdt_mau_don")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model chi_tiet_gio_hang {
-  id                     String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  gio_hang_id            String       @db.Uuid
-  mau_thiet_bi_id        String       @db.Uuid
-  so_luong               Int          @default(1)
-  ngay_nhan              DateTime     @db.Timestamptz(6)
-  ngay_tra               DateTime     @db.Timestamptz(6)
-  gia_thue_ngay_snapshot BigInt       @default(0)
-  tien_coc_snapshot      BigInt       @default(0)
-  created_at             DateTime     @default(now()) @db.Timestamptz(6)
-  updated_at             DateTime     @default(now()) @db.Timestamptz(6)
-  gio_hang               gio_hang     @relation(fields: [gio_hang_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  mau_thiet_bi           mau_thiet_bi @relation(fields: [mau_thiet_bi_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id                        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  gio_hang_id               String       @db.Uuid
+  mau_thiet_bi_id           String       @db.Uuid
+  so_luong                  Int          @default(1)
+  ngay_nhan                 DateTime     @db.Timestamptz(6)
+  ngay_tra                  DateTime     @db.Timestamptz(6)
+  gia_thue_ngay_snapshot    BigInt       @default(0)
+  tien_coc_snapshot         BigInt       @default(0)
+  created_at                DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime     @default(now()) @db.Timestamptz(6)
+  gia_tri_thiet_bi_snapshot BigInt?
+  ty_le_coc_snapshot        Decimal?     @db.Decimal(5, 2)
+  gio_hang                  gio_hang     @relation(fields: [gio_hang_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  mau_thiet_bi              mau_thiet_bi @relation(fields: [mau_thiet_bi_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([gio_hang_id], map: "idx_chi_tiet_gio_hang_gio")
   @@index([mau_thiet_bi_id], map: "idx_chi_tiet_gio_hang_mau")
@@ -89,19 +100,21 @@ model chi_tiet_gio_hang {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model chi_tiet_phien_thanh_toan {
-  id                     String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  phien_thanh_toan_id    String           @db.Uuid
-  mau_thiet_bi_id        String           @db.Uuid
-  so_luong               Int              @default(1)
-  ngay_nhan              DateTime         @db.Timestamptz(6)
-  ngay_tra               DateTime         @db.Timestamptz(6)
-  gia_thue_ngay_snapshot BigInt           @default(0)
-  tien_coc_snapshot      BigInt           @default(0)
-  tien_thue              BigInt           @default(0)
-  tien_coc               BigInt           @default(0)
-  created_at             DateTime         @default(now()) @db.Timestamptz(6)
-  mau_thiet_bi           mau_thiet_bi     @relation(fields: [mau_thiet_bi_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  phien_thanh_toan       phien_thanh_toan @relation(fields: [phien_thanh_toan_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id                        String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phien_thanh_toan_id       String           @db.Uuid
+  mau_thiet_bi_id           String           @db.Uuid
+  so_luong                  Int              @default(1)
+  ngay_nhan                 DateTime         @db.Timestamptz(6)
+  ngay_tra                  DateTime         @db.Timestamptz(6)
+  gia_thue_ngay_snapshot    BigInt           @default(0)
+  tien_coc_snapshot         BigInt           @default(0)
+  tien_thue                 BigInt           @default(0)
+  tien_coc                  BigInt           @default(0)
+  created_at                DateTime         @default(now()) @db.Timestamptz(6)
+  gia_tri_thiet_bi_snapshot BigInt?
+  ty_le_coc_snapshot        Decimal?         @db.Decimal(5, 2)
+  mau_thiet_bi              mau_thiet_bi     @relation(fields: [mau_thiet_bi_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  phien_thanh_toan          phien_thanh_toan @relation(fields: [phien_thanh_toan_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([mau_thiet_bi_id], map: "idx_ct_phien_thanh_toan_mau")
   @@index([phien_thanh_toan_id], map: "idx_ct_phien_thanh_toan_phien")
@@ -163,6 +176,7 @@ model don_thue {
   phi_phat_sinh_tien                                BigInt              @default(0)
   created_at                                        DateTime            @default(now()) @db.Timestamptz(6)
   updated_at                                        DateTime            @default(now()) @db.Timestamptz(6)
+  ty_le_phi_huy_snapshot                            Decimal?            @db.Decimal(5, 2)
   chi_tiet_don_thue                                 chi_tiet_don_thue[]
   nguoi_dung_don_thue_khach_hang_idTonguoi_dung     nguoi_dung          @relation("don_thue_khach_hang_idTonguoi_dung", fields: [khach_hang_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   nguoi_dung_don_thue_nguoi_ban_giao_idTonguoi_dung nguoi_dung?         @relation("don_thue_nguoi_ban_giao_idTonguoi_dung", fields: [nguoi_ban_giao_id], references: [id], onUpdate: NoAction)
@@ -172,10 +186,12 @@ model don_thue {
   phieu_bao_tri                                     phieu_bao_tri[]
   tep_don_thue                                      tep_don_thue[]
   thanh_toan                                        thanh_toan[]
+  yeu_cau_huy_don                                   yeu_cau_huy_don?
 
   @@index([khach_hang_id], map: "idx_don_thue_khach_hang")
   @@index([ngay_nhan, ngay_tra], map: "idx_don_thue_ngay")
   @@index([trang_thai], map: "idx_don_thue_trang_thai")
+  @@index([trang_thai, ngay_nhan, ngay_tra], map: "idx_don_thue_trang_thai_ngay")
 }
 
 model gio_hang {
@@ -221,18 +237,24 @@ model mau_thiet_bi {
   updated_at                                              DateTime                    @default(now()) @db.Timestamptz(6)
   trang_thai                                              Int                         @default(601)
   hang_id                                                 String?                     @db.Uuid
+  ngam_id                                                 String?                     @db.Uuid
+  gia_tri_thiet_bi                                        BigInt?
+  ty_le_coc                                               Decimal?                    @db.Decimal(5, 2)
   bo_di_kem_bo_di_kem_mau_thiet_bi_chinh_idTomau_thiet_bi bo_di_kem[]                 @relation("bo_di_kem_mau_thiet_bi_chinh_idTomau_thiet_bi")
   bo_di_kem_bo_di_kem_mau_thiet_bi_phu_idTomau_thiet_bi   bo_di_kem[]                 @relation("bo_di_kem_mau_thiet_bi_phu_idTomau_thiet_bi")
   chi_tiet_don_thue                                       chi_tiet_don_thue[]
   chi_tiet_gio_hang                                       chi_tiet_gio_hang[]
   chi_tiet_phien_thanh_toan                               chi_tiet_phien_thanh_toan[]
   hang_thiet_bi                                           hang_thiet_bi?              @relation(fields: [hang_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_mau_thiet_bi_hang")
+  ngam_thiet_bi                                           ngam_thiet_bi?              @relation(fields: [ngam_id], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "fk_mau_thiet_bi_ngam")
   trang_thai_he_thong                                     trang_thai_he_thong         @relation(fields: [trang_thai], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_mau_thiet_bi_trang_thai")
   danh_muc_thiet_bi                                       danh_muc_thiet_bi           @relation(fields: [danh_muc_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  mau_thiet_bi_nhu_cau                                    mau_thiet_bi_nhu_cau[]
   thiet_bi_vat_ly                                         thiet_bi_vat_ly[]
 
   @@index([danh_muc_id], map: "idx_mau_thiet_bi_danh_muc")
   @@index([trang_thai], map: "idx_mau_thiet_bi_trang_thai")
+  @@index([ngam_id], map: "idx_mau_thiet_bi_ngam")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -249,6 +271,7 @@ model nguoi_dung {
   da_xoa_luc                                                              DateTime?            @db.Timestamptz(6)
   created_at                                                              DateTime             @default(now()) @db.Timestamptz(6)
   updated_at                                                              DateTime             @default(now()) @db.Timestamptz(6)
+  chinh_sach_huy_don                                                      chinh_sach_huy_don[]
   don_thue_don_thue_khach_hang_idTonguoi_dung                             don_thue[]           @relation("don_thue_khach_hang_idTonguoi_dung")
   don_thue_don_thue_nguoi_ban_giao_idTonguoi_dung                         don_thue[]           @relation("don_thue_nguoi_ban_giao_idTonguoi_dung")
   don_thue_don_thue_nguoi_nhan_tra_idTonguoi_dung                         don_thue[]           @relation("don_thue_nguoi_nhan_tra_idTonguoi_dung")
@@ -262,6 +285,7 @@ model nguoi_dung {
   phieu_bao_tri                                                           phieu_bao_tri[]
   tep_don_thue                                                            tep_don_thue[]
   thanh_toan                                                              thanh_toan[]
+  yeu_cau_huy_don                                                         yeu_cau_huy_don[]
 
   @@index([trang_thai_xac_minh], map: "idx_nguoi_dung_trang_thai_xac_minh")
   @@index([vai_tro], map: "idx_nguoi_dung_vai_tro")
@@ -298,6 +322,7 @@ model phien_thanh_toan {
   that_bai_luc              DateTime?                   @db.Timestamptz(6)
   created_at                DateTime                    @default(now()) @db.Timestamptz(6)
   updated_at                DateTime                    @default(now()) @db.Timestamptz(6)
+  ty_le_phi_huy_snapshot    Decimal?                    @db.Decimal(5, 2)
   chi_tiet_phien_thanh_toan chi_tiet_phien_thanh_toan[]
   don_thue                  don_thue?
   nguoi_dung                nguoi_dung                  @relation(fields: [khach_hang_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
@@ -332,24 +357,29 @@ model phieu_bao_tri {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model phu_kien {
-  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  ten_phu_kien      String              @unique @db.VarChar(255)
-  mo_ta             String?
-  tong_so_luong     Int                 @default(0)
-  ghi_chu           String?
-  da_xoa_luc        DateTime?           @db.Timestamptz(6)
-  created_at        DateTime            @default(now()) @db.Timestamptz(6)
-  updated_at        DateTime            @default(now()) @db.Timestamptz(6)
-  hang_id           String?             @db.Uuid
-  vi_tri_kho_id     String?             @db.Uuid
-  danh_muc_id       String?             @db.Uuid
-  ban_giao_vat_pham ban_giao_vat_pham[]
-  bo_di_kem         bo_di_kem[]
-  danh_muc_thiet_bi danh_muc_thiet_bi?  @relation(fields: [danh_muc_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_phu_kien_danh_muc")
-  hang_thiet_bi     hang_thiet_bi?      @relation(fields: [hang_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_phu_kien_hang")
-  vi_tri_kho        vi_tri_kho?         @relation(fields: [vi_tri_kho_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_phu_kien_vi_tri_kho")
+  id                   String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ten_phu_kien         String                @unique @db.VarChar(255)
+  mo_ta                String?
+  tong_so_luong        Int                   @default(0)
+  da_xoa_luc           DateTime?             @db.Timestamptz(6)
+  created_at           DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime              @default(now()) @db.Timestamptz(6)
+  vi_tri_kho_id        String?               @db.Uuid
+  danh_muc_id          String?               @db.Uuid
+  so_luong_mat_hu_hong Int                   @default(0)
+  trang_thai           Int                   @default(601)
+  ngam_id              String?               @db.Uuid
+  ban_giao_vat_pham    ban_giao_vat_pham[]
+  bo_di_kem            bo_di_kem[]
+  danh_muc_thiet_bi    danh_muc_thiet_bi?    @relation(fields: [danh_muc_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_phu_kien_danh_muc")
+  ngam_thiet_bi        ngam_thiet_bi?        @relation(fields: [ngam_id], references: [id], onDelete: Restrict, onUpdate: NoAction, map: "fk_phu_kien_ngam")
+  trang_thai_he_thong  trang_thai_he_thong   @relation(fields: [trang_thai], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_phu_kien_trang_thai")
+  vi_tri_kho           vi_tri_kho?           @relation(fields: [vi_tri_kho_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_phu_kien_vi_tri_kho")
+  phu_kien_vi_tri_kho  phu_kien_vi_tri_kho[]
 
   @@index([danh_muc_id], map: "idx_phu_kien_danh_muc_id")
+  @@index([ngam_id], map: "idx_phu_kien_ngam")
+  @@index([trang_thai], map: "idx_phu_kien_trang_thai", where: raw("(da_xoa_luc IS NULL)"))
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -410,6 +440,7 @@ model thiet_bi_vat_ly {
 
   @@index([mau_thiet_bi_id], map: "idx_thiet_bi_vat_ly_mau")
   @@index([trang_thai], map: "idx_thiet_bi_vat_ly_trang_thai")
+  @@index([mau_thiet_bi_id], map: "idx_tbvl_mau_san_sang", where: raw("((trang_thai = 501) AND (da_xoa_luc IS NULL))"))
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -426,12 +457,16 @@ model trang_thai_he_thong {
   hang_thiet_bi                                                  hang_thiet_bi[]
   ho_so_xac_minh                                                 ho_so_xac_minh[]
   mau_thiet_bi                                                   mau_thiet_bi[]
+  ngam_thiet_bi                                                  ngam_thiet_bi[]
   nguoi_dung_nguoi_dung_trang_thaiTotrang_thai_he_thong          nguoi_dung[]        @relation("nguoi_dung_trang_thaiTotrang_thai_he_thong")
   nguoi_dung_nguoi_dung_trang_thai_xac_minhTotrang_thai_he_thong nguoi_dung[]        @relation("nguoi_dung_trang_thai_xac_minhTotrang_thai_he_thong")
+  nhu_cau_su_dung                                                nhu_cau_su_dung[]
   phien_thanh_toan                                               phien_thanh_toan[]
   phieu_bao_tri                                                  phieu_bao_tri[]
+  phu_kien                                                       phu_kien[]
   thiet_bi_vat_ly                                                thiet_bi_vat_ly[]
   vi_tri_kho                                                     vi_tri_kho[]
+  yeu_cau_huy_don                                                yeu_cau_huy_don[]
 
   @@unique([nhom_trang_thai, ma_trang_thai], map: "uq_trang_thai_he_thong_nhom_ma")
   @@index([nhom_trang_thai], map: "idx_trang_thai_he_thong_nhom")
@@ -461,7 +496,7 @@ model hang_thiet_bi {
   trang_thai          Int                 @default(601)
   trang_thai_he_thong trang_thai_he_thong @relation(fields: [trang_thai], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_hang_thiet_bi_trang_thai")
   mau_thiet_bi        mau_thiet_bi[]
-  phu_kien            phu_kien[]
+  ngam_thiet_bi       ngam_thiet_bi[]
 
   @@index([trang_thai], map: "idx_hang_thiet_bi_trang_thai")
 }
@@ -469,17 +504,114 @@ model hang_thiet_bi {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
 model vi_tri_kho {
-  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   ten_vi_tri          String
-  suc_chua_toi_da     Int                 @default(999999)
+  suc_chua_toi_da     Int?
   ghi_chu             String?
-  da_xoa_luc          DateTime?           @db.Timestamptz(6)
-  created_at          DateTime?           @default(now()) @db.Timestamptz(6)
-  updated_at          DateTime?           @default(now()) @db.Timestamptz(6)
-  trang_thai          Int                 @default(601)
+  da_xoa_luc          DateTime?             @db.Timestamptz(6)
+  created_at          DateTime?             @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime?             @default(now()) @db.Timestamptz(6)
+  trang_thai          Int                   @default(601)
   phu_kien            phu_kien[]
+  phu_kien_vi_tri_kho phu_kien_vi_tri_kho[]
   thiet_bi_vat_ly     thiet_bi_vat_ly[]
-  trang_thai_he_thong trang_thai_he_thong @relation(fields: [trang_thai], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_vi_tri_kho_trang_thai")
+  trang_thai_he_thong trang_thai_he_thong   @relation(fields: [trang_thai], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_vi_tri_kho_trang_thai")
 
   @@index([trang_thai], map: "idx_vi_tri_kho_trang_thai")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model chinh_sach_huy_don {
+  id            Int         @id @db.SmallInt
+  ty_le_phi_huy Decimal     @db.Decimal(5, 2)
+  updated_by    String?     @db.Uuid
+  created_at    DateTime    @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime    @default(now()) @db.Timestamptz(6)
+  nguoi_dung    nguoi_dung? @relation(fields: [updated_by], references: [id], onUpdate: NoAction)
+}
+
+model mau_thiet_bi_nhu_cau {
+  mau_thiet_bi_id String          @db.Uuid
+  nhu_cau_id      String          @db.Uuid
+  created_at      DateTime        @default(now()) @db.Timestamptz(6)
+  mau_thiet_bi    mau_thiet_bi    @relation(fields: [mau_thiet_bi_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  nhu_cau_su_dung nhu_cau_su_dung @relation(fields: [nhu_cau_id], references: [id], onUpdate: NoAction)
+
+  @@id([mau_thiet_bi_id, nhu_cau_id])
+  @@index([nhu_cau_id], map: "idx_mau_thiet_bi_nhu_cau_nhu_cau")
+}
+
+model ngam_thiet_bi {
+  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ten_ngam            String              @unique @db.VarChar(255)
+  hang_so_huu_id      String              @db.Uuid
+  trang_thai          Int                 @default(601)
+  da_xoa_luc          DateTime?           @db.Timestamptz(6)
+  created_at          DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime            @default(now()) @db.Timestamptz(6)
+  mau_thiet_bi        mau_thiet_bi[]
+  hang_thiet_bi       hang_thiet_bi       @relation(fields: [hang_so_huu_id], references: [id], onUpdate: NoAction)
+  trang_thai_he_thong trang_thai_he_thong @relation(fields: [trang_thai], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  phu_kien            phu_kien[]
+
+  @@index([hang_so_huu_id], map: "idx_ngam_thiet_bi_hang_so_huu")
+  @@index([trang_thai], map: "idx_ngam_thiet_bi_trang_thai")
+}
+
+model nhu_cau_su_dung {
+  id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ten_nhu_cau          String                 @unique @db.VarChar(255)
+  mo_ta                String?
+  trang_thai           Int                    @default(601)
+  da_xoa_luc           DateTime?              @db.Timestamptz(6)
+  created_at           DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime               @default(now()) @db.Timestamptz(6)
+  mau_thiet_bi_nhu_cau mau_thiet_bi_nhu_cau[]
+  trang_thai_he_thong  trang_thai_he_thong    @relation(fields: [trang_thai], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([trang_thai], map: "idx_nhu_cau_su_dung_trang_thai")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model phu_kien_vi_tri_kho {
+  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phu_kien_id       String              @db.Uuid
+  vi_tri_kho_id     String              @db.Uuid
+  so_luong          Int                 @default(0)
+  dang_su_dung      Boolean             @default(true)
+  created_at        DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime            @default(now()) @db.Timestamptz(6)
+  ban_giao_vat_pham ban_giao_vat_pham[]
+  phu_kien          phu_kien            @relation(fields: [phu_kien_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  vi_tri_kho        vi_tri_kho          @relation(fields: [vi_tri_kho_id], references: [id], onUpdate: NoAction)
+
+  @@unique([phu_kien_id, vi_tri_kho_id], map: "uq_phu_kien_vi_tri_kho")
+  @@unique([id, phu_kien_id], map: "uq_phu_kien_vi_tri_kho_id_phu_kien")
+  @@index([dang_su_dung], map: "idx_phu_kien_vi_tri_kho_dang_su_dung")
+  @@index([phu_kien_id], map: "idx_phu_kien_vi_tri_kho_phu_kien")
+  @@index([vi_tri_kho_id], map: "idx_phu_kien_vi_tri_kho_vi_tri")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model yeu_cau_huy_don {
+  id                     String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  don_thue_id            String              @unique @db.Uuid
+  ly_do_huy              String
+  trang_thai_id          Int                 @default(1701)
+  ty_le_phi_huy_snapshot Decimal             @db.Decimal(5, 2)
+  tong_tien_coc_snapshot BigInt
+  phi_huy                BigInt              @default(0)
+  tien_coc_hoan_lai      BigInt              @default(0)
+  gui_luc                DateTime            @default(now()) @db.Timestamptz(6)
+  nguoi_xu_ly_id         String?             @db.Uuid
+  xu_ly_luc              DateTime?           @db.Timestamptz(6)
+  ghi_chu_xu_ly          String?
+  created_at             DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime            @default(now()) @db.Timestamptz(6)
+  don_thue               don_thue            @relation(fields: [don_thue_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  nguoi_dung             nguoi_dung?         @relation(fields: [nguoi_xu_ly_id], references: [id], onUpdate: NoAction)
+  trang_thai_he_thong    trang_thai_he_thong @relation(fields: [trang_thai_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([nguoi_xu_ly_id], map: "idx_yeu_cau_huy_don_nguoi_xu_ly")
+  @@index([trang_thai_id, gui_luc], map: "idx_yeu_cau_huy_don_trang_thai_gui")
 }

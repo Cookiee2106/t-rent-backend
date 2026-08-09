@@ -2,14 +2,14 @@ const express = require("express");
 const {
   layDanhSachDonCuaToi,
   layChiTietDonCuaToi,
-  huyDonCuaToi,
+  guiYeuCauHuyDonCuaToi,
 } = require("./customerOrderController");
 const xacThucDangNhap = require("../../middlewares/authMiddleware");
 
 const router = express.Router();
 
 router.get("/", xacThucDangNhap, layDanhSachDonCuaToi);
-router.patch("/:id/cancel", xacThucDangNhap, huyDonCuaToi);
+router.post("/:id/cancel-request", xacThucDangNhap, guiYeuCauHuyDonCuaToi);
 router.get("/:id", xacThucDangNhap, layChiTietDonCuaToi);
 
 module.exports = router;

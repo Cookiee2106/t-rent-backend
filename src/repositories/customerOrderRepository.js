@@ -7,6 +7,10 @@ const TRANG_THAI_DANG_THUE = 1103;
 const TRANG_THAI_HOAN_THANH = 1104;
 const TRANG_THAI_QUA_HAN = 1105;
 
+const TRANG_THAI_YEU_CAU_HUY_CHO_XU_LY = 1701;
+const TRANG_THAI_YEU_CAU_HUY_DA_XAC_NHAN = 1702;
+const TRANG_THAI_YEU_CAU_HUY_TU_CHOI = 1703;
+
 const MUC_DICH_HOP_DONG_GIAY = 2601;
 const MUC_DICH_ANH_BAN_GIAO = 2602;
 const MUC_DICH_ANH_KHI_TRA = 2603;
@@ -34,10 +38,22 @@ async function layDanhSachDonCuaKhach(nguoiDungId) {
       dt.so_ngay_thue,
       dt.tong_tien_thue::text AS tong_tien_thue,
       dt.tong_tien_coc::text AS tong_tien_coc,
+      dt.ty_le_phi_huy_snapshot::text AS ty_le_phi_huy_snapshot,
       dt.trang_thai,
       tt.ten_trang_thai,
       dt.huy_luc,
       dt.ly_do_huy,
+
+      ychd.id AS yeu_cau_huy_id,
+      ychd.ly_do_huy AS ly_do_yeu_cau_huy,
+      ychd.trang_thai_id AS trang_thai_yeu_cau_huy_id,
+      ttychd.ten_trang_thai AS ten_trang_thai_yeu_cau_huy,
+      ychd.ty_le_phi_huy_snapshot::text AS ty_le_phi_huy_yeu_cau,
+      ychd.tong_tien_coc_snapshot::text AS tong_tien_coc_yeu_cau,
+      ychd.phi_huy::text AS phi_huy_yeu_cau,
+      ychd.tien_coc_hoan_lai::text AS tien_coc_hoan_lai_yeu_cau,
+      ychd.gui_luc AS gui_luc_yeu_cau,
+
       dt.ban_giao_luc,
       dt.tra_luc,
       dt.created_at,
@@ -45,6 +61,10 @@ async function layDanhSachDonCuaKhach(nguoiDungId) {
     FROM don_thue dt
     LEFT JOIN trang_thai_he_thong tt
       ON tt.id = dt.trang_thai
+    LEFT JOIN yeu_cau_huy_don ychd
+      ON ychd.don_thue_id = dt.id
+    LEFT JOIN trang_thai_he_thong ttychd
+      ON ttychd.id = ychd.trang_thai_id
     WHERE dt.khach_hang_id = ${nguoiDungId}::uuid
     ORDER BY dt.created_at DESC
   `;
@@ -62,10 +82,21 @@ async function layDonThuocKhachHang(donThueId, nguoiDungId) {
       dt.so_ngay_thue,
       dt.tong_tien_thue::text AS tong_tien_thue,
       dt.tong_tien_coc::text AS tong_tien_coc,
+      dt.ty_le_phi_huy_snapshot::text AS ty_le_phi_huy_snapshot,
       dt.trang_thai,
       tt.ten_trang_thai,
       dt.huy_luc,
       dt.ly_do_huy,
+
+      ychd.id AS yeu_cau_huy_id,
+      ychd.ly_do_huy AS ly_do_yeu_cau_huy,
+      ychd.trang_thai_id AS trang_thai_yeu_cau_huy_id,
+      ttychd.ten_trang_thai AS ten_trang_thai_yeu_cau_huy,
+      ychd.ty_le_phi_huy_snapshot::text AS ty_le_phi_huy_yeu_cau,
+      ychd.tong_tien_coc_snapshot::text AS tong_tien_coc_yeu_cau,
+      ychd.phi_huy::text AS phi_huy_yeu_cau,
+      ychd.tien_coc_hoan_lai::text AS tien_coc_hoan_lai_yeu_cau,
+      ychd.gui_luc AS gui_luc_yeu_cau,
 
       dt.ban_giao_luc,
       dt.nguoi_ban_giao_id,
@@ -84,6 +115,10 @@ async function layDonThuocKhachHang(donThueId, nguoiDungId) {
     FROM don_thue dt
     LEFT JOIN trang_thai_he_thong tt
       ON tt.id = dt.trang_thai
+    LEFT JOIN yeu_cau_huy_don ychd
+      ON ychd.don_thue_id = dt.id
+    LEFT JOIN trang_thai_he_thong ttychd
+      ON ttychd.id = ychd.trang_thai_id
     LEFT JOIN nguoi_dung nv_bg
       ON nv_bg.id = dt.nguoi_ban_giao_id
     LEFT JOIN nguoi_dung nv_tra
@@ -170,22 +205,90 @@ async function layTepDonThueTheoMucDich(donThueId, danhSachMucDichId) {
   `;
 }
 
-async function capNhatHuyDon(donThueId, nguoiDungId, lyDoHuy) {
+async function layYeuCauHuyDonTheoDon(donThueId) {
   const rows = await prisma.$queryRaw`
-    UPDATE don_thue
-    SET
-      trang_thai = ${TRANG_THAI_DA_HUY},
-      huy_luc = NOW(),
-      ly_do_huy = ${lyDoHuy},
+    SELECT
+      ychd.id,
+      ychd.don_thue_id,
+      ychd.ly_do_huy,
+      ychd.trang_thai_id,
+      tt.ten_trang_thai,
+      ychd.ty_le_phi_huy_snapshot::text AS ty_le_phi_huy_snapshot,
+      ychd.tong_tien_coc_snapshot::text AS tong_tien_coc_snapshot,
+      ychd.phi_huy::text AS phi_huy,
+      ychd.tien_coc_hoan_lai::text AS tien_coc_hoan_lai,
+      ychd.gui_luc,
+      ychd.xu_ly_luc,
+      ychd.ghi_chu_xu_ly,
+      ychd.created_at,
+      ychd.updated_at
+    FROM yeu_cau_huy_don ychd
+    LEFT JOIN trang_thai_he_thong tt
+      ON tt.id = ychd.trang_thai_id
+    WHERE ychd.don_thue_id = ${donThueId}::uuid
+    LIMIT 1
+  `;
+
+  return rows[0] || null;
+}
+
+async function guiYeuCauHuyDon({
+  donThueId,
+  lyDoHuy,
+  tyLePhiHuySnapshot,
+  tongTienCocSnapshot,
+  phiHuy,
+  tienCocHoanLai,
+}) {
+  const rows = await prisma.$queryRaw`
+    INSERT INTO yeu_cau_huy_don (
+      don_thue_id,
+      ly_do_huy,
+      trang_thai_id,
+      ty_le_phi_huy_snapshot,
+      tong_tien_coc_snapshot,
+      phi_huy,
+      tien_coc_hoan_lai,
+      gui_luc,
+      created_at,
+      updated_at
+    )
+    VALUES (
+      ${donThueId}::uuid,
+      ${lyDoHuy},
+      ${TRANG_THAI_YEU_CAU_HUY_CHO_XU_LY},
+      ${tyLePhiHuySnapshot},
+      ${tongTienCocSnapshot},
+      ${phiHuy},
+      ${tienCocHoanLai},
+      NOW(),
+      NOW(),
+      NOW()
+    )
+    ON CONFLICT (don_thue_id)
+    DO UPDATE SET
+      ly_do_huy = EXCLUDED.ly_do_huy,
+      trang_thai_id = ${TRANG_THAI_YEU_CAU_HUY_CHO_XU_LY},
+      ty_le_phi_huy_snapshot = EXCLUDED.ty_le_phi_huy_snapshot,
+      tong_tien_coc_snapshot = EXCLUDED.tong_tien_coc_snapshot,
+      phi_huy = EXCLUDED.phi_huy,
+      tien_coc_hoan_lai = EXCLUDED.tien_coc_hoan_lai,
+      gui_luc = NOW(),
+      nguoi_xu_ly_id = NULL,
+      xu_ly_luc = NULL,
+      ghi_chu_xu_ly = NULL,
       updated_at = NOW()
-    WHERE id = ${donThueId}::uuid
-      AND khach_hang_id = ${nguoiDungId}::uuid
+    WHERE yeu_cau_huy_don.trang_thai_id = ${TRANG_THAI_YEU_CAU_HUY_TU_CHOI}
     RETURNING
       id,
-      ma_don,
-      trang_thai,
-      huy_luc,
+      don_thue_id,
       ly_do_huy,
+      trang_thai_id,
+      ty_le_phi_huy_snapshot::text AS ty_le_phi_huy_snapshot,
+      tong_tien_coc_snapshot::text AS tong_tien_coc_snapshot,
+      phi_huy::text AS phi_huy,
+      tien_coc_hoan_lai::text AS tien_coc_hoan_lai,
+      gui_luc,
       updated_at
   `;
 
@@ -198,6 +301,9 @@ module.exports = {
   TRANG_THAI_DANG_THUE,
   TRANG_THAI_HOAN_THANH,
   TRANG_THAI_QUA_HAN,
+  TRANG_THAI_YEU_CAU_HUY_CHO_XU_LY,
+  TRANG_THAI_YEU_CAU_HUY_DA_XAC_NHAN,
+  TRANG_THAI_YEU_CAU_HUY_TU_CHOI,
   MUC_DICH_HOP_DONG_GIAY,
   MUC_DICH_ANH_BAN_GIAO,
   MUC_DICH_ANH_KHI_TRA,
@@ -207,5 +313,6 @@ module.exports = {
   layChiTietDonThue,
   layThanhToanCuaDon,
   layTepDonThueTheoMucDich,
-  capNhatHuyDon,
+  layYeuCauHuyDonTheoDon,
+  guiYeuCauHuyDon,
 };

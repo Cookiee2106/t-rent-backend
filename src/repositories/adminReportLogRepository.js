@@ -4,7 +4,6 @@ const AdminReportLogModel = require("../models/AdminReportLogModel");
 const THIET_BI_SAN_SANG = 501;
 const THIET_BI_DANG_THUE = 502;
 const THIET_BI_DANG_BAO_TRI = 503;
-const THIET_BI_DA_THANH_LY = 504;
 const THIET_BI_BI_MAT = 505;
 const THIET_BI_HU_HONG = 506;
 
@@ -21,41 +20,63 @@ async function kiemTraCoCotPhuKienMatHuHong() {
 }
 
 async function layBaoCaoDoanhThuRepository({ tuNgay, denNgay }) {
+  // Hai dòng chú thích cũ bên dưới được giữ lại để đối chiếu với logic trước đây.
   // Chỉ tính những đơn đã xác nhận bàn giao và có dòng tiền thuê 2302.
   // Dùng EXISTS để một đơn không bị nhân đôi nếu dữ liệu có nhiều dòng 2302.
   const LOAI_TIEN_THUE = 2302;
+  const LOAI_PHI_HUY_DON = 2306;
 
+  // Tổng doanh thu và doanh thu theo tháng lấy trực tiếp từ dòng tiền thực tế:
+  // 2302 = tiền thuê, 2306 = phí hủy đơn. Hoàn cọc 2303 không được cộng.
   const [
+    tongQuanDoanhThu,
     danhSachTheoThang,
     danhSachTheoMau,
   ] = await Promise.all([
     prisma.$queryRaw`
       SELECT
-        DATE_TRUNC('month', dt.ban_giao_luc) AS thang,
-        TO_CHAR(
-          DATE_TRUNC('month', dt.ban_giao_luc),
-          'MM/YYYY'
-        ) AS thang_hien_thi,
-        COALESCE(SUM(dt.tong_tien_thue), 0)::text AS tong_doanh_thu,
-        COUNT(dt.id)::int AS so_don_thue
-      FROM don_thue dt
-      WHERE dt.ban_giao_luc IS NOT NULL
-        AND EXISTS (
-          SELECT 1
-          FROM thanh_toan tt
-          WHERE tt.don_thue_id = dt.id
-            AND tt.loai_dong_tien_id = ${LOAI_TIEN_THUE}
+        COALESCE(SUM(tt.so_tien), 0)::text AS tong_doanh_thu,
+        COUNT(DISTINCT tt.don_thue_id)::int AS tong_don_thue
+      FROM thanh_toan tt
+      WHERE tt.loai_dong_tien_id IN (
+          ${LOAI_TIEN_THUE},
+          ${LOAI_PHI_HUY_DON}
         )
-        AND (
-          ${tuNgay}::date IS NULL
-          OR dt.ban_giao_luc::date >= ${tuNgay}::date
-        )
-        AND (
-          ${denNgay}::date IS NULL
-          OR dt.ban_giao_luc::date <= ${denNgay}::date
-        )
-      GROUP BY DATE_TRUNC('month', dt.ban_giao_luc)
-      ORDER BY DATE_TRUNC('month', dt.ban_giao_luc) DESC
+        AND tt.created_at::date >= ${tuNgay}::date
+        AND tt.created_at::date <= ${denNgay}::date
+    `,
+
+    prisma.$queryRaw`
+      WITH danh_sach_thang AS (
+        SELECT GENERATE_SERIES(
+          DATE_TRUNC('month', ${tuNgay}::date),
+          DATE_TRUNC('month', ${denNgay}::date),
+          INTERVAL '1 month'
+        ) AS thang
+      ),
+      doanh_thu_theo_thang AS (
+        SELECT
+          DATE_TRUNC('month', tt.created_at) AS thang,
+          COALESCE(SUM(tt.so_tien), 0)::text AS tong_doanh_thu,
+          COUNT(DISTINCT tt.don_thue_id)::int AS so_don_thue
+        FROM thanh_toan tt
+        WHERE tt.loai_dong_tien_id IN (
+            ${LOAI_TIEN_THUE},
+            ${LOAI_PHI_HUY_DON}
+          )
+          AND tt.created_at::date >= ${tuNgay}::date
+          AND tt.created_at::date <= ${denNgay}::date
+        GROUP BY DATE_TRUNC('month', tt.created_at)
+      )
+      SELECT
+        dst.thang,
+        TO_CHAR(dst.thang, 'MM/YYYY') AS thang_hien_thi,
+        COALESCE(dtt.tong_doanh_thu, '0') AS tong_doanh_thu,
+        COALESCE(dtt.so_don_thue, 0)::int AS so_don_thue
+      FROM danh_sach_thang dst
+      LEFT JOIN doanh_thu_theo_thang dtt
+        ON dtt.thang = dst.thang
+      ORDER BY dst.thang ASC
     `,
 
     prisma.$queryRaw`
@@ -85,14 +106,8 @@ async function layBaoCaoDoanhThuRepository({ tuNgay, denNgay }) {
           FROM thanh_toan tt
           WHERE tt.don_thue_id = dt.id
             AND tt.loai_dong_tien_id = ${LOAI_TIEN_THUE}
-        )
-        AND (
-          ${tuNgay}::date IS NULL
-          OR dt.ban_giao_luc::date >= ${tuNgay}::date
-        )
-        AND (
-          ${denNgay}::date IS NULL
-          OR dt.ban_giao_luc::date <= ${denNgay}::date
+            AND tt.created_at::date >= ${tuNgay}::date
+            AND tt.created_at::date <= ${denNgay}::date
         )
       GROUP BY
         mtb.id,
@@ -109,6 +124,7 @@ async function layBaoCaoDoanhThuRepository({ tuNgay, denNgay }) {
   return AdminReportLogModel.mapBaoCaoDoanhThu({
     tuNgay,
     denNgay,
+    tongQuanDoanhThu: tongQuanDoanhThu[0] || {},
     danhSachTheoThang,
     danhSachTheoMau,
   });
@@ -119,11 +135,16 @@ async function layBaoCaoTonKhoRepository({ hangId, danhMucId }) {
 
   const [tongQuanThietBi] = await prisma.$queryRaw`
     SELECT
-      COUNT(tbvl.id)::int AS tong_thiet_bi,
+      COUNT(tbvl.id) FILTER (
+        WHERE tbvl.trang_thai IN (
+          ${THIET_BI_SAN_SANG},
+          ${THIET_BI_DANG_THUE},
+          ${THIET_BI_DANG_BAO_TRI}
+        )
+      )::int AS tong_thiet_bi,
       COUNT(tbvl.id) FILTER (WHERE tbvl.trang_thai = ${THIET_BI_SAN_SANG})::int AS thiet_bi_san_sang,
       COUNT(tbvl.id) FILTER (WHERE tbvl.trang_thai = ${THIET_BI_DANG_THUE})::int AS thiet_bi_dang_thue,
       COUNT(tbvl.id) FILTER (WHERE tbvl.trang_thai = ${THIET_BI_DANG_BAO_TRI})::int AS thiet_bi_dang_bao_tri,
-      COUNT(tbvl.id) FILTER (WHERE tbvl.trang_thai = ${THIET_BI_DA_THANH_LY})::int AS thiet_bi_da_thanh_ly,
       COUNT(tbvl.id) FILTER (WHERE tbvl.trang_thai = ${THIET_BI_HU_HONG})::int AS thiet_bi_hu_hong,
       COUNT(tbvl.id) FILTER (WHERE tbvl.trang_thai = ${THIET_BI_BI_MAT})::int AS thiet_bi_bi_mat
     FROM thiet_bi_vat_ly tbvl
@@ -151,10 +172,7 @@ async function layBaoCaoTonKhoRepository({ hangId, danhMucId }) {
         COALESCE(SUM(pk.so_luong_mat_hu_hong), 0)::int AS phu_kien_mat_hu_hong
       FROM phu_kien pk
       WHERE pk.da_xoa_luc IS NULL
-        AND (
-          ${hangId}::uuid IS NULL
-          OR pk.hang_id = ${hangId}::uuid
-        )
+        -- Phụ kiện không còn cột hãng; bộ lọc hãng chỉ áp dụng cho mẫu thiết bị.
         AND (
           ${danhMucId}::uuid IS NULL
           OR pk.danh_muc_id = ${danhMucId}::uuid
@@ -168,10 +186,7 @@ async function layBaoCaoTonKhoRepository({ hangId, danhMucId }) {
         0::int AS phu_kien_mat_hu_hong
       FROM phu_kien pk
       WHERE pk.da_xoa_luc IS NULL
-        AND (
-          ${hangId}::uuid IS NULL
-          OR pk.hang_id = ${hangId}::uuid
-        )
+        -- Phụ kiện không còn cột hãng; bộ lọc hãng chỉ áp dụng cho mẫu thiết bị.
         AND (
           ${danhMucId}::uuid IS NULL
           OR pk.danh_muc_id = ${danhMucId}::uuid
@@ -185,11 +200,16 @@ async function layBaoCaoTonKhoRepository({ hangId, danhMucId }) {
       mtb.ten_mau,
       h.ten_hang,
       dmtb.ten_danh_muc,
-      COUNT(tbvl.id)::int AS tong_so_luong,
+      COUNT(tbvl.id) FILTER (
+        WHERE tbvl.trang_thai IN (
+          ${THIET_BI_SAN_SANG},
+          ${THIET_BI_DANG_THUE},
+          ${THIET_BI_DANG_BAO_TRI}
+        )
+      )::int AS tong_so_luong,
       COUNT(tbvl.id) FILTER (WHERE tbvl.trang_thai = ${THIET_BI_SAN_SANG})::int AS san_sang,
       COUNT(tbvl.id) FILTER (WHERE tbvl.trang_thai = ${THIET_BI_DANG_THUE})::int AS dang_thue,
       COUNT(tbvl.id) FILTER (WHERE tbvl.trang_thai = ${THIET_BI_DANG_BAO_TRI})::int AS dang_bao_tri,
-      COUNT(tbvl.id) FILTER (WHERE tbvl.trang_thai = ${THIET_BI_DA_THANH_LY})::int AS da_thanh_ly,
       COUNT(tbvl.id) FILTER (WHERE tbvl.trang_thai = ${THIET_BI_HU_HONG})::int AS hu_hong,
       COUNT(tbvl.id) FILTER (WHERE tbvl.trang_thai = ${THIET_BI_BI_MAT})::int AS bi_mat
     FROM mau_thiet_bi mtb
@@ -233,24 +253,22 @@ async function layBaoCaoTonKhoRepository({ hangId, danhMucId }) {
       SELECT
         pk.id,
         pk.ten_phu_kien,
-        h.ten_hang,
         dmtb.ten_danh_muc,
+        n.ten_ngam,
         pk.tong_so_luong::int AS tong_so_luong,
         COALESCE(pkdt.dang_thue, 0)::int AS dang_thue,
         COALESCE(pk.so_luong_mat_hu_hong, 0)::int AS hu_hong_mat,
         GREATEST(pk.tong_so_luong - COALESCE(pkdt.dang_thue, 0), 0)::int AS san_sang
       FROM phu_kien pk
-      LEFT JOIN hang_thiet_bi h
-        ON h.id = pk.hang_id
       LEFT JOIN danh_muc_thiet_bi dmtb
         ON dmtb.id = pk.danh_muc_id
+      LEFT JOIN ngam_thiet_bi n
+        ON n.id = pk.ngam_id
+        AND n.da_xoa_luc IS NULL
       LEFT JOIN phu_kien_dang_thue pkdt
         ON pkdt.phu_kien_id = pk.id
       WHERE pk.da_xoa_luc IS NULL
-        AND (
-          ${hangId}::uuid IS NULL
-          OR pk.hang_id = ${hangId}::uuid
-        )
+        -- Phụ kiện không còn cột hãng; bộ lọc hãng chỉ áp dụng cho mẫu thiết bị.
         AND (
           ${danhMucId}::uuid IS NULL
           OR pk.danh_muc_id = ${danhMucId}::uuid
@@ -275,24 +293,22 @@ async function layBaoCaoTonKhoRepository({ hangId, danhMucId }) {
       SELECT
         pk.id,
         pk.ten_phu_kien,
-        h.ten_hang,
         dmtb.ten_danh_muc,
+        n.ten_ngam,
         pk.tong_so_luong::int AS tong_so_luong,
         COALESCE(pkdt.dang_thue, 0)::int AS dang_thue,
         0::int AS hu_hong_mat,
         GREATEST(pk.tong_so_luong - COALESCE(pkdt.dang_thue, 0), 0)::int AS san_sang
       FROM phu_kien pk
-      LEFT JOIN hang_thiet_bi h
-        ON h.id = pk.hang_id
       LEFT JOIN danh_muc_thiet_bi dmtb
         ON dmtb.id = pk.danh_muc_id
+      LEFT JOIN ngam_thiet_bi n
+        ON n.id = pk.ngam_id
+        AND n.da_xoa_luc IS NULL
       LEFT JOIN phu_kien_dang_thue pkdt
         ON pkdt.phu_kien_id = pk.id
       WHERE pk.da_xoa_luc IS NULL
-        AND (
-          ${hangId}::uuid IS NULL
-          OR pk.hang_id = ${hangId}::uuid
-        )
+        -- Phụ kiện không còn cột hãng; bộ lọc hãng chỉ áp dụng cho mẫu thiết bị.
         AND (
           ${danhMucId}::uuid IS NULL
           OR pk.danh_muc_id = ${danhMucId}::uuid

@@ -1,7 +1,7 @@
 const {
   layDanhSachDonCuaToiService,
   layChiTietDonCuaToiService,
-  huyDonCuaToiService,
+  guiYeuCauHuyDonCuaToiService,
 } = require("../../models/CustomerOrderModel");
 
 function guiLoi(res, loi) {
@@ -45,12 +45,12 @@ async function layChiTietDonCuaToi(req, res) {
   }
 }
 
-async function huyDonCuaToi(req, res) {
+async function guiYeuCauHuyDonCuaToi(req, res) {
   try {
     const nguoiDungId = req.nguoiDung.id;
     const donThueId = req.params.id;
 
-    const ketQua = await huyDonCuaToiService(
+    const ketQua = await guiYeuCauHuyDonCuaToiService(
       nguoiDungId,
       donThueId,
       req.body || {}
@@ -58,7 +58,7 @@ async function huyDonCuaToi(req, res) {
 
     res.json({
       success: true,
-      message: "Hủy đơn thuê thành công",
+      message: "Gửi yêu cầu hủy đơn thành công",
       data: ketQua,
     });
   } catch (loi) {
@@ -69,5 +69,5 @@ async function huyDonCuaToi(req, res) {
 module.exports = {
   layDanhSachDonCuaToi,
   layChiTietDonCuaToi,
-  huyDonCuaToi,
+  guiYeuCauHuyDonCuaToi,
 };
