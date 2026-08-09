@@ -562,9 +562,23 @@ async function luuThanhLy({
       `;
     }
 
-    await taoDongTien(tienKhauTru, LOAI_KHAU_TRU_COC, ghiChuThanhLy || "Khấu trừ cọc khi thanh lý");
-    await taoDongTien(tienHoanCoc, LOAI_HOAN_COC, ghiChuThanhLy || "Hoàn cọc khi thanh lý");
-    await taoDongTien(tienPhuThu, LOAI_PHU_THU, ghiChuThanhLy || "Phụ thu khi thanh lý");
+    await taoDongTien(
+      tienKhauTru,
+      LOAI_KHAU_TRU_COC,
+      "Ghi nhận khấu trừ cọc khi thanh lý"
+    );
+
+    await taoDongTien(
+      tienHoanCoc,
+      LOAI_HOAN_COC,
+      "Ghi nhận hoàn cọc khi thanh lý"
+    );
+
+    await taoDongTien(
+      tienPhuThu,
+      LOAI_PHU_THU,
+      "Ghi nhận phụ thu khi thanh lý"
+    );
 
     for (const file of danhSachAnhKhiTra) {
       await tx.$executeRaw`
