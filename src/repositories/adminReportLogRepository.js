@@ -6,6 +6,10 @@ const THIET_BI_DANG_THUE = 502;
 const THIET_BI_DANG_BAO_TRI = 503;
 const THIET_BI_BI_MAT = 505;
 const THIET_BI_HU_HONG = 506;
+const DON_HOAN_THANH = 1104;
+const LOAI_HOAN_COC = 2303;
+const LOAI_KHAU_TRU_COC = 2304;
+const LOAI_PHU_THU = 2305;
 
 async function kiemTraCoCotPhuKienMatHuHong() {
   const ketQua = await prisma.$queryRaw`
@@ -447,11 +451,24 @@ async function layDanhSachNhatKyThaoTacRepository({
         dt.ma_don,
         NULL::text AS so_tien,
         dt.ghi_chu_thanh_ly AS ghi_chu,
-        dt.tra_luc AS thoi_gian
+        COALESCE(
+          (
+            SELECT MAX(tt_thanh_ly.created_at)
+            FROM thanh_toan tt_thanh_ly
+            WHERE tt_thanh_ly.don_thue_id = dt.id
+              AND tt_thanh_ly.loai_dong_tien_id IN (
+                ${LOAI_HOAN_COC},
+                ${LOAI_KHAU_TRU_COC},
+                ${LOAI_PHU_THU}
+              )
+          ),
+          dt.tra_luc
+        ) AS thoi_gian
       FROM don_thue dt
       LEFT JOIN nguoi_dung nd
         ON nd.id = dt.nguoi_nhan_tra_id
       WHERE dt.tra_luc IS NOT NULL
+        AND dt.trang_thai = ${DON_HOAN_THANH}
     )
     SELECT *
     FROM danh_sach_thao_tac
@@ -539,11 +556,24 @@ async function layDanhSachNhatKyThaoTacRepository({
         'THANH_LY' AS loai_thao_tac,
         nd.ho_ten AS ten_nguoi_dung,
         dt.ma_don,
-        dt.tra_luc AS thoi_gian
+        COALESCE(
+          (
+            SELECT MAX(tt_thanh_ly.created_at)
+            FROM thanh_toan tt_thanh_ly
+            WHERE tt_thanh_ly.don_thue_id = dt.id
+              AND tt_thanh_ly.loai_dong_tien_id IN (
+                ${LOAI_HOAN_COC},
+                ${LOAI_KHAU_TRU_COC},
+                ${LOAI_PHU_THU}
+              )
+          ),
+          dt.tra_luc
+        ) AS thoi_gian
       FROM don_thue dt
       LEFT JOIN nguoi_dung nd
         ON nd.id = dt.nguoi_nhan_tra_id
       WHERE dt.tra_luc IS NOT NULL
+        AND dt.trang_thai = ${DON_HOAN_THANH}
     )
     SELECT COUNT(*)::int AS total
     FROM danh_sach_thao_tac
@@ -661,11 +691,24 @@ async function layChiTietNhatKyThaoTacRepository(id) {
         dt.ma_don,
         NULL::text AS so_tien,
         dt.ghi_chu_thanh_ly AS ghi_chu,
-        dt.tra_luc AS thoi_gian
+        COALESCE(
+          (
+            SELECT MAX(tt_thanh_ly.created_at)
+            FROM thanh_toan tt_thanh_ly
+            WHERE tt_thanh_ly.don_thue_id = dt.id
+              AND tt_thanh_ly.loai_dong_tien_id IN (
+                ${LOAI_HOAN_COC},
+                ${LOAI_KHAU_TRU_COC},
+                ${LOAI_PHU_THU}
+              )
+          ),
+          dt.tra_luc
+        ) AS thoi_gian
       FROM don_thue dt
       LEFT JOIN nguoi_dung nd
         ON nd.id = dt.nguoi_nhan_tra_id
       WHERE dt.tra_luc IS NOT NULL
+        AND dt.trang_thai = ${DON_HOAN_THANH}
     )
     SELECT *
     FROM danh_sach_thao_tac

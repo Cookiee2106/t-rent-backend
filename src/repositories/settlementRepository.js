@@ -3,6 +3,7 @@ const prisma = require("../config/prisma");
 const TRANG_THAI_DANG_THUE = 1103;
 const TRANG_THAI_HOAN_THANH = 1104;
 const TRANG_THAI_QUA_HAN = 1105;
+const TRANG_THAI_CHO_XU_LY = 1106;
 
 const TRANG_THAI_THIET_BI_SAN_SANG = 501;
 const TRANG_THAI_THIET_BI_BAO_TRI = 503;
@@ -57,7 +58,8 @@ async function demDonThanhLy({ trangThai, tuKhoa }) {
     WHERE dt.trang_thai IN (
       ${TRANG_THAI_DANG_THUE},
       ${TRANG_THAI_QUA_HAN},
-      ${TRANG_THAI_HOAN_THANH}
+      ${TRANG_THAI_HOAN_THANH},
+      ${TRANG_THAI_CHO_XU_LY}
     )
       AND (${trangThai}::int IS NULL OR dt.trang_thai = ${trangThai}::int)
       AND (
@@ -93,6 +95,13 @@ async function layDanhSachDonThanhLy({ trangThai, tuKhoa, limit, offset }) {
       dt.tra_luc,
       dt.phi_phat_sinh_tien::text AS phi_phat_sinh_tien,
       (
+        SELECT COUNT(*)::int
+        FROM phieu_bao_tri pbt
+        WHERE pbt.don_thue_id = dt.id
+          AND pbt.trang_thai = ${TRANG_THAI_BAO_TRI_DANG_BAO_TRI}
+          AND pbt.hoan_thanh_luc IS NULL
+      ) AS so_bao_tri_dang_xu_ly,
+      (
         SELECT mtb.anh_url
         FROM chi_tiet_don_thue ctdt
         JOIN mau_thiet_bi mtb ON mtb.id = ctdt.mau_thiet_bi_id
@@ -120,7 +129,8 @@ async function layDanhSachDonThanhLy({ trangThai, tuKhoa, limit, offset }) {
     WHERE dt.trang_thai IN (
       ${TRANG_THAI_DANG_THUE},
       ${TRANG_THAI_QUA_HAN},
-      ${TRANG_THAI_HOAN_THANH}
+      ${TRANG_THAI_HOAN_THANH},
+      ${TRANG_THAI_CHO_XU_LY}
     )
       AND (${trangThai}::int IS NULL OR dt.trang_thai = ${trangThai}::int)
       AND (
@@ -191,6 +201,13 @@ async function layDonThanhLyTheoId(donThueId) {
         WHERE th.don_thue_id = dt.id
           AND th.loai_dong_tien_id = ${LOAI_PHU_THU}
       ) AS tien_da_phu_thu,
+      (
+        SELECT COUNT(*)::int
+        FROM phieu_bao_tri pbt
+        WHERE pbt.don_thue_id = dt.id
+          AND pbt.trang_thai = ${TRANG_THAI_BAO_TRI_DANG_BAO_TRI}
+          AND pbt.hoan_thanh_luc IS NULL
+      ) AS so_bao_tri_dang_xu_ly,
       dt.created_at,
       dt.updated_at
     FROM don_thue dt
@@ -308,6 +325,30 @@ async function layTepDonThue(donThueId) {
   `;
 }
 
+async function layBaoTriCuaDon(donThueId) {
+  return await prisma.$queryRaw`
+    SELECT
+      pbt.id,
+      pbt.ma_phieu_bao_tri,
+      pbt.thiet_bi_id,
+      pbt.don_thue_id,
+      pbt.ly_do,
+      pbt.ket_qua,
+      pbt.trang_thai AS trang_thai_bao_tri,
+      tt.ten_trang_thai AS ten_trang_thai_bao_tri,
+      pbt.bat_dau_luc,
+      pbt.hoan_thanh_luc,
+      tb.so_serial,
+      mtb.ten_mau
+    FROM phieu_bao_tri pbt
+    JOIN thiet_bi_vat_ly tb ON tb.id = pbt.thiet_bi_id
+    JOIN mau_thiet_bi mtb ON mtb.id = tb.mau_thiet_bi_id
+    LEFT JOIN trang_thai_he_thong tt ON tt.id = pbt.trang_thai
+    WHERE pbt.don_thue_id = ${donThueId}::uuid
+    ORDER BY pbt.bat_dau_luc ASC
+  `;
+}
+
 async function layTienCocDaThanhToan(donThueId) {
   const ketQua = await prisma.$queryRaw`
     SELECT COALESCE(SUM(so_tien), 0)::text AS tong_tien_coc
@@ -379,7 +420,12 @@ async function luuThanhLy({
   danhSachAnhKhiTra,
   danhSachPhuKienKiemKe = [],
   danhSachPhuKienThieu = [],
+  choXuLy = false,
 }) {
+  const trangThaiSauNhanTra = choXuLy
+    ? TRANG_THAI_CHO_XU_LY
+    : TRANG_THAI_HOAN_THANH;
+
   await prisma.$transaction(async (tx) => {
     const donRows = await tx.$queryRaw`
       SELECT trang_thai
@@ -530,14 +576,160 @@ async function luuThanhLy({
         tra_luc = NOW(),
         nguoi_nhan_tra_id = ${nguoiDungId}::uuid,
         ghi_chu_thanh_ly = ${ghiChuThanhLy},
-        phi_phat_sinh_tien = ${phiPhatSinhTien},
-        trang_thai = ${TRANG_THAI_HOAN_THANH},
+        phi_phat_sinh_tien = ${choXuLy ? 0 : phiPhatSinhTien},
+        trang_thai = ${trangThaiSauNhanTra},
         updated_at = NOW()
       WHERE id = ${donThueId}::uuid
         AND trang_thai IN (
           ${TRANG_THAI_DANG_THUE},
           ${TRANG_THAI_QUA_HAN}
         )
+    `;
+
+    async function taoDongTien(soTien, loaiDongTienId, ghiChu) {
+      if (Number(soTien || 0) <= 0) return;
+
+      await tx.$executeRaw`
+        INSERT INTO thanh_toan (
+          id,
+          don_thue_id,
+          phien_thanh_toan_id,
+          so_tien,
+          loai_dong_tien_id,
+          nguoi_thuc_hien_id,
+          ghi_chu,
+          created_at
+        )
+        VALUES (
+          gen_random_uuid(),
+          ${donThueId}::uuid,
+          ${phienThanhToanId}::uuid,
+          ${Number(soTien)},
+          ${loaiDongTienId},
+          ${nguoiDungId}::uuid,
+          ${ghiChu},
+          NOW()
+        )
+      `;
+    }
+
+    if (!choXuLy) {
+      await taoDongTien(
+        tienKhauTru,
+        LOAI_KHAU_TRU_COC,
+        "Ghi nhận khấu trừ cọc khi thanh lý"
+      );
+
+      await taoDongTien(
+        tienHoanCoc,
+        LOAI_HOAN_COC,
+        "Ghi nhận hoàn cọc khi thanh lý"
+      );
+
+      await taoDongTien(
+        tienPhuThu,
+        LOAI_PHU_THU,
+        "Ghi nhận phụ thu khi thanh lý"
+      );
+    }
+
+    for (const file of danhSachAnhKhiTra) {
+      await tx.$executeRaw`
+        INSERT INTO tep_don_thue (
+          id,
+          don_thue_id,
+          muc_dich_id,
+          ten_file_goc,
+          file_url,
+          cloudinary_public_id,
+          cloudinary_resource_type,
+          cloudinary_delivery_type,
+          loai_file,
+          kich_thuoc_file,
+          uploaded_by,
+          uploaded_at,
+          updated_at
+        )
+        VALUES (
+          gen_random_uuid(),
+          ${donThueId}::uuid,
+          ${MUC_DICH_ANH_KHI_TRA},
+          ${file.ten_file_goc},
+          ${file.file_url},
+          ${file.cloudinary_public_id},
+          ${file.cloudinary_resource_type},
+          ${file.cloudinary_delivery_type},
+          ${file.loai_file},
+          ${file.kich_thuoc_file},
+          ${nguoiDungId}::uuid,
+          NOW(),
+          NOW()
+        )
+      `;
+    }
+  });
+}
+
+async function quyetToanDonChoXuLy({
+  donThueId,
+  nguoiDungId,
+  phienThanhToanId,
+  phiPhatSinhTien,
+  tienHoanCoc,
+  tienKhauTru,
+  tienPhuThu,
+}) {
+  await prisma.$transaction(async (tx) => {
+    const donRows = await tx.$queryRaw`
+      SELECT trang_thai
+      FROM don_thue
+      WHERE id = ${donThueId}::uuid
+      FOR UPDATE
+    `;
+
+    const don = donRows[0];
+
+    if (!don || Number(don.trang_thai) !== TRANG_THAI_CHO_XU_LY) {
+      throw new Error("Đơn thuê không còn ở trạng thái Chờ xử lý");
+    }
+
+    const thanhLyRows = await tx.$queryRaw`
+      SELECT id
+      FROM thanh_toan
+      WHERE don_thue_id = ${donThueId}::uuid
+        AND loai_dong_tien_id IN (
+          ${LOAI_HOAN_COC},
+          ${LOAI_KHAU_TRU_COC},
+          ${LOAI_PHU_THU}
+        )
+      LIMIT 1
+    `;
+
+    if (thanhLyRows.length > 0) {
+      throw new Error("Đơn này đã có dòng tiền thanh lý");
+    }
+
+    const baoTriDangXuLy = await tx.$queryRaw`
+      SELECT id
+      FROM phieu_bao_tri
+      WHERE don_thue_id = ${donThueId}::uuid
+        AND trang_thai = ${TRANG_THAI_BAO_TRI_DANG_BAO_TRI}
+        AND hoan_thanh_luc IS NULL
+      LIMIT 1
+    `;
+
+    if (baoTriDangXuLy.length > 0) {
+      throw new Error("Còn thiết bị đang bảo trì, chưa thể xác nhận thanh lý");
+    }
+
+    await tx.$executeRaw`
+      UPDATE don_thue
+      SET
+        phi_phat_sinh_tien = ${phiPhatSinhTien},
+        trang_thai = ${TRANG_THAI_HOAN_THANH},
+        updated_at = NOW()
+      WHERE id = ${donThueId}::uuid
+        AND trang_thai = ${TRANG_THAI_CHO_XU_LY}
     `;
 
     async function taoDongTien(soTien, loaiDongTienId, ghiChu) {
@@ -584,41 +776,6 @@ async function luuThanhLy({
       LOAI_PHU_THU,
       "Ghi nhận phụ thu khi thanh lý"
     );
-
-    for (const file of danhSachAnhKhiTra) {
-      await tx.$executeRaw`
-        INSERT INTO tep_don_thue (
-          id,
-          don_thue_id,
-          muc_dich_id,
-          ten_file_goc,
-          file_url,
-          cloudinary_public_id,
-          cloudinary_resource_type,
-          cloudinary_delivery_type,
-          loai_file,
-          kich_thuoc_file,
-          uploaded_by,
-          uploaded_at,
-          updated_at
-        )
-        VALUES (
-          gen_random_uuid(),
-          ${donThueId}::uuid,
-          ${MUC_DICH_ANH_KHI_TRA},
-          ${file.ten_file_goc},
-          ${file.file_url},
-          ${file.cloudinary_public_id},
-          ${file.cloudinary_resource_type},
-          ${file.cloudinary_delivery_type},
-          ${file.loai_file},
-          ${file.kich_thuoc_file},
-          ${nguoiDungId}::uuid,
-          NOW(),
-          NOW()
-        )
-      `;
-    }
   });
 }
 
@@ -626,6 +783,7 @@ module.exports = {
   TRANG_THAI_DANG_THUE,
   TRANG_THAI_HOAN_THANH,
   TRANG_THAI_QUA_HAN,
+  TRANG_THAI_CHO_XU_LY,
   TRANG_THAI_THIET_BI_SAN_SANG,
   TRANG_THAI_THIET_BI_BAO_TRI,
   TRANG_THAI_THIET_BI_BI_MAT,
@@ -644,9 +802,11 @@ module.exports = {
   layVatPhamBanGiao,
   layThanhToanCuaDon,
   layTepDonThue,
+  layBaoTriCuaDon,
   layTienCocDaThanhToan,
   kiemTraDaCoThanhLy,
   layThietBiDaBanGiao,
   layPhuKienDaBanGiao,
   luuThanhLy,
+  quyetToanDonChoXuLy,
 };

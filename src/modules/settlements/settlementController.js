@@ -54,7 +54,7 @@ async function lapPhieuTra(req, res) {
 
     res.json({
       success: true,
-      message: "Lập phiếu trả/thanh lý thành công",
+      message: data.message || "Lập phiếu trả/thanh lý thành công",
       data,
     });
   } catch (loi) {

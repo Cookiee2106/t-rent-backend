@@ -98,6 +98,7 @@ class SettlementModel {
     tien_da_hoan_coc,
     tien_da_khau_tru,
     tien_da_phu_thu,
+    so_bao_tri_dang_xu_ly,
 
     trang_thai,
     ten_trang_thai,
@@ -123,6 +124,7 @@ class SettlementModel {
     san_pham_kem_serial = [],
     thanh_toan = [],
     tep_don_thue = [],
+    bao_tri = [],
   } = {}) {
     this.id = id;
     this.ma_don = ma_don || "";
@@ -144,6 +146,7 @@ class SettlementModel {
     this.tien_da_hoan_coc = Number(tien_da_hoan_coc || 0);
     this.tien_da_khau_tru = Number(tien_da_khau_tru || 0);
     this.tien_da_phu_thu = Number(tien_da_phu_thu || 0);
+    this.so_bao_tri_dang_xu_ly = Number(so_bao_tri_dang_xu_ly || 0);
 
     this.trang_thai = Number(trang_thai || 0);
     this.ten_trang_thai = ten_trang_thai || null;
@@ -211,6 +214,21 @@ class SettlementModel {
       kich_thuoc_file: item.kich_thuoc_file ? Number(item.kich_thuoc_file) : null,
       ten_nguoi_upload: item.ten_nguoi_upload || "",
       uploaded_at: item.uploaded_at || null,
+    }));
+
+    this.bao_tri = bao_tri.map((item) => ({
+      id: item.id,
+      ma_phieu_bao_tri: item.ma_phieu_bao_tri || "",
+      thiet_bi_id: item.thiet_bi_id || null,
+      don_thue_id: item.don_thue_id || null,
+      ly_do: item.ly_do || "",
+      ket_qua: item.ket_qua || "",
+      trang_thai_bao_tri: Number(item.trang_thai_bao_tri || 0),
+      ten_trang_thai_bao_tri: item.ten_trang_thai_bao_tri || "",
+      bat_dau_luc: item.bat_dau_luc || null,
+      hoan_thanh_luc: item.hoan_thanh_luc || null,
+      so_serial: item.so_serial || "",
+      ten_mau: item.ten_mau || "",
     }));
   }
 
@@ -281,15 +299,20 @@ class SettlementModel {
     if (
       trangThai !== settlementRepository.TRANG_THAI_DANG_THUE &&
       trangThai !== settlementRepository.TRANG_THAI_QUA_HAN &&
-      trangThai !== settlementRepository.TRANG_THAI_HOAN_THANH
+      trangThai !== settlementRepository.TRANG_THAI_HOAN_THANH &&
+      trangThai !== settlementRepository.TRANG_THAI_CHO_XU_LY
     ) {
       throw new Error("Đơn này chưa bàn giao nên chưa thể thanh lý");
     }
 
-    const chiTietDon = await settlementRepository.layChiTietDonThanhLy(donThueId);
-    const vatPhamBanGiao = await settlementRepository.layVatPhamBanGiao(donThueId);
-    const thanhToan = await settlementRepository.layThanhToanCuaDon(donThueId);
-    const tepDonThue = await settlementRepository.layTepDonThue(donThueId);
+    const [chiTietDon, vatPhamBanGiao, thanhToan, tepDonThue, baoTri] =
+      await Promise.all([
+        settlementRepository.layChiTietDonThanhLy(donThueId),
+        settlementRepository.layVatPhamBanGiao(donThueId),
+        settlementRepository.layThanhToanCuaDon(donThueId),
+        settlementRepository.layTepDonThue(donThueId),
+        settlementRepository.layBaoTriCuaDon(donThueId),
+      ]);
 
     return new SettlementModel({
       ...donThue,
@@ -297,6 +320,7 @@ class SettlementModel {
       san_pham_kem_serial: gomSanPhamKemSerial(vatPhamBanGiao),
       thanh_toan: thanhToan,
       tep_don_thue: tepDonThue,
+      bao_tri: baoTri,
     });
   }
 
@@ -504,35 +528,12 @@ class SettlementModel {
       throw new Error("Không tìm thấy đơn thuê");
     }
 
-    if (Number(donThue.trang_thai) === settlementRepository.TRANG_THAI_HOAN_THANH) {
-      throw new Error("Đơn thuê đã thanh lý trước đó");
-    }
-
-    if (
-      Number(donThue.trang_thai) !== settlementRepository.TRANG_THAI_DANG_THUE &&
-      Number(donThue.trang_thai) !== settlementRepository.TRANG_THAI_QUA_HAN
-    ) {
-      throw new Error("Chỉ được thanh lý đơn đang thuê hoặc quá hạn");
-    }
-
-    const ghiChuThanhLy = String(body.ghi_chu_thanh_ly || "").trim();
+    const trangThaiDon = Number(donThue.trang_thai);
     const hinhThuc = String(body.hinh_thuc_xu_ly_coc || "").trim();
     const soTienNhap = Number(body.so_tien || 0);
 
-    if (!ghiChuThanhLy) {
-      throw new Error("Vui lòng nhập ghi chú thanh lý");
-    }
-
-    if (!["HOAN_COC", "KHAU_TRU_COC", "PHU_THU"].includes(hinhThuc)) {
-      throw new Error("Vui lòng chọn hình thức xử lý cọc");
-    }
-
-    if (hinhThuc !== "HOAN_COC" && soTienNhap <= 0) {
-      throw new Error("Vui lòng nhập số tiền khấu trừ/phụ thu");
-    }
-
-    if (!files || files.length === 0) {
-      throw new Error("Vui lòng upload ít nhất 1 ảnh khi trả");
+    if (trangThaiDon === settlementRepository.TRANG_THAI_HOAN_THANH) {
+      throw new Error("Đơn thuê đã thanh lý trước đó");
     }
 
     const daThanhLy = await settlementRepository.kiemTraDaCoThanhLy(donThueId);
@@ -541,10 +542,77 @@ class SettlementModel {
       throw new Error("Đơn này đã có dòng tiền thanh lý");
     }
 
-    const tienCocDaThanhToan = await settlementRepository.layTienCocDaThanhToan(donThueId);
+    const tienCocDaThanhToan =
+      await settlementRepository.layTienCocDaThanhToan(donThueId);
 
     if (tienCocDaThanhToan <= 0) {
       throw new Error("Đơn này chưa có tiền cọc đã thanh toán");
+    }
+
+    // Đơn Chờ xử lý đã kiểm kê và nhận trả trước đó.
+    // Lần này chỉ xác nhận tiền thanh lý sau khi tất cả bảo trì đã hoàn thành.
+    if (trangThaiDon === settlementRepository.TRANG_THAI_CHO_XU_LY) {
+      if (!["HOAN_COC", "KHAU_TRU_COC", "PHU_THU"].includes(hinhThuc)) {
+        throw new Error("Vui lòng chọn hình thức xử lý cọc");
+      }
+
+      if (hinhThuc !== "HOAN_COC" && soTienNhap <= 0) {
+        throw new Error("Vui lòng nhập số tiền khấu trừ/phụ thu");
+      }
+
+      const tien = SettlementModel.tinhTienThanhLy(
+        hinhThuc,
+        soTienNhap,
+        tienCocDaThanhToan
+      );
+
+      await settlementRepository.quyetToanDonChoXuLy({
+        donThueId,
+        nguoiDungId,
+        phienThanhToanId: donThue.phien_thanh_toan_id || null,
+        phiPhatSinhTien: tien.phiPhatSinhTien,
+        tienHoanCoc: tien.tienHoanCoc,
+        tienKhauTru: tien.tienKhauTru,
+        tienPhuThu: tien.tienPhuThu,
+      });
+
+      return {
+        message: "Xác nhận thanh lý thành công",
+        tien_coc_da_thanh_toan: tienCocDaThanhToan,
+        tien_hoan_coc: tien.tienHoanCoc,
+        tien_khau_tru: tien.tienKhauTru,
+        tien_phu_thu: tien.tienPhuThu,
+        phi_phat_sinh_tien: tien.phiPhatSinhTien,
+      };
+    }
+
+    if (
+      trangThaiDon !== settlementRepository.TRANG_THAI_DANG_THUE &&
+      trangThaiDon !== settlementRepository.TRANG_THAI_QUA_HAN
+    ) {
+      throw new Error("Chỉ được thanh lý đơn đang thuê, quá hạn hoặc chờ xử lý");
+    }
+
+    const ghiChuThanhLy = String(body.ghi_chu_thanh_ly || "").trim();
+    const choXuLy = [true, 1, "1", "true", "TRUE"].includes(body.cho_xu_ly);
+
+    if (!ghiChuThanhLy) {
+      throw new Error("Vui lòng nhập ghi chú thanh lý");
+    }
+
+    // Nếu không chọn Chờ xử lý thì tiền được chốt ngay như luồng cũ.
+    if (!choXuLy) {
+      if (!["HOAN_COC", "KHAU_TRU_COC", "PHU_THU"].includes(hinhThuc)) {
+        throw new Error("Vui lòng chọn hình thức xử lý cọc");
+      }
+
+      if (hinhThuc !== "HOAN_COC" && soTienNhap <= 0) {
+        throw new Error("Vui lòng nhập số tiền khấu trừ/phụ thu");
+      }
+    }
+
+    if (!files || files.length === 0) {
+      throw new Error("Vui lòng upload ít nhất 1 ảnh khi trả");
     }
 
     const danhSachKiemTraThietBi = docMangJson(
@@ -557,8 +625,10 @@ class SettlementModel {
       "Dữ liệu kiểm tra phụ kiện"
     );
 
-    const thietBiDaBanGiao = await settlementRepository.layThietBiDaBanGiao(donThueId);
-    const phuKienDaBanGiao = await settlementRepository.layPhuKienDaBanGiao(donThueId);
+    const thietBiDaBanGiao =
+      await settlementRepository.layThietBiDaBanGiao(donThueId);
+    const phuKienDaBanGiao =
+      await settlementRepository.layPhuKienDaBanGiao(donThueId);
 
     const danhSachThietBiCapNhat = SettlementModel.taoDanhSachThietBiCanCapNhat(
       thietBiDaBanGiao,
@@ -570,7 +640,31 @@ class SettlementModel {
       danhSachKiemTraPhuKien
     );
 
-    const tien = SettlementModel.tinhTienThanhLy(hinhThuc, soTienNhap, tienCocDaThanhToan);
+    if (
+      choXuLy &&
+      !danhSachThietBiCapNhat.some(
+        (item) =>
+          Number(item.trang_thai_sau_tra) ===
+          settlementRepository.TRANG_THAI_THIET_BI_BAO_TRI
+      )
+    ) {
+      throw new Error(
+        "Chỉ chọn Chờ xử lý khi có ít nhất một thiết bị chuyển sang Bảo trì"
+      );
+    }
+
+    const tien = choXuLy
+      ? {
+          tienHoanCoc: 0,
+          tienKhauTru: 0,
+          tienPhuThu: 0,
+          phiPhatSinhTien: 0,
+        }
+      : SettlementModel.tinhTienThanhLy(
+          hinhThuc,
+          soTienNhap,
+          tienCocDaThanhToan
+        );
 
     const danhSachAnhKhiTra = [];
 
@@ -606,10 +700,14 @@ class SettlementModel {
         ketQuaKiemTraPhuKien.danh_sach_phu_kien_kiem_ke,
       danhSachPhuKienThieu:
         ketQuaKiemTraPhuKien.danh_sach_phu_kien_thieu,
+      choXuLy,
     });
 
     return {
-      message: "Lập phiếu trả/thanh lý thành công",
+      message: choXuLy
+        ? "Đã nhận trả và chuyển đơn sang Chờ xử lý"
+        : "Lập phiếu trả/thanh lý thành công",
+      cho_xu_ly: choXuLy,
       tien_coc_da_thanh_toan: tienCocDaThanhToan,
       tien_hoan_coc: tien.tienHoanCoc,
       tien_khau_tru: tien.tienKhauTru,
