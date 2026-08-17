@@ -17,9 +17,18 @@ async function layHoSoXacMinhCuaKhachHang(nguoiDungId) {
 
       hs.id AS ho_so_xac_minh_id,
       hs.so_cccd,
-      hs.anh_mat_truoc_url,
-      hs.anh_mat_sau_url,
-      hs.anh_cam_cccd_url,
+      (
+        hs.anh_mat_truoc_public_id IS NOT NULL
+        OR hs.anh_mat_truoc_url IS NOT NULL
+      ) AS co_anh_mat_truoc,
+      (
+        hs.anh_mat_sau_public_id IS NOT NULL
+        OR hs.anh_mat_sau_url IS NOT NULL
+      ) AS co_anh_mat_sau,
+      (
+        hs.anh_cam_cccd_public_id IS NOT NULL
+        OR hs.anh_cam_cccd_url IS NOT NULL
+      ) AS co_anh_cam_cccd,
       hs.trang_thai AS trang_thai_ho_so,
       tt_hs.ten_trang_thai AS ten_trang_thai_ho_so,
       hs.ly_do_tu_choi,
@@ -58,6 +67,9 @@ async function layTrangThaiXacMinhNguoiDung(nguoiDungId) {
   const rows = await prisma.$queryRaw`
     SELECT
       id,
+      ho_ten,
+      so_dien_thoai,
+      dia_chi,
       trang_thai_xac_minh
     FROM nguoi_dung
     WHERE id = ${nguoiDungId}::uuid
@@ -87,6 +99,9 @@ async function taoHoSoXacMinhVaCapNhatTrangThai({
   anhMatTruocUrl,
   anhMatSauUrl,
   anhCamCccdUrl,
+  anhMatTruocPublicId,
+  anhMatSauPublicId,
+  anhCamCccdPublicId,
 }) {
   await prisma.$transaction(async (tx) => {
     await tx.$executeRaw`
@@ -96,6 +111,9 @@ async function taoHoSoXacMinhVaCapNhatTrangThai({
         anh_mat_truoc_url,
         anh_mat_sau_url,
         anh_cam_cccd_url,
+        anh_mat_truoc_public_id,
+        anh_mat_sau_public_id,
+        anh_cam_cccd_public_id,
         trang_thai
       )
       VALUES (
@@ -104,6 +122,9 @@ async function taoHoSoXacMinhVaCapNhatTrangThai({
         ${anhMatTruocUrl},
         ${anhMatSauUrl},
         ${anhCamCccdUrl},
+        ${anhMatTruocPublicId},
+        ${anhMatSauPublicId},
+        ${anhCamCccdPublicId},
         202
       )
     `;

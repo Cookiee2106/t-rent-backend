@@ -17,6 +17,8 @@ const LOAI_TIEN_THUE = 2302;
 const LOAI_HOAN_COC = 2303;
 const LOAI_PHI_HUY_DON = 2306;
 
+const MUC_DICH_ANH_BIEN_BAN_BAN_GIAO = 2604;
+
 async function demDonThue(trangThai, tuKhoa = "") {
   const tuKhoaTim = `%${tuKhoa}%`;
 
@@ -193,6 +195,15 @@ async function layDonThueTheoId(donThueId) {
       nd.ho_ten AS ten_khach_hang,
       nd.email AS email_khach_hang,
       nd.so_dien_thoai AS sdt_khach_hang,
+      nd.dia_chi AS dia_chi_khach_hang,
+      (
+        SELECT hsxm.so_cccd
+        FROM ho_so_xac_minh hsxm
+        WHERE hsxm.khach_hang_id = nd.id
+          AND hsxm.trang_thai = 203
+        ORDER BY COALESCE(hsxm.duyet_luc, hsxm.created_at) DESC
+        LIMIT 1
+      ) AS so_cccd_khach_hang,
       dt.ngay_nhan,
       dt.ngay_tra,
       dt.so_ngay_thue,
@@ -231,6 +242,10 @@ async function layDonThueTheoId(donThueId) {
       dt.ban_giao_luc,
       dt.nguoi_ban_giao_id,
       nv_bg.ho_ten AS ten_nguoi_ban_giao,
+      nv_bg.email AS email_nguoi_ban_giao,
+      nv_bg.so_dien_thoai AS sdt_nguoi_ban_giao,
+      nv_bg.so_cccd AS so_cccd_nguoi_ban_giao,
+      nv_bg.vai_tro AS vai_tro_nguoi_ban_giao,
       dt.ghi_chu_ban_giao,
       dt.tra_luc,
       dt.nguoi_nhan_tra_id,
@@ -253,6 +268,25 @@ async function layDonThueTheoId(donThueId) {
   return ketQua[0] || null;
 }
 
+async function layNguoiDungNoiBoTheoId(nguoiDungId) {
+  const rows = await prisma.$queryRaw`
+    SELECT
+      id,
+      ho_ten,
+      email,
+      so_dien_thoai,
+      so_cccd,
+      vai_tro
+    FROM nguoi_dung
+    WHERE id = ${nguoiDungId}::uuid
+      AND vai_tro IN ('NHAN_VIEN', 'QUAN_TRI', 'QUAN_TRI_VIEN')
+      AND da_xoa_luc IS NULL
+    LIMIT 1
+  `;
+
+  return rows[0] || null;
+}
+
 async function layChiTietDonThue(donThueId) {
   return await prisma.$queryRaw`
     SELECT
@@ -267,7 +301,8 @@ async function layChiTietDonThue(donThueId) {
       ctdt.gia_tri_thiet_bi_snapshot::text AS gia_tri_thiet_bi_snapshot,
       ctdt.tien_coc_snapshot::text AS tien_coc_snapshot,
       ctdt.tien_thue::text AS tien_thue,
-      ctdt.tien_coc::text AS tien_coc
+      ctdt.tien_coc::text AS tien_coc,
+      ctdt.bo_di_kem_snapshot
     FROM chi_tiet_don_thue ctdt
     JOIN mau_thiet_bi mtb ON mtb.id = ctdt.mau_thiet_bi_id
     LEFT JOIN hang_thiet_bi h ON h.id = mtb.hang_id
@@ -337,7 +372,6 @@ async function layTepDonThue(donThueId) {
       tdt.muc_dich_id,
       dm.ten_danh_muc AS ten_muc_dich,
       tdt.ten_file_goc,
-      tdt.file_url,
       tdt.loai_file,
       tdt.kich_thuoc_file::text AS kich_thuoc_file,
       nd.ho_ten AS ten_nguoi_upload,
@@ -374,7 +408,7 @@ async function layThietBiSanSang({ mauThietBiId, ngayNhan, ngayTra }) {
           JOIN chi_tiet_don_thue ctdt ON ctdt.id = bgvp.chi_tiet_don_thue_id
           JOIN don_thue dt ON dt.id = ctdt.don_thue_id
           WHERE bgvp.thiet_bi_id IS NOT NULL
-            AND dt.trang_thai IN (${TRANG_THAI_DANG_THUE}, ${TRANG_THAI_QUA_HAN})
+            AND dt.trang_thai IN (${TRANG_THAI_DA_GIU_CHO}, ${TRANG_THAI_DANG_THUE}, ${TRANG_THAI_QUA_HAN})
             AND dt.ngay_nhan < ${ngayTra}::timestamptz
             AND dt.ngay_tra > ${ngayNhan}::timestamptz
         )
@@ -398,6 +432,20 @@ async function layThietBiSanSang({ mauThietBiId, ngayNhan, ngayTra }) {
     WHERE tbvl.mau_thiet_bi_id = ${mauThietBiId}::uuid
       AND tbvl.da_xoa_luc IS NULL
       AND tbvl.trang_thai = ${TRANG_THAI_THIET_BI_SAN_SANG}
+      AND tbvl.id NOT IN (
+        SELECT bgvp.thiet_bi_id
+        FROM ban_giao_vat_pham bgvp
+        JOIN chi_tiet_don_thue ctdt
+          ON ctdt.id = bgvp.chi_tiet_don_thue_id
+        JOIN don_thue dt
+          ON dt.id = ctdt.don_thue_id
+        WHERE bgvp.thiet_bi_id IS NOT NULL
+          AND dt.trang_thai IN (
+            ${TRANG_THAI_DA_GIU_CHO},
+            ${TRANG_THAI_DANG_THUE},
+            ${TRANG_THAI_QUA_HAN}
+          )
+      )
     ORDER BY tbvl.so_serial ASC
   `;
 }
@@ -528,7 +576,7 @@ async function demSoLuongPhuKienDangGiao(phuKienId) {
     JOIN chi_tiet_don_thue ctdt ON ctdt.id = bgvp.chi_tiet_don_thue_id
     JOIN don_thue dt ON dt.id = ctdt.don_thue_id
     WHERE bgvp.phu_kien_id = ${phuKienId}::uuid
-      AND dt.trang_thai IN (${TRANG_THAI_DANG_THUE}, ${TRANG_THAI_QUA_HAN})
+      AND dt.trang_thai IN (${TRANG_THAI_DA_GIU_CHO}, ${TRANG_THAI_DANG_THUE}, ${TRANG_THAI_QUA_HAN})
   `;
 
   return ketQua[0]?.so_luong_dang_giao || 0;
@@ -727,27 +775,61 @@ async function tuChoiYeuCauHuyDon({
   });
 }
 
-async function luuPhieuBanGiao({
+async function demTepDonThueTheoMucDich(donThueId, mucDichId) {
+  const ketQua = await prisma.$queryRaw`
+    SELECT COUNT(*)::int AS total
+    FROM tep_don_thue
+    WHERE don_thue_id = ${donThueId}::uuid
+      AND muc_dich_id = ${Number(mucDichId)}
+  `;
+
+  return Number(ketQua[0]?.total || 0);
+}
+
+async function daCoVatPhamBanGiao(donThueId) {
+  const ketQua = await prisma.$queryRaw`
+    SELECT 1
+    FROM ban_giao_vat_pham bgvp
+    JOIN chi_tiet_don_thue ctdt
+      ON ctdt.id = bgvp.chi_tiet_don_thue_id
+    WHERE ctdt.don_thue_id = ${donThueId}::uuid
+    LIMIT 1
+  `;
+
+  return ketQua.length > 0;
+}
+
+// Lưu vật phẩm ngay khi bấm "Xuất biên bản bàn giao".
+// Đây là bước khóa lựa chọn nhưng CHƯA chuyển đơn sang Đang thuê.
+async function luuVatPhamBanGiaoDaChon({
   donThueId,
   nhanVienId,
   ghiChuBanGiao,
   vatPham,
-  tepHopDong,
-  tepAnhBanGiao,
-  thietBiCanCapNhat,
-  tongTienThue,
 }) {
-  await prisma.$transaction(async (tx) => {
+  const ghiChuChung = String(ghiChuBanGiao || "").trim();
+
+  if (!ghiChuChung) {
+    throw new Error("Vui lòng nhập ghi chú bàn giao trước khi xuất biên bản");
+  }
+
+  return await prisma.$transaction(async (tx) => {
     const donRows = await tx.$queryRaw`
-      SELECT trang_thai
+      SELECT id, trang_thai, ban_giao_luc
       FROM don_thue
       WHERE id = ${donThueId}::uuid
       FOR UPDATE
     `;
 
+    const don = donRows[0];
+
+    if (!don) {
+      throw new Error("Không tìm thấy đơn thuê");
+    }
+
     if (
-      !donRows[0] ||
-      Number(donRows[0].trang_thai) !== TRANG_THAI_DA_GIU_CHO
+      Number(don.trang_thai) !== TRANG_THAI_DA_GIU_CHO ||
+      don.ban_giao_luc
     ) {
       throw new Error("Đơn thuê không còn ở trạng thái Đã giữ chỗ");
     }
@@ -764,6 +846,72 @@ async function luuPhieuBanGiao({
       throw new Error("Đơn đang có yêu cầu hủy Chờ xử lý, không thể bàn giao");
     }
 
+    const daCoRows = await tx.$queryRaw`
+      SELECT 1
+      FROM ban_giao_vat_pham bgvp
+      JOIN chi_tiet_don_thue ctdt
+        ON ctdt.id = bgvp.chi_tiet_don_thue_id
+      WHERE ctdt.don_thue_id = ${donThueId}::uuid
+      LIMIT 1
+    `;
+
+    if (daCoRows.length > 0) {
+      throw new Error("Biên bản bàn giao đã được xuất, không thể thay đổi vật phẩm");
+    }
+
+    // Khóa từng thiết bị vật lý để tránh hai nhân viên xuất biên bản cùng lúc.
+    const thietBiDaKiemTra = new Set();
+
+    for (const item of vatPham) {
+      if (!item.thiet_bi_id) continue;
+
+      const thietBiId = String(item.thiet_bi_id);
+
+      if (thietBiDaKiemTra.has(thietBiId)) {
+        throw new Error("Một thiết bị vật lý bị chọn trùng");
+      }
+
+      thietBiDaKiemTra.add(thietBiId);
+
+      const thietBiRows = await tx.$queryRaw`
+        SELECT id, so_serial, trang_thai
+        FROM thiet_bi_vat_ly
+        WHERE id = ${thietBiId}::uuid
+          AND da_xoa_luc IS NULL
+        FOR UPDATE
+      `;
+
+      const thietBi = thietBiRows[0];
+
+      if (!thietBi || Number(thietBi.trang_thai) !== TRANG_THAI_THIET_BI_SAN_SANG) {
+        throw new Error(
+          `Thiết bị ${thietBi?.so_serial || thietBiId} không còn sẵn sàng`
+        );
+      }
+
+      const daDuocGiuRows = await tx.$queryRaw`
+        SELECT 1
+        FROM ban_giao_vat_pham bgvp
+        JOIN chi_tiet_don_thue ctdt
+          ON ctdt.id = bgvp.chi_tiet_don_thue_id
+        JOIN don_thue dt
+          ON dt.id = ctdt.don_thue_id
+        WHERE bgvp.thiet_bi_id = ${thietBiId}::uuid
+          AND dt.id <> ${donThueId}::uuid
+          AND dt.trang_thai IN (
+            ${TRANG_THAI_DA_GIU_CHO},
+            ${TRANG_THAI_DANG_THUE},
+            ${TRANG_THAI_QUA_HAN}
+          )
+        LIMIT 1
+      `;
+
+      if (daDuocGiuRows.length > 0) {
+        throw new Error(`Thiết bị serial ${thietBi.so_serial} đã được giữ cho đơn khác`);
+      }
+    }
+
+    // Gom số lượng phụ kiện theo đúng vị trí kho đã chọn.
     const phanBoCanGiao = new Map();
 
     for (const item of vatPham) {
@@ -817,19 +965,26 @@ async function luuPhieuBanGiao({
         throw new Error(`Vị trí "${phanBo.ten_vi_tri}" không còn khả dụng`);
       }
 
-      const dangThueRows = await tx.$queryRaw`
-        SELECT COALESCE(SUM(bgvp.so_luong_giao), 0)::int AS so_luong_dang_thue
+      const dangGiuRows = await tx.$queryRaw`
+        SELECT COALESCE(SUM(bgvp.so_luong_giao), 0)::int AS so_luong_dang_giu
         FROM ban_giao_vat_pham bgvp
         JOIN chi_tiet_don_thue ctdt
           ON ctdt.id = bgvp.chi_tiet_don_thue_id
         JOIN don_thue dt
           ON dt.id = ctdt.don_thue_id
         WHERE bgvp.phu_kien_vi_tri_kho_id = ${phanBoId}::uuid
-          AND dt.trang_thai IN (${TRANG_THAI_DANG_THUE}, ${TRANG_THAI_QUA_HAN})
+          AND dt.trang_thai IN (
+            ${TRANG_THAI_DA_GIU_CHO},
+            ${TRANG_THAI_DANG_THUE},
+            ${TRANG_THAI_QUA_HAN}
+          )
       `;
 
-      const soLuongDangThue = Number(dangThueRows[0]?.so_luong_dang_thue || 0);
-      const soLuongKhaDung = Math.max(Number(phanBo.so_luong || 0) - soLuongDangThue, 0);
+      const soLuongDangGiu = Number(dangGiuRows[0]?.so_luong_dang_giu || 0);
+      const soLuongKhaDung = Math.max(
+        Number(phanBo.so_luong || 0) - soLuongDangGiu,
+        0
+      );
 
       if (Number(thongTin.so_luong_giao || 0) > soLuongKhaDung) {
         throw new Error(
@@ -838,6 +993,7 @@ async function luuPhieuBanGiao({
       }
     }
 
+    // Ghi chú bàn giao chỉ lưu MỘT LẦN ở don_thue.ghi_chu_ban_giao.
     for (const item of vatPham) {
       await tx.$executeRaw`
         INSERT INTO ban_giao_vat_pham (
@@ -865,7 +1021,138 @@ async function luuPhieuBanGiao({
           ${item.ma_tai_san_snapshot},
           ${item.so_serial_snapshot},
           ${item.so_luong_giao},
-          ${ghiChuBanGiao || null},
+          NULL,
+          NOW()
+        )
+      `;
+    }
+
+    await tx.$executeRaw`
+      UPDATE don_thue
+      SET
+        nguoi_ban_giao_id = ${nhanVienId}::uuid,
+        ghi_chu_ban_giao = ${ghiChuChung},
+        updated_at = NOW()
+      WHERE id = ${donThueId}::uuid
+    `;
+
+    return {
+      don_thue_id: donThueId,
+      so_vat_pham: vatPham.length,
+    };
+  });
+}
+
+async function xacNhanPhieuBanGiaoDaChot({
+  donThueId,
+  nhanVienId,
+  tepHopDong,
+  tepAnhBanGiao,
+  tepAnhBienBan = [],
+}) {
+  await prisma.$transaction(async (tx) => {
+    const donRows = await tx.$queryRaw`
+      SELECT
+        id,
+        trang_thai,
+        ban_giao_luc,
+        nguoi_ban_giao_id,
+        tong_tien_thue::text AS tong_tien_thue
+      FROM don_thue
+      WHERE id = ${donThueId}::uuid
+      FOR UPDATE
+    `;
+
+    const don = donRows[0];
+
+    if (!don) {
+      throw new Error("Không tìm thấy đơn thuê");
+    }
+
+    if (
+      Number(don.trang_thai) !== TRANG_THAI_DA_GIU_CHO ||
+      don.ban_giao_luc
+    ) {
+      throw new Error("Đơn thuê không còn ở trạng thái Đã giữ chỗ");
+    }
+
+    const yeuCauHuyRows = await tx.$queryRaw`
+      SELECT id
+      FROM yeu_cau_huy_don
+      WHERE don_thue_id = ${donThueId}::uuid
+        AND trang_thai_id = ${TRANG_THAI_YEU_CAU_HUY_CHO_XU_LY}
+      LIMIT 1
+    `;
+
+    if (yeuCauHuyRows.length > 0) {
+      throw new Error("Đơn đang có yêu cầu hủy Chờ xử lý, không thể bàn giao");
+    }
+
+    const vatPhamRows = await tx.$queryRaw`
+      SELECT
+        bgvp.id,
+        bgvp.thiet_bi_id
+      FROM ban_giao_vat_pham bgvp
+      JOIN chi_tiet_don_thue ctdt
+        ON ctdt.id = bgvp.chi_tiet_don_thue_id
+      WHERE ctdt.don_thue_id = ${donThueId}::uuid
+      FOR UPDATE OF bgvp
+    `;
+
+    if (vatPhamRows.length === 0) {
+      throw new Error("Vui lòng xuất biên bản bàn giao trước khi xác nhận bàn giao");
+    }
+
+    const anhBienBanRows = await tx.$queryRaw`
+      SELECT COUNT(*)::int AS total
+      FROM tep_don_thue
+      WHERE don_thue_id = ${donThueId}::uuid
+        AND muc_dich_id = ${MUC_DICH_ANH_BIEN_BAN_BAN_GIAO}
+    `;
+
+    const soAnhBienBanDaCo = Number(anhBienBanRows[0]?.total || 0);
+
+    if (soAnhBienBanDaCo + tepAnhBienBan.length === 0) {
+      throw new Error(
+        "Vui lòng chọn ít nhất 1 ảnh biên bản bàn giao đã ký trước khi xác nhận bàn giao"
+      );
+    }
+
+    if (soAnhBienBanDaCo + tepAnhBienBan.length > 5) {
+      throw new Error("Tổng số ảnh biên bản bàn giao không được vượt quá 5");
+    }
+
+    // Ảnh biên bản 2604 được lưu cùng lần xác nhận, không cần API Upload riêng.
+    for (const file of tepAnhBienBan) {
+      await tx.$executeRaw`
+        INSERT INTO tep_don_thue (
+          id,
+          don_thue_id,
+          muc_dich_id,
+          ten_file_goc,
+          file_url,
+          cloudinary_public_id,
+          cloudinary_resource_type,
+          cloudinary_delivery_type,
+          loai_file,
+          kich_thuoc_file,
+          uploaded_by,
+          uploaded_at,
+          updated_at
+        )
+        VALUES (
+          gen_random_uuid(),
+          ${donThueId}::uuid,
+          ${MUC_DICH_ANH_BIEN_BAN_BAN_GIAO},
+          ${file.ten_file_goc},
+          ${file.file_url},
+          ${file.cloudinary_public_id},
+          ${file.cloudinary_resource_type},
+          ${file.cloudinary_delivery_type},
+          ${file.loai_file},
+          ${file.kich_thuoc_file},
+          ${nhanVienId}::uuid,
+          NOW(),
           NOW()
         )
       `;
@@ -879,6 +1166,9 @@ async function luuPhieuBanGiao({
           muc_dich_id,
           ten_file_goc,
           file_url,
+          cloudinary_public_id,
+          cloudinary_resource_type,
+          cloudinary_delivery_type,
           loai_file,
           kich_thuoc_file,
           uploaded_by,
@@ -891,6 +1181,9 @@ async function luuPhieuBanGiao({
           2601,
           ${file.ten_file_goc},
           ${file.file_url},
+          ${file.cloudinary_public_id},
+          ${file.cloudinary_resource_type},
+          ${file.cloudinary_delivery_type},
           ${file.loai_file},
           ${file.kich_thuoc_file},
           ${nhanVienId}::uuid,
@@ -908,6 +1201,9 @@ async function luuPhieuBanGiao({
           muc_dich_id,
           ten_file_goc,
           file_url,
+          cloudinary_public_id,
+          cloudinary_resource_type,
+          cloudinary_delivery_type,
           loai_file,
           kich_thuoc_file,
           uploaded_by,
@@ -920,6 +1216,9 @@ async function luuPhieuBanGiao({
           2602,
           ${file.ten_file_goc},
           ${file.file_url},
+          ${file.cloudinary_public_id},
+          ${file.cloudinary_resource_type},
+          ${file.cloudinary_delivery_type},
           ${file.loai_file},
           ${file.kich_thuoc_file},
           ${nhanVienId}::uuid,
@@ -929,18 +1228,30 @@ async function luuPhieuBanGiao({
       `;
     }
 
-    await tx.$executeRaw`
-      UPDATE don_thue
-      SET
-        trang_thai = ${TRANG_THAI_DANG_THUE},
-        ban_giao_luc = NOW(),
-        nguoi_ban_giao_id = ${nhanVienId}::uuid,
-        ghi_chu_ban_giao = ${ghiChuBanGiao || null},
-        updated_at = NOW()
-      WHERE id = ${donThueId}::uuid
-    `;
+    const thietBiIds = [
+      ...new Set(
+        vatPhamRows
+          .filter((item) => item.thiet_bi_id)
+          .map((item) => String(item.thiet_bi_id))
+      ),
+    ];
 
-    for (const thietBiId of thietBiCanCapNhat) {
+    for (const thietBiId of thietBiIds) {
+      const thietBiRows = await tx.$queryRaw`
+        SELECT id, so_serial, trang_thai
+        FROM thiet_bi_vat_ly
+        WHERE id = ${thietBiId}::uuid
+        FOR UPDATE
+      `;
+
+      const thietBi = thietBiRows[0];
+
+      if (!thietBi || Number(thietBi.trang_thai) !== TRANG_THAI_THIET_BI_SAN_SANG) {
+        throw new Error(
+          `Thiết bị ${thietBi?.so_serial || thietBiId} không còn sẵn sàng để xác nhận bàn giao`
+        );
+      }
+
       await tx.$executeRaw`
         UPDATE thiet_bi_vat_ly
         SET
@@ -949,6 +1260,16 @@ async function luuPhieuBanGiao({
         WHERE id = ${thietBiId}::uuid
       `;
     }
+
+    await tx.$executeRaw`
+      UPDATE don_thue
+      SET
+        trang_thai = ${TRANG_THAI_DANG_THUE},
+        ban_giao_luc = NOW(),
+        nguoi_ban_giao_id = COALESCE(nguoi_ban_giao_id, ${nhanVienId}::uuid),
+        updated_at = NOW()
+      WHERE id = ${donThueId}::uuid
+    `;
 
     await tx.$executeRaw`
       INSERT INTO thanh_toan (
@@ -963,7 +1284,7 @@ async function luuPhieuBanGiao({
       VALUES (
         gen_random_uuid(),
         ${donThueId}::uuid,
-        ${Number(tongTienThue || 0)},
+        ${Number(don.tong_tien_thue || 0)},
         2302,
         ${nhanVienId}::uuid,
         'Ghi nhận tiền thuê khi bàn giao thiết bị',
@@ -982,6 +1303,7 @@ module.exports = {
   layDanhSachDonThue,
   layDanhSachYeuCauHuy,
   layDonThueTheoId,
+  layNguoiDungNoiBoTheoId,
   layChiTietDonThue,
   layVatPhamBanGiao,
   layThanhToanCuaDon,
@@ -997,7 +1319,10 @@ module.exports = {
   layPhuKienTheoId,
   layPhuKienViTriKhoTheoId,
   demSoLuongPhuKienDangGiao,
+  demTepDonThueTheoMucDich,
+  daCoVatPhamBanGiao,
+  luuVatPhamBanGiaoDaChon,
   xacNhanYeuCauHuyDon,
   tuChoiYeuCauHuyDon,
-  luuPhieuBanGiao,
+  xacNhanPhieuBanGiaoDaChot,
 };

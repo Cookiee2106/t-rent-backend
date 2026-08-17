@@ -39,15 +39,20 @@ async function layDanhSachViTriKho(req, res) {
 async function layDanhSachViTriKhoDangHienThi(req, res) {
   try {
     const phuKienId = String(req.query.phu_kien_id || "").trim();
+    const danhMucId = String(req.query.danh_muc_id || "").trim();
 
+    // Giữ nguyên luồng cũ dùng khi bàn giao phụ kiện.
+    // Nếu không có phu_kien_id thì có thể lọc options theo danh_muc_id.
     const data = phuKienId
       ? await layDanhSachViTriPhuKienKhaDungService(phuKienId)
-      : await layDanhSachViTriKhoDangHienThiService();
+      : await layDanhSachViTriKhoDangHienThiService(danhMucId || null);
 
     res.json({
       success: true,
       message: phuKienId
         ? "Lấy danh sách vị trí còn phụ kiện thành công"
+        : danhMucId
+        ? "Lấy danh sách vị trí kho theo danh mục thành công"
         : "Lấy danh sách vị trí kho thành công",
       data,
     });
@@ -72,7 +77,10 @@ async function taoViTriKho(req, res) {
 
 async function capNhatViTriKho(req, res) {
   try {
-    const data = await capNhatViTriKhoService(req.params.id, req.body || {});
+    const data = await capNhatViTriKhoService(
+      req.params.id,
+      req.body || {}
+    );
 
     res.json({
       success: true,

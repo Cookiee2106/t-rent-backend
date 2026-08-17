@@ -18,12 +18,15 @@ async function layDanhSachThietBiVatLy() {
       tb.so_serial,
       tb.vi_tri_kho_id,
       vtk.ten_vi_tri,
+      vtk.danh_muc_id AS danh_muc_vi_tri_id,
+      dmtb_vt.ten_danh_muc AS ten_danh_muc_vi_tri,
       vtk.suc_chua_toi_da,
       tb.trang_thai,
       tt.ten_trang_thai,
       mtb.hang_id,
       h.ten_hang,
       mtb.ten_mau,
+      mtb.danh_muc_id,
       dmtb.ten_danh_muc,
       tb.created_at,
       tb.updated_at
@@ -40,6 +43,9 @@ async function layDanhSachThietBiVatLy() {
 
     LEFT JOIN vi_tri_kho vtk
       ON vtk.id = tb.vi_tri_kho_id
+
+    LEFT JOIN danh_muc_thiet_bi dmtb_vt
+      ON dmtb_vt.id = vtk.danh_muc_id
 
     LEFT JOIN trang_thai_he_thong tt
       ON tt.id = tb.trang_thai
@@ -59,12 +65,15 @@ async function layThietBiVatLyTheoId(id) {
       tb.so_serial,
       tb.vi_tri_kho_id,
       vtk.ten_vi_tri,
+      vtk.danh_muc_id AS danh_muc_vi_tri_id,
+      dmtb_vt.ten_danh_muc AS ten_danh_muc_vi_tri,
       vtk.suc_chua_toi_da,
       tb.trang_thai,
       tt.ten_trang_thai,
       mtb.hang_id,
       h.ten_hang,
       mtb.ten_mau,
+      mtb.danh_muc_id,
       dmtb.ten_danh_muc,
       tb.created_at,
       tb.updated_at
@@ -82,6 +91,9 @@ async function layThietBiVatLyTheoId(id) {
     LEFT JOIN vi_tri_kho vtk
       ON vtk.id = tb.vi_tri_kho_id
 
+    LEFT JOIN danh_muc_thiet_bi dmtb_vt
+      ON dmtb_vt.id = vtk.danh_muc_id
+
     LEFT JOIN trang_thai_he_thong tt
       ON tt.id = tb.trang_thai
 
@@ -98,12 +110,17 @@ async function layMauThietBiTheoId(id) {
   const rows = await prisma.$queryRaw`
     SELECT
       mtb.id,
+      mtb.danh_muc_id,
+      dmtb.ten_danh_muc,
       h.ten_hang,
       mtb.ten_mau
     FROM mau_thiet_bi mtb
 
     LEFT JOIN hang_thiet_bi h
       ON h.id = mtb.hang_id
+
+    LEFT JOIN danh_muc_thiet_bi dmtb
+      ON dmtb.id = mtb.danh_muc_id
 
     WHERE mtb.id = ${id}::uuid
       AND mtb.da_xoa_luc IS NULL
@@ -117,13 +134,20 @@ async function layMauThietBiTheoId(id) {
 async function layViTriKhoTheoId(id) {
   const rows = await prisma.$queryRaw`
     SELECT
-      id,
-      ten_vi_tri,
-      suc_chua_toi_da,
-      trang_thai
-    FROM vi_tri_kho
-    WHERE id = ${id}::uuid
-      AND da_xoa_luc IS NULL
+      vt.id,
+      vt.ten_vi_tri,
+      vt.danh_muc_id,
+      dm.ten_danh_muc,
+      vt.suc_chua_toi_da,
+      vt.trang_thai
+    FROM vi_tri_kho vt
+
+    JOIN danh_muc_thiet_bi dm
+      ON dm.id = vt.danh_muc_id
+
+    WHERE vt.id = ${id}::uuid
+      AND vt.da_xoa_luc IS NULL
+
     LIMIT 1
   `;
 
@@ -142,9 +166,11 @@ async function demSoLuongDangChuaCuaViTri(viTriKhoId, thietBiIdBoQua = null) {
       )
       +
       (
-        SELECT COALESCE(SUM(pk.tong_so_luong), 0)::int
-        FROM phu_kien pk
-        WHERE pk.vi_tri_kho_id = ${viTriKhoId}::uuid
+        SELECT COALESCE(SUM(pkvt.so_luong), 0)::int
+        FROM phu_kien_vi_tri_kho pkvt
+        JOIN phu_kien pk ON pk.id = pkvt.phu_kien_id
+        WHERE pkvt.vi_tri_kho_id = ${viTriKhoId}::uuid
+          AND pkvt.dang_su_dung = TRUE
           AND pk.da_xoa_luc IS NULL
       ) AS so_luong_dang_chua
   `;

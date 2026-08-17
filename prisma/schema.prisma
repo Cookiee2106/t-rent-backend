@@ -149,6 +149,7 @@ model danh_muc_thiet_bi {
   trang_thai_he_thong trang_thai_he_thong @relation(fields: [trang_thai], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_danh_muc_thiet_bi_trang_thai")
   mau_thiet_bi        mau_thiet_bi[]
   phu_kien            phu_kien[]
+  vi_tri_kho          vi_tri_kho[]
 
   @@index([trang_thai], map: "idx_danh_muc_thiet_bi_trang_thai")
 }
@@ -216,6 +217,9 @@ model ho_so_xac_minh {
   nguoi_duyet_id                                       String?             @db.Uuid
   duyet_luc                                            DateTime?           @db.Timestamptz(6)
   created_at                                           DateTime            @default(now()) @db.Timestamptz(6)
+  anh_mat_truoc_public_id                              String?
+  anh_mat_sau_public_id                                String?
+  anh_cam_cccd_public_id                               String?
   nguoi_dung_ho_so_xac_minh_khach_hang_idTonguoi_dung  nguoi_dung          @relation("ho_so_xac_minh_khach_hang_idTonguoi_dung", fields: [khach_hang_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   nguoi_dung_ho_so_xac_minh_nguoi_duyet_idTonguoi_dung nguoi_dung?         @relation("ho_so_xac_minh_nguoi_duyet_idTonguoi_dung", fields: [nguoi_duyet_id], references: [id], onUpdate: NoAction)
   trang_thai_he_thong                                  trang_thai_he_thong @relation(fields: [trang_thai], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -271,6 +275,7 @@ model nguoi_dung {
   da_xoa_luc                                                              DateTime?            @db.Timestamptz(6)
   created_at                                                              DateTime             @default(now()) @db.Timestamptz(6)
   updated_at                                                              DateTime             @default(now()) @db.Timestamptz(6)
+  so_cccd                                                                 String?              @unique(map: "idx_nguoi_dung_so_cccd_khong_trung", where: raw("((so_cccd IS NOT NULL) AND (da_xoa_luc IS NULL))")) @db.VarChar(12)
   chinh_sach_huy_don                                                      chinh_sach_huy_don[]
   don_thue_don_thue_khach_hang_idTonguoi_dung                             don_thue[]           @relation("don_thue_khach_hang_idTonguoi_dung")
   don_thue_don_thue_nguoi_ban_giao_idTonguoi_dung                         don_thue[]           @relation("don_thue_nguoi_ban_giao_idTonguoi_dung")
@@ -384,19 +389,22 @@ model phu_kien {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model tep_don_thue {
-  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  don_thue_id       String            @db.Uuid
-  ten_file_goc      String            @db.VarChar(255)
-  file_url          String
-  loai_file         String?           @db.VarChar(100)
-  kich_thuoc_file   BigInt?
-  uploaded_by       String?           @db.Uuid
-  uploaded_at       DateTime          @default(now()) @db.Timestamptz(6)
-  updated_at        DateTime          @default(now()) @db.Timestamptz(6)
-  muc_dich_id       Int
-  danh_muc_he_thong danh_muc_he_thong @relation(fields: [muc_dich_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_tep_don_thue_muc_dich")
-  don_thue          don_thue          @relation(fields: [don_thue_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  nguoi_dung        nguoi_dung?       @relation(fields: [uploaded_by], references: [id], onUpdate: NoAction)
+  id                       String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  don_thue_id              String            @db.Uuid
+  ten_file_goc             String            @db.VarChar(255)
+  file_url                 String
+  loai_file                String?           @db.VarChar(100)
+  kich_thuoc_file          BigInt?
+  uploaded_by              String?           @db.Uuid
+  uploaded_at              DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime          @default(now()) @db.Timestamptz(6)
+  muc_dich_id              Int
+  cloudinary_public_id     String?
+  cloudinary_resource_type String?           @db.VarChar(50)
+  cloudinary_delivery_type String?           @db.VarChar(50)
+  danh_muc_he_thong        danh_muc_he_thong @relation(fields: [muc_dich_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_tep_don_thue_muc_dich")
+  don_thue                 don_thue          @relation(fields: [don_thue_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  nguoi_dung               nguoi_dung?       @relation(fields: [uploaded_by], references: [id], onUpdate: NoAction)
 
   @@index([don_thue_id], map: "idx_tep_don_thue_don")
   @@index([muc_dich_id], map: "idx_tep_don_thue_muc_dich_id")
@@ -512,12 +520,15 @@ model vi_tri_kho {
   created_at          DateTime?             @default(now()) @db.Timestamptz(6)
   updated_at          DateTime?             @default(now()) @db.Timestamptz(6)
   trang_thai          Int                   @default(601)
+  danh_muc_id         String                @db.Uuid
   phu_kien            phu_kien[]
   phu_kien_vi_tri_kho phu_kien_vi_tri_kho[]
   thiet_bi_vat_ly     thiet_bi_vat_ly[]
+  danh_muc_thiet_bi   danh_muc_thiet_bi     @relation(fields: [danh_muc_id], references: [id], onUpdate: NoAction, map: "fk_vi_tri_kho_danh_muc")
   trang_thai_he_thong trang_thai_he_thong   @relation(fields: [trang_thai], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_vi_tri_kho_trang_thai")
 
   @@index([trang_thai], map: "idx_vi_tri_kho_trang_thai")
+  @@index([danh_muc_id], map: "idx_vi_tri_kho_danh_muc")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.

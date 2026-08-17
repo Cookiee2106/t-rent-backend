@@ -2,7 +2,12 @@ function layAdminReportLogRepository() {
   return require("../repositories/adminReportLogRepository");
 }
 
-const CAC_LOAI_THAO_TAC = ["THANH_TOAN_COC", "NHAN_TIEN_THUE", "THANH_LY"];
+const CAC_LOAI_THAO_TAC = [
+  "THANH_TOAN_COC",
+  "NHAN_TIEN_THUE",
+  "HUY_DON",
+  "THANH_LY",
+];
 
 function chuanHoaIdLoc(giaTri) {
   if (!giaTri || giaTri === "0") return null;

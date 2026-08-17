@@ -1,6 +1,12 @@
-const cloudinary = require("../config/cloudinary");
 const orderRepository = require("../repositories/orderRepository");
+const {
+  taiNhieuAnhBaoVeLenCloudinaryService,
+} = require("../modules/uploads/uploadService");
 const rentalPolicyRepository = require("../repositories/rentalPolicyRepository");
+const {
+  taoHopDongPdf,
+  taoBienBanBanGiaoPdf,
+} = require("../utils/orderDocumentService");
 
 function taoSoNguyen(giaTri, macDinh) {
   const so = Number(giaTri);
@@ -18,36 +24,6 @@ function cungId(idA, idB) {
 
 function taoMapTheoId(danhSach) {
   return new Map(danhSach.map((item) => [String(item.id), item]));
-}
-
-function uploadCloudinary(file, folder) {
-  return new Promise((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(
-      {
-        folder: `t-rent/${folder}`,
-        resource_type: "auto",
-      },
-      (loi, ketQua) => {
-        if (loi) reject(loi);
-        else resolve(ketQua);
-      }
-    );
-
-    stream.end(file.buffer);
-  });
-}
-
-async function uploadNhieuFile(danhSachFile, folder) {
-  const ketQuaUpload = await Promise.all(
-    danhSachFile.map((file) => uploadCloudinary(file, folder))
-  );
-
-  return ketQuaUpload.map((item, index) => ({
-    ten_file_goc: danhSachFile[index].originalname,
-    file_url: item.secure_url,
-    loai_file: danhSachFile[index].mimetype,
-    kich_thuoc_file: danhSachFile[index].size,
-  }));
 }
 
 function docDanhSachVatPham(vatPham) {
@@ -70,6 +46,8 @@ class AdminOrderModel {
     ten_khach_hang,
     email_khach_hang,
     sdt_khach_hang,
+    dia_chi_khach_hang,
+    so_cccd_khach_hang,
 
     ngay_nhan,
     ngay_tra,
@@ -102,6 +80,10 @@ class AdminOrderModel {
     ban_giao_luc,
     nguoi_ban_giao_id,
     ten_nguoi_ban_giao,
+    email_nguoi_ban_giao,
+    sdt_nguoi_ban_giao,
+    so_cccd_nguoi_ban_giao,
+    vai_tro_nguoi_ban_giao,
     ghi_chu_ban_giao,
 
     tra_luc,
@@ -129,6 +111,8 @@ class AdminOrderModel {
     this.ten_khach_hang = ten_khach_hang || "";
     this.email_khach_hang = email_khach_hang || "";
     this.sdt_khach_hang = sdt_khach_hang || "";
+    this.dia_chi_khach_hang = dia_chi_khach_hang || "";
+    this.so_cccd_khach_hang = so_cccd_khach_hang || "";
 
     this.ngay_nhan = ngay_nhan || null;
     this.ngay_tra = ngay_tra || null;
@@ -165,6 +149,10 @@ class AdminOrderModel {
     this.ban_giao_luc = ban_giao_luc || null;
     this.nguoi_ban_giao_id = nguoi_ban_giao_id || null;
     this.ten_nguoi_ban_giao = ten_nguoi_ban_giao || null;
+    this.email_nguoi_ban_giao = email_nguoi_ban_giao || null;
+    this.sdt_nguoi_ban_giao = sdt_nguoi_ban_giao || null;
+    this.so_cccd_nguoi_ban_giao = so_cccd_nguoi_ban_giao || null;
+    this.vai_tro_nguoi_ban_giao = vai_tro_nguoi_ban_giao || null;
     this.ghi_chu_ban_giao = ghi_chu_ban_giao || null;
 
     this.tra_luc = tra_luc || null;
@@ -193,6 +181,16 @@ class AdminOrderModel {
       tien_coc_snapshot: Number(item.tien_coc_snapshot || 0),
       tien_thue: Number(item.tien_thue || 0),
       tien_coc: Number(item.tien_coc || 0),
+      bo_di_kem_snapshot: Array.isArray(item.bo_di_kem_snapshot)
+        ? item.bo_di_kem_snapshot.map((phuKien) => ({
+            phu_kien_id: phuKien.phu_kien_id || null,
+            ten_phu_kien: phuKien.ten_phu_kien || "",
+            so_luong: Number(phuKien.so_luong || 0),
+            gia_tri_phu_kien_snapshot: Number(
+              phuKien.gia_tri_phu_kien_snapshot || 0
+            ),
+          }))
+        : [],
     }));
 
     this.vat_pham_ban_giao = vat_pham_ban_giao.map((item) => ({
@@ -228,8 +226,8 @@ class AdminOrderModel {
       muc_dich_id: item.muc_dich_id || null,
       ten_muc_dich: item.ten_muc_dich || "",
       ten_file_goc: item.ten_file_goc || "",
-      file_url: item.file_url || "",
-      loai_file: item.loai_file || "",
+      protected: true,
+      loai_file: item.loai_file || "image/*",
       kich_thuoc_file: item.kich_thuoc_file
         ? Number(item.kich_thuoc_file)
         : null,
@@ -431,23 +429,57 @@ class AdminOrderModel {
     }
   }
 
-  static async lapPhieuBanGiaoService(
-    nhanVienId,
-    donThueId,
-    { ghi_chu_ban_giao, vat_pham },
-    files
-  ) {
-    const hopDongFiles = files?.hop_dong_giay || [];
-    const anhBanGiaoFiles = files?.anh_ban_giao || [];
+  static async xemHopDongService(nhanVienId, donThueId) {
+    const [donThue, nhanVien] = await Promise.all([
+      orderRepository.layDonThueTheoId(donThueId),
+      orderRepository.layNguoiDungNoiBoTheoId(nhanVienId),
+    ]);
 
-    if (hopDongFiles.length === 0) {
-      throw new Error("Vui lòng tải lên hợp đồng giấy");
+    if (!donThue) {
+      throw new Error("Không tìm thấy đơn thuê");
     }
 
-    if (anhBanGiaoFiles.length === 0) {
-      throw new Error("Vui lòng tải lên ảnh bàn giao");
+    if (!nhanVien) {
+      throw new Error("Không tìm thấy thông tin nhân viên đang đăng nhập");
     }
 
+    // Trước khi xuất biên bản: hợp đồng lấy người đang xem.
+    // Sau khi đã xuất biên bản: cố định theo chính nhân viên đã chốt bàn giao
+    // để hợp đồng không thay đổi người đại diện khi nhân viên khác mở lại.
+    const nhanVienDaiDien = donThue.nguoi_ban_giao_id
+      ? {
+          id: donThue.nguoi_ban_giao_id,
+          ho_ten: donThue.ten_nguoi_ban_giao,
+          email: donThue.email_nguoi_ban_giao,
+          so_dien_thoai: donThue.sdt_nguoi_ban_giao,
+          so_cccd: donThue.so_cccd_nguoi_ban_giao,
+          vai_tro: donThue.vai_tro_nguoi_ban_giao,
+        }
+      : nhanVien;
+
+    if (!nhanVienDaiDien.so_cccd) {
+      throw new Error("Tài khoản nhân viên chưa có CCCD. Vui lòng cập nhật CCCD trước khi xem hợp đồng");
+    }
+
+    if (!donThue.so_cccd_khach_hang) {
+      throw new Error("Không tìm thấy CCCD từ hồ sơ xác minh đã duyệt của khách hàng");
+    }
+
+    const chiTietDon = await orderRepository.layChiTietDonThue(donThueId);
+
+    if (!chiTietDon || chiTietDon.length === 0) {
+      throw new Error("Đơn thuê chưa có chi tiết thiết bị");
+    }
+
+    const buffer = await taoHopDongPdf(donThue, chiTietDon, nhanVienDaiDien);
+
+    return {
+      buffer,
+      ten_file: `hop-dong-${donThue.ma_don}.pdf`,
+    };
+  }
+
+  static async chuanBiVatPhamBanGiaoService(donThueId, vat_pham) {
     const don = await orderRepository.layDonDeBanGiao(donThueId);
 
     if (!don) {
@@ -717,18 +749,177 @@ class AdminOrderModel {
 
     await AdminOrderModel.kiemTraSoLuongPhuKien(phuKienGiaoMap);
 
-    const tepHopDong = await uploadNhieuFile(hopDongFiles, "hop-dong");
-    const tepAnhBanGiao = await uploadNhieuFile(anhBanGiaoFiles, "anh-ban-giao");
+    return {
+      don,
+      vatPhamCanLuu,
+    };
+  }
 
-    await orderRepository.luuPhieuBanGiao({
+  static async xuatBienBanBanGiaoService(
+    nhanVienId,
+    donThueId,
+    { ghi_chu_ban_giao, vat_pham }
+  ) {
+    const nhanVien = await orderRepository.layNguoiDungNoiBoTheoId(nhanVienId);
+
+    if (!nhanVien) {
+      throw new Error("Không tìm thấy thông tin nhân viên đang đăng nhập");
+    }
+
+    if (!nhanVien.so_cccd) {
+      throw new Error("Tài khoản nhân viên chưa có CCCD. Vui lòng cập nhật CCCD trước khi xuất biên bản");
+    }
+
+    const daCoVatPham = await orderRepository.daCoVatPhamBanGiao(donThueId);
+    const ghiChuBanGiao = String(ghi_chu_ban_giao || "").trim();
+
+    // Lần xuất đầu tiên bắt buộc phải có một ghi chú chung cho toàn bộ vật phẩm.
+    if (!daCoVatPham && !ghiChuBanGiao) {
+      throw new Error("Vui lòng nhập ghi chú bàn giao trước khi xuất biên bản");
+    }
+
+    if (!daCoVatPham) {
+      const duLieu = await AdminOrderModel.chuanBiVatPhamBanGiaoService(
+        donThueId,
+        vat_pham
+      );
+
+      await orderRepository.luuVatPhamBanGiaoDaChon({
+        donThueId,
+        nhanVienId,
+        ghiChuBanGiao,
+        vatPham: duLieu.vatPhamCanLuu,
+      });
+    }
+
+    return await AdminOrderModel.xemBienBanBanGiaoService(donThueId);
+  }
+
+  static async xemBienBanBanGiaoService(donThueId) {
+    const donThue = await orderRepository.layDonThueTheoId(donThueId);
+
+    if (!donThue) {
+      throw new Error("Không tìm thấy đơn thuê");
+    }
+
+    const vatPhamBanGiao = await orderRepository.layVatPhamBanGiao(donThueId);
+
+    if (!vatPhamBanGiao || vatPhamBanGiao.length === 0) {
+      throw new Error("Biên bản bàn giao chưa được xuất");
+    }
+
+    if (!donThue.so_cccd_khach_hang) {
+      throw new Error("Không tìm thấy CCCD từ hồ sơ xác minh đã duyệt của khách hàng");
+    }
+
+    if (!donThue.so_cccd_nguoi_ban_giao) {
+      throw new Error("Nhân viên bàn giao chưa có CCCD");
+    }
+
+    const buffer = await taoBienBanBanGiaoPdf(donThue, vatPhamBanGiao);
+
+    return {
+      buffer,
+      ten_file: `bien-ban-ban-giao-${donThue.ma_don}.pdf`,
+    };
+  }
+
+  static async lapPhieuBanGiaoService(
+    nhanVienId,
+    donThueId,
+    body = {},
+    files
+  ) {
+    const hopDongFiles = files?.hop_dong_giay || [];
+    const anhBanGiaoFiles = files?.anh_ban_giao || [];
+    const anhBienBanFiles = files?.anh_bien_ban_ban_giao || [];
+
+    if (hopDongFiles.length === 0) {
+      throw new Error("Vui lòng tải lên hợp đồng giấy");
+    }
+
+    if (anhBanGiaoFiles.length === 0) {
+      throw new Error("Vui lòng tải lên ảnh bàn giao");
+    }
+
+    if (anhBienBanFiles.length > 5) {
+      throw new Error("Chỉ được chọn tối đa 5 ảnh biên bản bàn giao");
+    }
+
+    const tatCaFileCanBaoVe = [
+      ...hopDongFiles,
+      ...anhBanGiaoFiles,
+      ...anhBienBanFiles,
+    ];
+
+    for (const file of tatCaFileCanBaoVe) {
+      if (!String(file.mimetype || "").startsWith("image/")) {
+        throw new Error(
+          "Hợp đồng, ảnh bàn giao và biên bản bàn giao chỉ chấp nhận file hình ảnh"
+        );
+      }
+    }
+
+    const don = await orderRepository.layDonDeBanGiao(donThueId);
+
+    if (!don) {
+      throw new Error("Không tìm thấy đơn thuê");
+    }
+
+    if (Number(don.trang_thai) !== orderRepository.TRANG_THAI_DA_GIU_CHO) {
+      throw new Error("Đơn thuê không còn ở trạng thái Đã giữ chỗ");
+    }
+
+    const dangChoXuLyHuy = await orderRepository.coYeuCauHuyChoXuLy(donThueId);
+
+    if (dangChoXuLyHuy) {
+      throw new Error("Đơn đang có yêu cầu hủy Chờ xử lý, không thể bàn giao");
+    }
+
+    const daCoVatPham = await orderRepository.daCoVatPhamBanGiao(donThueId);
+
+    if (!daCoVatPham) {
+      throw new Error("Vui lòng xuất biên bản bàn giao trước khi xác nhận bàn giao");
+    }
+
+    // Không cần nút Upload riêng. Ảnh biên bản được gửi cùng request xác nhận.
+    // Nếu trước đó đã có ảnh 2604 (dữ liệu cũ) thì vẫn cho dùng lại.
+    const soAnhBienBanDaCo = await orderRepository.demTepDonThueTheoMucDich(
+      donThueId,
+      2604
+    );
+
+    if (soAnhBienBanDaCo + anhBienBanFiles.length === 0) {
+      throw new Error(
+        "Vui lòng chọn ít nhất 1 ảnh biên bản bàn giao đã ký trước khi xác nhận"
+      );
+    }
+
+    if (soAnhBienBanDaCo + anhBienBanFiles.length > 5) {
+      throw new Error("Tổng số ảnh biên bản bàn giao không được vượt quá 5");
+    }
+
+    const tepHopDong = await taiNhieuAnhBaoVeLenCloudinaryService(
+      hopDongFiles,
+      "t-rent/orders/contracts"
+    );
+
+    const tepAnhBanGiao = await taiNhieuAnhBaoVeLenCloudinaryService(
+      anhBanGiaoFiles,
+      "t-rent/orders/handover"
+    );
+
+    const tepAnhBienBan = await taiNhieuAnhBaoVeLenCloudinaryService(
+      anhBienBanFiles,
+      "t-rent/orders/handover-signed"
+    );
+
+    await orderRepository.xacNhanPhieuBanGiaoDaChot({
       donThueId,
       nhanVienId,
-      ghiChuBanGiao: ghi_chu_ban_giao || null,
-      vatPham: vatPhamCanLuu,
       tepHopDong,
       tepAnhBanGiao,
-      thietBiCanCapNhat,
-      tongTienThue: don.tong_tien_thue,
+      tepAnhBienBan,
     });
 
     return {

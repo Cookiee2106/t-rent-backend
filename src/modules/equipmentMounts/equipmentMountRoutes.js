@@ -12,15 +12,17 @@ const kiemTraVaiTro = require("../../middlewares/roleMiddleware");
 
 const router = express.Router();
 
-const vaiTroNoiBo = [
-  "NHAN_VIEN",
+// Chỉ Quản trị viên được quản lý nhu cầu/ngàm.
+// Nhân viên không được cấp quyền vào module này.
+const vaiTroQuanTri = [
   "QUAN_TRI",
   "QUAN_TRI_VIEN",
+  "QUẢN_TRỊ_VIÊN",
 ];
 
-// Module ngàm tự kiểm tra đăng nhập và vai trò.
+// Module ngàm: bắt buộc đăng nhập và chỉ Quản trị viên được phép quản lý.
 router.use(xacThucDangNhap);
-router.use(kiemTraVaiTro(vaiTroNoiBo));
+router.use(kiemTraVaiTro(vaiTroQuanTri));
 
 router.get("/", layDanhSachNgam);
 router.post("/", taoNgam);

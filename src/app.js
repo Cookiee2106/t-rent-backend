@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const routes = require("./routes");
+const protectedFileRoutes = require("./modules/protectedFiles/protectedFileRoutes");
 
 const app = express();
 
@@ -27,6 +28,7 @@ app.get("/", (req, res) => {
   });
 });
 
+app.use("/api/protected-files", protectedFileRoutes);
 app.use("/api", routes);
 
 module.exports = app;

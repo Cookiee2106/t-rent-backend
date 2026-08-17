@@ -2,6 +2,9 @@ const {
   layDanhSachDonThueService,
   layChiTietDonThueService,
   layThietBiSanSangService,
+  xemHopDongService,
+  xuatBienBanBanGiaoService,
+  xemBienBanBanGiaoService,
   lapPhieuBanGiaoService,
   layChinhSachThueService,
   capNhatChinhSachThueService,
@@ -150,6 +153,58 @@ async function layThietBiSanSang(req, res) {
   }
 }
 
+function guiPdf(res, ketQua) {
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader(
+    "Content-Disposition",
+    `inline; filename="${ketQua.ten_file}"`
+  );
+  res.setHeader("Content-Length", ketQua.buffer.length);
+
+  return res.end(ketQua.buffer);
+}
+
+async function xemHopDong(req, res) {
+  try {
+    const ketQua = await xemHopDongService(req.nguoiDung.id, req.params.id);
+    return guiPdf(res, ketQua);
+  } catch (loi) {
+    return res.status(loi.message === "Không tìm thấy đơn thuê" ? 404 : 400).json({
+      success: false,
+      message: loi.message,
+    });
+  }
+}
+
+async function xuatBienBanBanGiao(req, res) {
+  try {
+    const ketQua = await xuatBienBanBanGiaoService(
+      req.nguoiDung.id,
+      req.params.id,
+      req.body || {}
+    );
+
+    return guiPdf(res, ketQua);
+  } catch (loi) {
+    return res.status(loi.message === "Không tìm thấy đơn thuê" ? 404 : 400).json({
+      success: false,
+      message: loi.message,
+    });
+  }
+}
+
+async function xemBienBanBanGiao(req, res) {
+  try {
+    const ketQua = await xemBienBanBanGiaoService(req.params.id);
+    return guiPdf(res, ketQua);
+  } catch (loi) {
+    return res.status(loi.message === "Không tìm thấy đơn thuê" ? 404 : 400).json({
+      success: false,
+      message: loi.message,
+    });
+  }
+}
+
 async function lapPhieuBanGiao(req, res) {
   try {
     const ketQua = await lapPhieuBanGiaoService(
@@ -182,5 +237,8 @@ module.exports = {
   layDanhSachDonThue,
   layChiTietDonThue,
   layThietBiSanSang,
+  xemHopDong,
+  xuatBienBanBanGiao,
+  xemBienBanBanGiao,
   lapPhieuBanGiao,
 };

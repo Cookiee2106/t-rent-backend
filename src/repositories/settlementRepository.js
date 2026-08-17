@@ -17,6 +17,7 @@ const LOAI_KHAU_TRU_COC = 2304;
 const LOAI_PHU_THU = 2305;
 
 const MUC_DICH_ANH_KHI_TRA = 2603;
+const MUC_DICH_ANH_BIEN_BAN_BAN_GIAO = 2604;
 
 async function taoMaPhieuBaoTri(tx) {
   const ketQua = await tx.$queryRaw`
@@ -295,7 +296,6 @@ async function layTepDonThue(donThueId) {
       tdt.muc_dich_id,
       dm.ten_danh_muc AS ten_muc_dich,
       tdt.ten_file_goc,
-      tdt.file_url,
       tdt.loai_file,
       tdt.kich_thuoc_file::text AS kich_thuoc_file,
       nd.ho_ten AS ten_nguoi_upload,
@@ -420,6 +420,11 @@ async function luuThanhLy({
         UPDATE thiet_bi_vat_ly
         SET
           trang_thai = ${item.trang_thai_sau_tra},
+          -- Thiết bị Bị mất không còn nằm tại vị trí kho cũ.
+          vi_tri_kho_id = CASE
+            WHEN ${item.trang_thai_sau_tra} = ${TRANG_THAI_THIET_BI_BI_MAT} THEN NULL
+            ELSE vi_tri_kho_id
+          END,
           updated_at = NOW()
         WHERE id = ${item.thiet_bi_id}::uuid
       `;
@@ -588,6 +593,9 @@ async function luuThanhLy({
           muc_dich_id,
           ten_file_goc,
           file_url,
+          cloudinary_public_id,
+          cloudinary_resource_type,
+          cloudinary_delivery_type,
           loai_file,
           kich_thuoc_file,
           uploaded_by,
@@ -600,6 +608,9 @@ async function luuThanhLy({
           ${MUC_DICH_ANH_KHI_TRA},
           ${file.ten_file_goc},
           ${file.file_url},
+          ${file.cloudinary_public_id},
+          ${file.cloudinary_resource_type},
+          ${file.cloudinary_delivery_type},
           ${file.loai_file},
           ${file.kich_thuoc_file},
           ${nguoiDungId}::uuid,
@@ -622,6 +633,7 @@ module.exports = {
   LOAI_HOAN_COC,
   LOAI_KHAU_TRU_COC,
   LOAI_PHU_THU,
+  MUC_DICH_ANH_BIEN_BAN_BAN_GIAO,
 
   taoMaPhieuBaoTri,
   capNhatDonQuaHan,

@@ -20,6 +20,11 @@ function kiemTraSoDienThoai(soDienThoai) {
   return /^0[0-9]{9,10}$/.test(soDienThoai);
 }
 
+// CCCD nhân viên bắt buộc đủ đúng 12 chữ số.
+function kiemTraSoCccd(soCccd) {
+  return /^[0-9]{12}$/.test(String(soCccd || ""));
+}
+
 async function kiemTraTrungEmailHoacSoDienThoai(
   email,
   soDienThoai,
@@ -50,6 +55,7 @@ class EmployeeModel {
     ho_ten,
     email,
     so_dien_thoai,
+    so_cccd,
     dia_chi,
     vai_tro,
     trang_thai,
@@ -61,6 +67,7 @@ class EmployeeModel {
     this.ho_ten = ho_ten;
     this.email = email;
     this.so_dien_thoai = so_dien_thoai ?? null;
+    this.so_cccd = so_cccd ?? null;
     this.dia_chi = dia_chi ?? null;
     this.vai_tro = vai_tro;
     this.trang_thai = trang_thai;
@@ -92,6 +99,7 @@ class EmployeeModel {
     const hoTen = chuanHoaChuoi(body.ho_ten);
     const email = chuanHoaChuoi(body.email);
     const soDienThoai = chuanHoaChuoi(body.so_dien_thoai);
+    const soCccd = chuanHoaChuoi(body.so_cccd);
     const diaChi = chuanHoaChuoi(body.dia_chi);
     const matKhau = chuanHoaChuoi(body.mat_khau);
 
@@ -101,6 +109,14 @@ class EmployeeModel {
 
     if (!email) {
       throw new Error("Vui lòng nhập email");
+    }
+
+    if (!soCccd) {
+      throw new Error("Vui lòng nhập số CCCD");
+    }
+
+    if (!kiemTraSoCccd(soCccd)) {
+      throw new Error("Số CCCD phải gồm đúng 12 chữ số");
     }
 
     if (!matKhau) {
@@ -117,12 +133,19 @@ class EmployeeModel {
 
     await kiemTraTrungEmailHoacSoDienThoai(email, soDienThoai);
 
+    const trungCccd = await employeeRepository.timTrungCccd(soCccd);
+
+    if (trungCccd) {
+      throw new Error("Số CCCD đã tồn tại");
+    }
+
     const matKhauHash = await bcrypt.hash(matKhau, 10);
 
     const row = await employeeRepository.themNhanVien({
       hoTen,
       email,
       soDienThoai,
+      soCccd,
       diaChi,
       matKhauHash,
       trangThai: TRANG_THAI_HOAT_DONG,
@@ -137,10 +160,19 @@ class EmployeeModel {
 
     const hoTen = chuanHoaChuoi(body.ho_ten);
     const soDienThoai = chuanHoaChuoi(body.so_dien_thoai);
+    const soCccd = chuanHoaChuoi(body.so_cccd);
     const diaChi = chuanHoaChuoi(body.dia_chi);
 
     if (!hoTen) {
       throw new Error("Vui lòng nhập họ tên");
+    }
+
+    if (!soCccd) {
+      throw new Error("Vui lòng nhập số CCCD");
+    }
+
+    if (!kiemTraSoCccd(soCccd)) {
+      throw new Error("Số CCCD phải gồm đúng 12 chữ số");
     }
 
     if (!kiemTraSoDienThoai(soDienThoai)) {
@@ -149,9 +181,16 @@ class EmployeeModel {
 
     await kiemTraTrungEmailHoacSoDienThoai(null, soDienThoai, id);
 
+    const trungCccd = await employeeRepository.timTrungCccd(soCccd, id);
+
+    if (trungCccd) {
+      throw new Error("Số CCCD đã tồn tại");
+    }
+
     const ketQua = await employeeRepository.capNhatNhanVien(id, {
       hoTen,
       soDienThoai,
+      soCccd,
       diaChi,
     });
 

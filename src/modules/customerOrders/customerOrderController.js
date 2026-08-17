@@ -1,6 +1,7 @@
 const {
   layDanhSachDonCuaToiService,
   layChiTietDonCuaToiService,
+  xemHopDongCuaToiService,
   guiYeuCauHuyDonCuaToiService,
 } = require("../../models/CustomerOrderModel");
 
@@ -45,6 +46,26 @@ async function layChiTietDonCuaToi(req, res) {
   }
 }
 
+async function xemHopDongCuaToi(req, res) {
+  try {
+    const ketQua = await xemHopDongCuaToiService(
+      req.nguoiDung.id,
+      req.params.id
+    );
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="${ketQua.ten_file}"`
+    );
+    res.setHeader("Content-Length", ketQua.buffer.length);
+
+    return res.end(ketQua.buffer);
+  } catch (loi) {
+    return guiLoi(res, loi);
+  }
+}
+
 async function guiYeuCauHuyDonCuaToi(req, res) {
   try {
     const nguoiDungId = req.nguoiDung.id;
@@ -69,5 +90,6 @@ async function guiYeuCauHuyDonCuaToi(req, res) {
 module.exports = {
   layDanhSachDonCuaToi,
   layChiTietDonCuaToi,
+  xemHopDongCuaToi,
   guiYeuCauHuyDonCuaToi,
 };

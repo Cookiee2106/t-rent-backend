@@ -25,9 +25,9 @@ class AdminCustomerModel {
 
     ho_so_xac_minh_id,
     so_cccd,
-    anh_mat_truoc_url,
-    anh_mat_sau_url,
-    anh_cam_cccd_url,
+    co_anh_mat_truoc,
+    co_anh_mat_sau,
+    co_anh_cam_cccd,
 
     trang_thai_ho_so,
     ten_trang_thai_ho_so,
@@ -54,9 +54,9 @@ class AdminCustomerModel {
 
     this.ho_so_xac_minh_id = ho_so_xac_minh_id ?? null;
     this.so_cccd = so_cccd ?? null;
-    this.anh_mat_truoc_url = anh_mat_truoc_url ?? null;
-    this.anh_mat_sau_url = anh_mat_sau_url ?? null;
-    this.anh_cam_cccd_url = anh_cam_cccd_url ?? null;
+    this.co_anh_mat_truoc = Boolean(co_anh_mat_truoc);
+    this.co_anh_mat_sau = Boolean(co_anh_mat_sau);
+    this.co_anh_cam_cccd = Boolean(co_anh_cam_cccd);
 
     this.trang_thai_ho_so = trang_thai_ho_so ?? null;
     this.ten_trang_thai_ho_so = ten_trang_thai_ho_so ?? null;

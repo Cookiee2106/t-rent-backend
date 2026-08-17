@@ -70,6 +70,7 @@ async function layDanhSachPhuKien() {
 
       pk.tong_so_luong::int AS tong_so_luong,
       pk.so_luong_mat_hu_hong::int AS so_luong_mat_hu_hong,
+      pk.gia_tri_phu_kien::text AS gia_tri_phu_kien,
 
       -- Chỉ đơn đã bàn giao và đơn quá hạn mới được tính là đang dùng.
       COALESCE((
@@ -154,6 +155,7 @@ async function layPhuKienTheoId(id) {
 
       pk.tong_so_luong::int AS tong_so_luong,
       pk.so_luong_mat_hu_hong::int AS so_luong_mat_hu_hong,
+      pk.gia_tri_phu_kien::text AS gia_tri_phu_kien,
 
       -- Chỉ đơn đã bàn giao và đơn quá hạn mới được tính là đang dùng.
       COALESCE((
@@ -198,11 +200,14 @@ async function layPhanBoViTriCuaPhuKien(phuKienId) {
       pkvt.so_luong::int AS so_luong,
       pkvt.dang_su_dung,
       vt.ten_vi_tri,
+      vt.danh_muc_id,
+      dm.ten_danh_muc,
       vt.suc_chua_toi_da,
       vt.trang_thai,
       vt.da_xoa_luc
     FROM phu_kien_vi_tri_kho pkvt
     JOIN vi_tri_kho vt ON vt.id = pkvt.vi_tri_kho_id
+    JOIN danh_muc_thiet_bi dm ON dm.id = vt.danh_muc_id
     WHERE pkvt.phu_kien_id = ${phuKienId}::uuid
       AND pkvt.dang_su_dung = TRUE
     ORDER BY vt.ten_vi_tri ASC
@@ -280,11 +285,21 @@ async function layDanhMucPhuKienDangHienThiTheoId(id) {
 
 async function layViTriKhoDangHienThiTheoId(id) {
   const rows = await prisma.$queryRaw`
-    SELECT id, ten_vi_tri, suc_chua_toi_da
-    FROM vi_tri_kho
-    WHERE id = ${id}::uuid
-      AND trang_thai = ${TRANG_THAI_HIEN_THI}
-      AND da_xoa_luc IS NULL
+    SELECT
+      vt.id,
+      vt.ten_vi_tri,
+      vt.danh_muc_id,
+      dm.ten_danh_muc,
+      vt.suc_chua_toi_da
+    FROM vi_tri_kho vt
+
+    JOIN danh_muc_thiet_bi dm
+      ON dm.id = vt.danh_muc_id
+
+    WHERE vt.id = ${id}::uuid
+      AND vt.trang_thai = ${TRANG_THAI_HIEN_THI}
+      AND vt.da_xoa_luc IS NULL
+
     LIMIT 1
   `;
 
@@ -392,6 +407,7 @@ async function taoPhuKien({
   danhMucId,
   danhSachViTri,
   tongSoLuong,
+  giaTriPhuKien,
   moTa,
 }) {
   return await prisma.$transaction(async (tx) => {
@@ -405,6 +421,7 @@ async function taoPhuKien({
         danh_muc_id,
         vi_tri_kho_id,
         tong_so_luong,
+        gia_tri_phu_kien,
         trang_thai,
         mo_ta,
         created_at,
@@ -417,6 +434,7 @@ async function taoPhuKien({
         ${danhMucId}::uuid,
         ${viTriDauTien}::uuid,
         ${tongSoLuong},
+        ${giaTriPhuKien},
         ${TRANG_THAI_HIEN_THI},
         ${moTa},
         NOW(),
@@ -462,6 +480,7 @@ async function capNhatPhuKien(
     danhMucId,
     danhSachViTri,
     tongSoLuong,
+    giaTriPhuKien,
     moTa,
   }
 ) {
@@ -476,6 +495,7 @@ async function capNhatPhuKien(
         danh_muc_id = ${danhMucId}::uuid,
         vi_tri_kho_id = ${viTriDauTien}::uuid,
         tong_so_luong = ${tongSoLuong},
+        gia_tri_phu_kien = ${giaTriPhuKien},
         mo_ta = ${moTa},
         updated_at = NOW()
       WHERE id = ${id}::uuid

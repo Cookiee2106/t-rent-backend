@@ -269,6 +269,11 @@ async function capNhatKetQuaBaoTri({ id, ketQua, trangThaiSauBaoTri }) {
       UPDATE thiet_bi_vat_ly
       SET
         trang_thai = ${trangThaiSauBaoTri},
+        -- Thiết bị kết luận Hư hỏng không còn chiếm chỗ trong kho.
+        vi_tri_kho_id = CASE
+          WHEN ${trangThaiSauBaoTri} = ${TRANG_THAI_THIET_BI_HU_HONG} THEN NULL
+          ELSE vi_tri_kho_id
+        END,
         updated_at = NOW()
       WHERE id = ${phieu[0].thiet_bi_id}::uuid
     `;

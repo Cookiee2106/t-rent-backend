@@ -20,9 +20,18 @@ async function layDanhSachKhachHang({
 
       hs.id AS ho_so_xac_minh_id,
       hs.so_cccd,
-      hs.anh_mat_truoc_url,
-      hs.anh_mat_sau_url,
-      hs.anh_cam_cccd_url,
+      (
+        hs.anh_mat_truoc_public_id IS NOT NULL
+        OR hs.anh_mat_truoc_url IS NOT NULL
+      ) AS co_anh_mat_truoc,
+      (
+        hs.anh_mat_sau_public_id IS NOT NULL
+        OR hs.anh_mat_sau_url IS NOT NULL
+      ) AS co_anh_mat_sau,
+      (
+        hs.anh_cam_cccd_public_id IS NOT NULL
+        OR hs.anh_cam_cccd_url IS NOT NULL
+      ) AS co_anh_cam_cccd,
       hs.trang_thai AS trang_thai_ho_so,
       tt_hs.ten_trang_thai AS ten_trang_thai_ho_so,
       hs.ly_do_tu_choi,
@@ -86,9 +95,18 @@ async function layChiTietKhachHang(khachHangId) {
 
       hs.id AS ho_so_xac_minh_id,
       hs.so_cccd,
-      hs.anh_mat_truoc_url,
-      hs.anh_mat_sau_url,
-      hs.anh_cam_cccd_url,
+      (
+        hs.anh_mat_truoc_public_id IS NOT NULL
+        OR hs.anh_mat_truoc_url IS NOT NULL
+      ) AS co_anh_mat_truoc,
+      (
+        hs.anh_mat_sau_public_id IS NOT NULL
+        OR hs.anh_mat_sau_url IS NOT NULL
+      ) AS co_anh_mat_sau,
+      (
+        hs.anh_cam_cccd_public_id IS NOT NULL
+        OR hs.anh_cam_cccd_url IS NOT NULL
+      ) AS co_anh_cam_cccd,
       hs.trang_thai AS trang_thai_ho_so,
       tt_hs.ten_trang_thai AS ten_trang_thai_ho_so,
       hs.ly_do_tu_choi,

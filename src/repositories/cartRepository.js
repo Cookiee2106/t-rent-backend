@@ -240,6 +240,7 @@ async function tinhSoLuongDaDatCuaMau(mauThietBiId, ngayNhan, ngayTra) {
           ON dt.id = ctdt.don_thue_id
 
         WHERE ctdt.mau_thiet_bi_id = ${mauThietBiId}::uuid
+          -- Giữ nguyên logic mẫu: chỉ đơn 1102 cần trừ thêm ngoài thiết bị 501.
           AND dt.trang_thai = 1102
           AND dt.ngay_nhan < ${ngayTra}::timestamptz
           AND dt.ngay_tra > ${ngayNhan}::timestamptz
@@ -259,6 +260,39 @@ async function tinhSoLuongDaDatCuaMau(mauThietBiId, ngayNhan, ngayTra) {
           AND dt.trang_thai = 1102
           AND dt.ngay_nhan < ${ngayTra}::timestamptz
           AND dt.ngay_tra > ${ngayNhan}::timestamptz
+      )
+      +
+      (
+        -- Phiên 901 còn hạn được tính như giữ chỗ tạm cho mẫu chính.
+        SELECT COALESCE(SUM(ctpt.so_luong), 0)::int
+        FROM chi_tiet_phien_thanh_toan ctpt
+
+        JOIN phien_thanh_toan ptt
+          ON ptt.id = ctpt.phien_thanh_toan_id
+
+        WHERE ctpt.mau_thiet_bi_id = ${mauThietBiId}::uuid
+          AND ptt.trang_thai = 901
+          AND ptt.het_han_luc > NOW()
+          AND ctpt.ngay_nhan < ${ngayTra}::timestamptz
+          AND ctpt.ngay_tra > ${ngayNhan}::timestamptz
+      )
+      +
+      (
+        -- Giữ tạm cả mẫu thiết bị phụ trong bộ đi kèm.
+        SELECT COALESCE(SUM(ctpt.so_luong * bdk.so_luong), 0)::int
+        FROM chi_tiet_phien_thanh_toan ctpt
+
+        JOIN phien_thanh_toan ptt
+          ON ptt.id = ctpt.phien_thanh_toan_id
+
+        JOIN bo_di_kem bdk
+          ON bdk.mau_thiet_bi_chinh_id = ctpt.mau_thiet_bi_id
+
+        WHERE bdk.mau_thiet_bi_phu_id = ${mauThietBiId}::uuid
+          AND ptt.trang_thai = 901
+          AND ptt.het_han_luc > NOW()
+          AND ctpt.ngay_nhan < ${ngayTra}::timestamptz
+          AND ctpt.ngay_tra > ${ngayNhan}::timestamptz
       ) AS da_dat
   `;
 
@@ -291,19 +325,41 @@ async function layTongSoLuongPhuKien(phuKienId) {
 
 async function tinhSoLuongDaDatCuaPhuKien(phuKienId, ngayNhan, ngayTra) {
   const rows = await prisma.$queryRaw`
-    SELECT COALESCE(SUM(ctdt.so_luong * bdk.so_luong), 0)::int AS da_dat
-    FROM chi_tiet_don_thue ctdt
+    SELECT
+      (
+        SELECT COALESCE(SUM(ctdt.so_luong * bdk.so_luong), 0)::int
+        FROM chi_tiet_don_thue ctdt
 
-    JOIN don_thue dt
-      ON dt.id = ctdt.don_thue_id
+        JOIN don_thue dt
+          ON dt.id = ctdt.don_thue_id
 
-    JOIN bo_di_kem bdk
-      ON bdk.mau_thiet_bi_chinh_id = ctdt.mau_thiet_bi_id
+        JOIN bo_di_kem bdk
+          ON bdk.mau_thiet_bi_chinh_id = ctdt.mau_thiet_bi_id
 
-    WHERE bdk.phu_kien_id = ${phuKienId}::uuid
-      AND dt.trang_thai = 1102
-      AND dt.ngay_nhan < ${ngayTra}::timestamptz
-      AND dt.ngay_tra > ${ngayNhan}::timestamptz
+        WHERE bdk.phu_kien_id = ${phuKienId}::uuid
+          -- Phụ kiện phải trừ đủ: Đã giữ chỗ, Đang thuê, Quá hạn.
+          AND dt.trang_thai IN (1102, 1103, 1105)
+          AND dt.ngay_nhan < ${ngayTra}::timestamptz
+          AND dt.ngay_tra > ${ngayNhan}::timestamptz
+      )
+      +
+      (
+        -- Phiên 901 còn hạn cũng giữ tạm phụ kiện.
+        SELECT COALESCE(SUM(ctpt.so_luong * bdk.so_luong), 0)::int
+        FROM chi_tiet_phien_thanh_toan ctpt
+
+        JOIN phien_thanh_toan ptt
+          ON ptt.id = ctpt.phien_thanh_toan_id
+
+        JOIN bo_di_kem bdk
+          ON bdk.mau_thiet_bi_chinh_id = ctpt.mau_thiet_bi_id
+
+        WHERE bdk.phu_kien_id = ${phuKienId}::uuid
+          AND ptt.trang_thai = 901
+          AND ptt.het_han_luc > NOW()
+          AND ctpt.ngay_nhan < ${ngayTra}::timestamptz
+          AND ctpt.ngay_tra > ${ngayNhan}::timestamptz
+      ) AS da_dat
   `;
 
   return Number(rows[0]?.da_dat || 0);

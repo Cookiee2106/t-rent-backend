@@ -21,6 +21,7 @@ function layDanhSachMucDichFileTheoTrangThai(trangThaiDon) {
     return [
       customerOrderRepository.MUC_DICH_HOP_DONG_GIAY,
       customerOrderRepository.MUC_DICH_ANH_BAN_GIAO,
+      customerOrderRepository.MUC_DICH_ANH_BIEN_BAN_BAN_GIAO,
     ];
   }
 
@@ -29,6 +30,7 @@ function layDanhSachMucDichFileTheoTrangThai(trangThaiDon) {
       customerOrderRepository.MUC_DICH_HOP_DONG_GIAY,
       customerOrderRepository.MUC_DICH_ANH_BAN_GIAO,
       customerOrderRepository.MUC_DICH_ANH_KHI_TRA,
+      customerOrderRepository.MUC_DICH_ANH_BIEN_BAN_BAN_GIAO,
     ];
   }
 
@@ -80,6 +82,7 @@ class CustomerOrderModel {
     gui_luc_yeu_cau,
 
     ban_giao_luc,
+    da_xuat_bien_ban,
     nguoi_ban_giao_id,
     ten_nguoi_ban_giao,
     ghi_chu_ban_giao,
@@ -128,6 +131,7 @@ class CustomerOrderModel {
       : null;
 
     this.ban_giao_luc = ban_giao_luc || null;
+    this.da_xuat_bien_ban = Boolean(da_xuat_bien_ban);
     this.nguoi_ban_giao_id = nguoi_ban_giao_id || null;
     this.ten_nguoi_ban_giao = ten_nguoi_ban_giao || null;
     this.ghi_chu_ban_giao = ghi_chu_ban_giao || null;
@@ -176,6 +180,7 @@ class CustomerOrderModel {
         ...item,
         so_luong: Number(item.so_luong || 0),
         gia_thue_ngay_snapshot: Number(item.gia_thue_ngay_snapshot || 0),
+        gia_tri_thiet_bi_snapshot: Number(item.gia_tri_thiet_bi_snapshot || 0),
         tien_coc_snapshot: Number(item.tien_coc_snapshot || 0),
         tien_thue: Number(item.tien_thue || 0),
         tien_coc: Number(item.tien_coc || 0),
@@ -184,7 +189,11 @@ class CustomerOrderModel {
         ...item,
         so_tien: Number(item.so_tien || 0),
       })),
-      tep_don_thue: tepDonThue,
+      tep_don_thue: tepDonThue.map((item) => ({
+        ...item,
+        protected: true,
+        loai_file: item.loai_file || "image/*",
+      })),
     };
   }
 
@@ -219,6 +228,16 @@ class CustomerOrderModel {
     if (trangThai !== customerOrderRepository.TRANG_THAI_DA_GIU_CHO) {
       throw new Error(
         "Chỉ được gửi yêu cầu hủy khi đơn còn ở trạng thái đã giữ chỗ"
+      );
+    }
+
+    const daXuatBienBan = await customerOrderRepository.daCoVatPhamBanGiao(
+      donThueId
+    );
+
+    if (daXuatBienBan) {
+      throw new Error(
+        "Đơn đã xuất biên bản bàn giao, không thể gửi yêu cầu hủy"
       );
     }
 

@@ -22,7 +22,11 @@ async function kiemTraMauThietBi(mauThietBiId) {
   return mau;
 }
 
-async function kiemTraViTriKho(viTriKhoId, thietBiIdBoQua = null) {
+async function kiemTraViTriKho(
+  viTriKhoId,
+  danhMucId,
+  thietBiIdBoQua = null
+) {
   const viTri = await assetRepository.layViTriKhoTheoId(viTriKhoId);
 
   if (!viTri) {
@@ -31,6 +35,13 @@ async function kiemTraViTriKho(viTriKhoId, thietBiIdBoQua = null) {
 
   if (Number(viTri.trang_thai) !== assetRepository.TRANG_THAI_HIEN_THI) {
     throw new Error("Vị trí kho đang bị ẩn, không thể sử dụng");
+  }
+
+  // Thiết bị chỉ được đặt vào vị trí thuộc cùng danh mục với mẫu.
+  if (String(viTri.danh_muc_id) !== String(danhMucId)) {
+    throw new Error(
+      `Vị trí "${viTri.ten_vi_tri}" chỉ dành cho danh mục ${viTri.ten_danh_muc}`
+    );
   }
 
   const soLuongDangChua = await assetRepository.demSoLuongDangChuaCuaViTri(
@@ -72,6 +83,8 @@ class AssetModel {
 
     vi_tri_kho_id,
     ten_vi_tri,
+    danh_muc_vi_tri_id,
+    ten_danh_muc_vi_tri,
     suc_chua_toi_da,
 
     trang_thai,
@@ -80,6 +93,7 @@ class AssetModel {
     hang_id,
     ten_hang,
     ten_mau,
+    danh_muc_id,
     ten_danh_muc,
 
     created_at,
@@ -93,6 +107,8 @@ class AssetModel {
 
     this.vi_tri_kho_id = vi_tri_kho_id || null;
     this.ten_vi_tri = ten_vi_tri || null;
+    this.danh_muc_vi_tri_id = danh_muc_vi_tri_id || null;
+    this.ten_danh_muc_vi_tri = ten_danh_muc_vi_tri || null;
     this.suc_chua_toi_da = Number(suc_chua_toi_da || 0);
 
     this.trang_thai = trang_thai;
@@ -101,6 +117,7 @@ class AssetModel {
     this.hang_id = hang_id || null;
     this.ten_hang = ten_hang || null;
     this.ten_mau = ten_mau || null;
+    this.danh_muc_id = danh_muc_id || null;
     this.ten_danh_muc = ten_danh_muc || null;
 
     this.created_at = created_at || null;
@@ -136,8 +153,8 @@ class AssetModel {
       throw new Error("Vui lòng nhập số serial");
     }
 
-    await kiemTraMauThietBi(mauThietBiId);
-    await kiemTraViTriKho(viTriKhoId);
+    const mau = await kiemTraMauThietBi(mauThietBiId);
+    await kiemTraViTriKho(viTriKhoId, mau.danh_muc_id);
     await kiemTraTrungDuLieu({ maTaiSan, soSerial });
 
     const ketQua = await assetRepository.themThietBiVatLy({
@@ -169,8 +186,8 @@ class AssetModel {
       throw new Error("Vui lòng nhập số serial");
     }
 
-    await kiemTraMauThietBi(mauThietBiId);
-    await kiemTraViTriKho(viTriKhoId, id);
+    const mau = await kiemTraMauThietBi(mauThietBiId);
+    await kiemTraViTriKho(viTriKhoId, mau.danh_muc_id, id);
     await kiemTraTrungDuLieu({ maTaiSan, soSerial, idBoQua: id });
 
     const ketQua = await assetRepository.capNhatThietBiVatLy(id, {

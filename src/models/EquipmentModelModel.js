@@ -1,5 +1,7 @@
-const cloudinary = require("../config/cloudinary");
 const BundleItemModel = require("./BundleItemModel");
+const {
+  taiAnhCongKhaiLenCloudinaryService,
+} = require("../modules/uploads/uploadService");
 const adminEquipmentModelRepository = require("../repositories/adminEquipmentModelRepository");
 const equipmentMountRepository = require("../repositories/equipmentMountRepository");
 const equipmentNeedRepository = require("../repositories/equipmentNeedRepository");
@@ -162,26 +164,6 @@ function docSoLuongBoDiKem(giaTri) {
 
 function kiemTraFileAnh(file) {
   return file && file.mimetype && file.mimetype.startsWith("image/");
-}
-
-function uploadAnhLenCloudinary(file) {
-  return new Promise((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(
-      {
-        folder: "t-rent/mau-thiet-bi",
-        resource_type: "image",
-      },
-      (loi, ketQua) => {
-        if (loi) {
-          reject(loi);
-        } else {
-          resolve(ketQua);
-        }
-      }
-    );
-
-    stream.end(file.buffer);
-  });
 }
 
 async function layMauBatBuocTonTai(id) {
@@ -451,7 +433,7 @@ class EquipmentModelModel {
       }
 
       const ketQuaUpload =
-        await uploadAnhLenCloudinary(fileAnh);
+        await taiAnhCongKhaiLenCloudinaryService(fileAnh, "t-rent/equipment/models");
 
       anhUrl = ketQuaUpload.secure_url;
     }
@@ -651,7 +633,7 @@ class EquipmentModelModel {
       }
 
       const ketQuaUpload =
-        await uploadAnhLenCloudinary(fileAnh);
+        await taiAnhCongKhaiLenCloudinaryService(fileAnh, "t-rent/equipment/models");
 
       anhUrl = ketQuaUpload.secure_url;
     }

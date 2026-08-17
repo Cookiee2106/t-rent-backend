@@ -11,6 +11,8 @@ const PHIEN_THAT_BAI = 903;
 const PHIEN_HET_HAN = 904;
 
 const DON_DA_GIU_CHO = 1102;
+const DON_DANG_THUE = 1103;
+const DON_QUA_HAN = 1105;
 const LOAI_TIEN_COC = 2301;
 
 async function layKhachHangTheoId(nguoiDungId) {
@@ -122,7 +124,13 @@ async function capNhatSnapshotGioHangKhiXacNhan(gioHangId, danhSachItem = []) {
   });
 }
 
-async function tinhSoLuongKhaDungCuaMau(mauThietBiId, ngayNhan, ngayTra, db = prisma) {
+async function tinhSoLuongKhaDungCuaMau(
+  mauThietBiId,
+  ngayNhan,
+  ngayTra,
+  db = prisma,
+  phienLoaiTruId = null
+) {
   const rows = await db.$queryRaw`
     SELECT
       (
@@ -139,6 +147,8 @@ async function tinhSoLuongKhaDungCuaMau(mauThietBiId, ngayNhan, ngayTra, db = pr
         JOIN don_thue dt
           ON dt.id = ctdt.don_thue_id
         WHERE ctdt.mau_thiet_bi_id = ${mauThietBiId}::uuid
+          -- Giữ nguyên logic mẫu thiết bị: chỉ trừ đơn 1102.
+          -- Đơn 1103/1105 đã làm thiết bị vật lý rời trạng thái 501 nên không trừ lại.
           AND dt.trang_thai = ${DON_DA_GIU_CHO}
           AND dt.ngay_nhan < ${ngayTra}::timestamptz
           AND dt.ngay_tra > ${ngayNhan}::timestamptz
@@ -155,6 +165,42 @@ async function tinhSoLuongKhaDungCuaMau(mauThietBiId, ngayNhan, ngayTra, db = pr
           AND dt.trang_thai = ${DON_DA_GIU_CHO}
           AND dt.ngay_nhan < ${ngayTra}::timestamptz
           AND dt.ngay_tra > ${ngayNhan}::timestamptz
+      )
+      -
+      (
+        -- Phiên 901 còn hạn được xem là giữ chỗ tạm cho mẫu chính.
+        SELECT COALESCE(SUM(ctpt.so_luong), 0)::int
+        FROM chi_tiet_phien_thanh_toan ctpt
+        JOIN phien_thanh_toan ptt
+          ON ptt.id = ctpt.phien_thanh_toan_id
+        WHERE ctpt.mau_thiet_bi_id = ${mauThietBiId}::uuid
+          AND ptt.trang_thai = ${PHIEN_CHO_THANH_TOAN}
+          AND ptt.het_han_luc > NOW()
+          AND (
+            ${phienLoaiTruId}::uuid IS NULL
+            OR ptt.id <> ${phienLoaiTruId}::uuid
+          )
+          AND ctpt.ngay_nhan < ${ngayTra}::timestamptz
+          AND ctpt.ngay_tra > ${ngayNhan}::timestamptz
+      )
+      -
+      (
+        -- Phiên 901 cũng phải giữ tạm các mẫu thiết bị phụ trong bộ đi kèm.
+        SELECT COALESCE(SUM(ctpt.so_luong * bdk.so_luong), 0)::int
+        FROM chi_tiet_phien_thanh_toan ctpt
+        JOIN phien_thanh_toan ptt
+          ON ptt.id = ctpt.phien_thanh_toan_id
+        JOIN bo_di_kem bdk
+          ON bdk.mau_thiet_bi_chinh_id = ctpt.mau_thiet_bi_id
+        WHERE bdk.mau_thiet_bi_phu_id = ${mauThietBiId}::uuid
+          AND ptt.trang_thai = ${PHIEN_CHO_THANH_TOAN}
+          AND ptt.het_han_luc > NOW()
+          AND (
+            ${phienLoaiTruId}::uuid IS NULL
+            OR ptt.id <> ${phienLoaiTruId}::uuid
+          )
+          AND ctpt.ngay_nhan < ${ngayTra}::timestamptz
+          AND ctpt.ngay_tra > ${ngayNhan}::timestamptz
       ) AS so_luong_san_sang
   `;
 
@@ -162,7 +208,13 @@ async function tinhSoLuongKhaDungCuaMau(mauThietBiId, ngayNhan, ngayTra, db = pr
   return soLuong > 0 ? soLuong : 0;
 }
 
-async function tinhSoLuongKhaDungCuaPhuKien(phuKienId, ngayNhan, ngayTra, db = prisma) {
+async function tinhSoLuongKhaDungCuaPhuKien(
+  phuKienId,
+  ngayNhan,
+  ngayTra,
+  db = prisma,
+  phienLoaiTruId = null
+) {
   const rows = await db.$queryRaw`
     SELECT
       (
@@ -182,9 +234,34 @@ async function tinhSoLuongKhaDungCuaPhuKien(phuKienId, ngayNhan, ngayTra, db = p
         JOIN bo_di_kem bdk
           ON bdk.mau_thiet_bi_chinh_id = ctdt.mau_thiet_bi_id
         WHERE bdk.phu_kien_id = ${phuKienId}::uuid
-          AND dt.trang_thai = ${DON_DA_GIU_CHO}
+          -- Phụ kiện không đổi trạng thái vật lý như thiết bị định danh,
+          -- nên phải trừ cả giữ chỗ, đang thuê và quá hạn.
+          AND dt.trang_thai IN (
+            ${DON_DA_GIU_CHO},
+            ${DON_DANG_THUE},
+            ${DON_QUA_HAN}
+          )
           AND dt.ngay_nhan < ${ngayTra}::timestamptz
           AND dt.ngay_tra > ${ngayNhan}::timestamptz
+      )
+      -
+      (
+        -- Phiên 901 còn hạn giữ tạm phụ kiện đi kèm.
+        SELECT COALESCE(SUM(ctpt.so_luong * bdk.so_luong), 0)::int
+        FROM chi_tiet_phien_thanh_toan ctpt
+        JOIN phien_thanh_toan ptt
+          ON ptt.id = ctpt.phien_thanh_toan_id
+        JOIN bo_di_kem bdk
+          ON bdk.mau_thiet_bi_chinh_id = ctpt.mau_thiet_bi_id
+        WHERE bdk.phu_kien_id = ${phuKienId}::uuid
+          AND ptt.trang_thai = ${PHIEN_CHO_THANH_TOAN}
+          AND ptt.het_han_luc > NOW()
+          AND (
+            ${phienLoaiTruId}::uuid IS NULL
+            OR ptt.id <> ${phienLoaiTruId}::uuid
+          )
+          AND ctpt.ngay_nhan < ${ngayTra}::timestamptz
+          AND ctpt.ngay_tra > ${ngayNhan}::timestamptz
       ) AS so_luong_san_sang
   `;
 
@@ -204,6 +281,186 @@ async function layBoDiKemCuaMau(mauThietBiId, db = prisma) {
   `;
 }
 
+// Chụp lại tên, số lượng và giá trị phụ kiện tại thời điểm tạo phiên thanh toán.
+// Hợp đồng của đơn sau này chỉ dùng snapshot này, không lấy giá hiện tại của phụ kiện.
+async function taoBoDiKemSnapshotCuaMau(mauThietBiId, db = prisma) {
+  const rows = await db.$queryRaw`
+    SELECT
+      pk.id AS phu_kien_id,
+      pk.ten_phu_kien,
+      bdk.so_luong::int AS so_luong,
+      pk.gia_tri_phu_kien::text AS gia_tri_phu_kien_snapshot
+    FROM bo_di_kem bdk
+    JOIN phu_kien pk
+      ON pk.id = bdk.phu_kien_id
+    WHERE bdk.mau_thiet_bi_chinh_id = ${mauThietBiId}::uuid
+      AND bdk.phu_kien_id IS NOT NULL
+      AND pk.da_xoa_luc IS NULL
+    ORDER BY pk.ten_phu_kien ASC
+  `;
+
+  return rows.map((item) => ({
+    phu_kien_id: item.phu_kien_id,
+    ten_phu_kien: item.ten_phu_kien,
+    so_luong: Number(item.so_luong || 0),
+    gia_tri_phu_kien_snapshot: Number(item.gia_tri_phu_kien_snapshot || 0),
+  }));
+}
+
+function congNhuCau(map, id, soLuong) {
+  if (!id) return;
+
+  const key = String(id);
+  const soLuongHopLe = Number(soLuong || 0);
+
+  if (!Number.isFinite(soLuongHopLe) || soLuongHopLe <= 0) return;
+
+  map.set(key, Number(map.get(key) || 0) + soLuongHopLe);
+}
+
+// Gom toàn bộ nhu cầu của mẫu chính, mẫu phụ và phụ kiện.
+// Sau đó khóa theo thứ tự cố định để hai callback đồng thời không cùng vượt tồn.
+async function taoNhuCauTaiNguyen(danhSachItem = [], db = prisma) {
+  const mauThietBi = new Map();
+  const phuKien = new Map();
+
+  for (const item of danhSachItem) {
+    const soLuongItem = Number(item.so_luong || 0);
+
+    if (!item.mau_thiet_bi_id || !Number.isFinite(soLuongItem) || soLuongItem <= 0) {
+      throw new Error("Chi tiết phiên thanh toán không hợp lệ");
+    }
+
+    congNhuCau(mauThietBi, item.mau_thiet_bi_id, soLuongItem);
+
+    const boDiKem = await layBoDiKemCuaMau(item.mau_thiet_bi_id, db);
+
+    for (const dong of boDiKem) {
+      const soLuongCan = Number(dong.so_luong || 0) * soLuongItem;
+
+      if (dong.mau_thiet_bi_phu_id) {
+        congNhuCau(mauThietBi, dong.mau_thiet_bi_phu_id, soLuongCan);
+      }
+
+      if (dong.phu_kien_id) {
+        congNhuCau(phuKien, dong.phu_kien_id, soLuongCan);
+      }
+    }
+  }
+
+  return {
+    mau_thiet_bi: [...mauThietBi.entries()]
+      .map(([id, so_luong]) => ({ id, so_luong }))
+      .sort((a, b) => String(a.id).localeCompare(String(b.id))),
+    phu_kien: [...phuKien.entries()]
+      .map(([id, so_luong]) => ({ id, so_luong }))
+      .sort((a, b) => String(a.id).localeCompare(String(b.id))),
+  };
+}
+
+async function khoaTaiNguyenThanhToan(tx, nhuCau) {
+  // Khóa mẫu theo UUID tăng dần.
+  for (const item of nhuCau.mau_thiet_bi) {
+    const rows = await tx.$queryRaw`
+      SELECT id
+      FROM mau_thiet_bi
+      WHERE id = ${item.id}::uuid
+      FOR UPDATE
+    `;
+
+    if (rows.length === 0) {
+      throw new Error(`Không tìm thấy mẫu thiết bị ${item.id}`);
+    }
+  }
+
+  // Sau đó khóa phụ kiện theo UUID tăng dần.
+  for (const item of nhuCau.phu_kien) {
+    const rows = await tx.$queryRaw`
+      SELECT id
+      FROM phu_kien
+      WHERE id = ${item.id}::uuid
+      FOR UPDATE
+    `;
+
+    if (rows.length === 0) {
+      throw new Error(`Không tìm thấy phụ kiện ${item.id}`);
+    }
+  }
+}
+
+function layKhoangThueChung(danhSachItem = []) {
+  if (danhSachItem.length === 0) {
+    throw new Error("Phiên thanh toán không có chi tiết");
+  }
+
+  const ngayNhan = new Date(danhSachItem[0].ngay_nhan);
+  const ngayTra = new Date(danhSachItem[0].ngay_tra);
+
+  if (
+    Number.isNaN(ngayNhan.getTime()) ||
+    Number.isNaN(ngayTra.getTime()) ||
+    ngayTra <= ngayNhan
+  ) {
+    throw new Error("Khoảng thời gian thuê không hợp lệ");
+  }
+
+  for (const item of danhSachItem) {
+    const nhan = new Date(item.ngay_nhan);
+    const tra = new Date(item.ngay_tra);
+
+    if (nhan.getTime() !== ngayNhan.getTime() || tra.getTime() !== ngayTra.getTime()) {
+      throw new Error("Các sản phẩm trong phiên thanh toán phải có cùng thời gian thuê");
+    }
+  }
+
+  return { ngayNhan, ngayTra };
+}
+
+// Kiểm tra tồn ngay trong transaction.
+// phienLoaiTruId được dùng tại callback để phiên 901 đang xử lý không tự trừ chính nó.
+async function kiemTraTonTrongTransaction({
+  db,
+  danhSachItem,
+  phienLoaiTruId = null,
+}) {
+  const { ngayNhan, ngayTra } = layKhoangThueChung(danhSachItem);
+  const nhuCau = await taoNhuCauTaiNguyen(danhSachItem, db);
+
+  await khoaTaiNguyenThanhToan(db, nhuCau);
+
+  for (const item of nhuCau.mau_thiet_bi) {
+    const khaDung = await tinhSoLuongKhaDungCuaMau(
+      item.id,
+      ngayNhan,
+      ngayTra,
+      db,
+      phienLoaiTruId
+    );
+
+    if (khaDung < Number(item.so_luong)) {
+      throw new Error(
+        `Không đủ thiết bị. Cần ${item.so_luong}, hiện chỉ còn ${khaDung}`
+      );
+    }
+  }
+
+  for (const item of nhuCau.phu_kien) {
+    const khaDung = await tinhSoLuongKhaDungCuaPhuKien(
+      item.id,
+      ngayNhan,
+      ngayTra,
+      db,
+      phienLoaiTruId
+    );
+
+    if (khaDung < Number(item.so_luong)) {
+      throw new Error(
+        `Không đủ phụ kiện. Cần ${item.so_luong}, hiện chỉ còn ${khaDung}`
+      );
+    }
+  }
+}
+
 async function taoPhienThanhToan({
   khachHangId,
   danhSachItem,
@@ -214,6 +471,13 @@ async function taoPhienThanhToan({
   tyLePhiHuySnapshot,
 }) {
   return await prisma.$transaction(async (tx) => {
+    // Phiên 901 là giữ chỗ tạm. Khóa + kiểm tra tồn trước khi tạo phiên
+    // để không tạo nhiều phiên 901 vượt quá số lượng còn lại.
+    await kiemTraTonTrongTransaction({
+      db: tx,
+      danhSachItem,
+    });
+
     const rows = await tx.$queryRaw`
       INSERT INTO phien_thanh_toan (
         khach_hang_id,
@@ -250,6 +514,11 @@ async function taoPhienThanhToan({
     const phien = rows[0];
 
     for (const item of danhSachItem) {
+      const boDiKemSnapshot = await taoBoDiKemSnapshotCuaMau(
+        item.mau_thiet_bi_id,
+        tx
+      );
+
       await tx.$executeRaw`
         INSERT INTO chi_tiet_phien_thanh_toan (
           phien_thanh_toan_id,
@@ -262,7 +531,8 @@ async function taoPhienThanhToan({
           ty_le_coc_snapshot,
           tien_coc_snapshot,
           tien_thue,
-          tien_coc
+          tien_coc,
+          bo_di_kem_snapshot
         )
         VALUES (
           ${phien.id}::uuid,
@@ -275,7 +545,8 @@ async function taoPhienThanhToan({
           ${Number(item.ty_le_coc_snapshot)},
           ${Number(item.tien_coc_snapshot)},
           ${Number(item.tien_thue)},
-          ${Number(item.tien_coc)}
+          ${Number(item.tien_coc)},
+          ${JSON.stringify(boDiKemSnapshot)}::jsonb
         )
       `;
     }
@@ -340,7 +611,8 @@ async function layChiTietPhienThanhToan(phienId) {
       ct.ty_le_coc_snapshot::text AS ty_le_coc_snapshot,
       ct.tien_coc_snapshot::text AS tien_coc_snapshot,
       ct.tien_thue::text AS tien_thue,
-      ct.tien_coc::text AS tien_coc
+      ct.tien_coc::text AS tien_coc,
+      ct.bo_di_kem_snapshot
     FROM chi_tiet_phien_thanh_toan ct
     JOIN mau_thiet_bi mtb
       ON mtb.id = ct.mau_thiet_bi_id
@@ -405,6 +677,15 @@ async function xuLyThanhToanThanhCong({
   const webhookCu = await layWebhookTheoIdSuKien(idSuKien);
 
   if (webhookCu) {
+    // Nếu callback trước đã ghi lỗi (ví dụ hết tồn sau khi VNPay đã thanh toán),
+    // callback lặp lại phải tiếp tục trả lỗi, không được giả thành công.
+    if (!webhookCu.da_xu_ly) {
+      throw new Error(
+        webhookCu.loi_xu_ly ||
+          "Giao dịch đã được thanh toán nhưng chưa tạo được đơn thuê"
+      );
+    }
+
     return {
       da_xu_ly_truoc_do: true,
       id_su_kien: idSuKien,
@@ -514,7 +795,8 @@ async function xuLyThanhToanThanhCong({
           ty_le_coc_snapshot,
           tien_coc_snapshot,
           tien_thue,
-          tien_coc
+          tien_coc,
+          bo_di_kem_snapshot
         FROM chi_tiet_phien_thanh_toan
         WHERE phien_thanh_toan_id = ${phien.id}::uuid
         ORDER BY created_at ASC
@@ -522,6 +804,21 @@ async function xuLyThanhToanThanhCong({
 
       if (chiTiet.length === 0) {
         throw new Error("Phiên thanh toán không có chi tiết");
+      }
+
+      // VNPay đã báo thành công nhưng vẫn phải kiểm tra lại tồn trong CHÍNH transaction này.
+      // Loại trừ phiên 901 hiện tại để nó không tự trừ vào phần tồn đã giữ cho chính nó.
+      try {
+        await kiemTraTonTrongTransaction({
+          db: tx,
+          danhSachItem: chiTiet,
+          phienLoaiTruId: phien.id,
+        });
+      } catch (loiTon) {
+        throw new Error(
+          `VNPay đã thanh toán nhưng không đủ tồn để tạo đơn. ${loiTon.message}. ` +
+            "Không tạo đơn vượt tồn; cần kiểm tra giao dịch và hoàn tiền/xử lý thủ công."
+        );
       }
 
       const ngayNhanDau = new Date(chiTiet[0].ngay_nhan);
@@ -572,7 +869,8 @@ async function xuLyThanhToanThanhCong({
             ty_le_coc_snapshot,
             tien_coc_snapshot,
             tien_thue,
-            tien_coc
+            tien_coc,
+            bo_di_kem_snapshot
           )
           VALUES (
             ${don.id}::uuid,
@@ -583,7 +881,8 @@ async function xuLyThanhToanThanhCong({
             ${Number(item.ty_le_coc_snapshot)},
             ${Number(item.tien_coc_snapshot)},
             ${Number(item.tien_thue)},
-            ${Number(item.tien_coc)}
+            ${Number(item.tien_coc)},
+            ${JSON.stringify(item.bo_di_kem_snapshot || [])}::jsonb
           )
         `;
       }

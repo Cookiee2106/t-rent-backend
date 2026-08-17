@@ -14,6 +14,8 @@ function chuanHoaTenDeSoSanh(giaTri) {
     .replace(/\s+/g, " ");
 }
 
+// Tính tổng số lượng đang chiếm chỗ tại một vị trí.
+// Thiết bị vật lý tính theo từng thiết bị, phụ kiện tính theo số lượng phân bổ.
 async function tinhSoLuongDangChua(viTriId) {
   const rows = await prisma.$queryRaw`
     SELECT
@@ -37,17 +39,40 @@ async function tinhSoLuongDangChua(viTriId) {
   return Number(rows[0]?.so_luong_dang_chua || 0);
 }
 
+// Lấy một danh mục còn hiển thị để dùng khi thêm/cập nhật vị trí kho.
+async function layDanhMucDangHienThiTheoId(id) {
+  const rows = await prisma.$queryRaw`
+    SELECT
+      id,
+      ten_danh_muc,
+      tinh_chat_id,
+      trang_thai
+    FROM danh_muc_thiet_bi
+    WHERE id = ${id}::uuid
+      AND da_xoa_luc IS NULL
+      AND trang_thai = ${TRANG_THAI_HIEN_THI}
+    LIMIT 1
+  `;
+
+  return rows[0] || null;
+}
+
 async function layViTriTheoId(id) {
   const rows = await prisma.$queryRaw`
     SELECT
       vt.id,
       vt.ten_vi_tri,
+      vt.danh_muc_id,
+      dm.ten_danh_muc,
       vt.suc_chua_toi_da,
       vt.trang_thai,
       tt.ten_trang_thai,
       vt.created_at,
       vt.updated_at
     FROM vi_tri_kho vt
+
+    JOIN danh_muc_thiet_bi dm
+      ON dm.id = vt.danh_muc_id
 
     LEFT JOIN trang_thai_he_thong tt
       ON tt.id = vt.trang_thai
@@ -70,11 +95,14 @@ async function layViTriTheoId(id) {
   };
 }
 
+// Danh sách quản lý: sắp theo danh mục trước, sau đó theo tên vị trí.
 async function layDanhSachViTriKho() {
   return await prisma.$queryRaw`
     SELECT
       vt.id,
       vt.ten_vi_tri,
+      vt.danh_muc_id,
+      dm.ten_danh_muc,
       vt.suc_chua_toi_da,
       vt.trang_thai,
       tt.ten_trang_thai,
@@ -99,20 +127,27 @@ async function layDanhSachViTriKho() {
 
     FROM vi_tri_kho vt
 
+    JOIN danh_muc_thiet_bi dm
+      ON dm.id = vt.danh_muc_id
+
     LEFT JOIN trang_thai_he_thong tt
       ON tt.id = vt.trang_thai
 
     WHERE vt.da_xoa_luc IS NULL
 
-    ORDER BY vt.ten_vi_tri ASC
+    ORDER BY dm.ten_danh_muc ASC, vt.ten_vi_tri ASC
   `;
 }
 
-async function layDanhSachViTriKhoDangHienThi() {
+// API options dùng chung.
+// Nếu truyền danh_muc_id thì chỉ trả vị trí thuộc đúng danh mục đó.
+async function layDanhSachViTriKhoDangHienThi(danhMucId = null) {
   return await prisma.$queryRaw`
     SELECT
       vt.id,
       vt.ten_vi_tri,
+      vt.danh_muc_id,
+      dm.ten_danh_muc,
       vt.suc_chua_toi_da,
       (
         SELECT COUNT(*)::int
@@ -130,12 +165,19 @@ async function layDanhSachViTriKhoDangHienThi() {
           AND pk.da_xoa_luc IS NULL
       ) AS so_luong_dang_chua
     FROM vi_tri_kho vt
+
+    JOIN danh_muc_thiet_bi dm
+      ON dm.id = vt.danh_muc_id
+
     WHERE vt.da_xoa_luc IS NULL
       AND vt.trang_thai = ${TRANG_THAI_HIEN_THI}
-    ORDER BY vt.ten_vi_tri ASC
+      AND (${danhMucId}::uuid IS NULL OR vt.danh_muc_id = ${danhMucId}::uuid)
+
+    ORDER BY dm.ten_danh_muc ASC, vt.ten_vi_tri ASC
   `;
 }
 
+// Giữ nguyên API lấy vị trí còn phụ kiện để phục vụ bàn giao.
 async function layDanhSachViTriKhaDungCuaPhuKien(phuKienId) {
   return await prisma.$queryRaw`
     SELECT
@@ -143,6 +185,8 @@ async function layDanhSachViTriKhaDungCuaPhuKien(phuKienId) {
       pkvt.phu_kien_id,
       pkvt.vi_tri_kho_id,
       vt.ten_vi_tri,
+      vt.danh_muc_id,
+      dm.ten_danh_muc,
       vt.suc_chua_toi_da,
       pkvt.so_luong::int AS so_luong,
       COALESCE((
@@ -169,8 +213,16 @@ async function layDanhSachViTriKhaDungCuaPhuKien(phuKienId) {
         0
       )::int AS so_luong_kha_dung
     FROM phu_kien_vi_tri_kho pkvt
-    JOIN phu_kien pk ON pk.id = pkvt.phu_kien_id
-    JOIN vi_tri_kho vt ON vt.id = pkvt.vi_tri_kho_id
+
+    JOIN phu_kien pk
+      ON pk.id = pkvt.phu_kien_id
+
+    JOIN vi_tri_kho vt
+      ON vt.id = pkvt.vi_tri_kho_id
+
+    JOIN danh_muc_thiet_bi dm
+      ON dm.id = vt.danh_muc_id
+
     WHERE pkvt.phu_kien_id = ${phuKienId}::uuid
       AND pkvt.dang_su_dung = TRUE
       AND pk.da_xoa_luc IS NULL
@@ -190,6 +242,7 @@ async function layDanhSachViTriKhaDungCuaPhuKien(phuKienId) {
         ), 0),
         0
       ) > 0
+
     ORDER BY vt.ten_vi_tri ASC
   `;
 }
@@ -214,11 +267,12 @@ async function timViTriTrungTen(tenViTri, idBoQua = null) {
   return viTriTrung || null;
 }
 
-async function taoViTriKho({ tenViTri, sucChuaToiDa }) {
+async function taoViTriKho({ tenViTri, danhMucId, sucChuaToiDa }) {
   const rows = await prisma.$queryRaw`
     INSERT INTO vi_tri_kho (
       id,
       ten_vi_tri,
+      danh_muc_id,
       suc_chua_toi_da,
       trang_thai,
       created_at,
@@ -227,6 +281,7 @@ async function taoViTriKho({ tenViTri, sucChuaToiDa }) {
     VALUES (
       gen_random_uuid(),
       ${tenViTri},
+      ${danhMucId}::uuid,
       ${sucChuaToiDa},
       ${TRANG_THAI_HIEN_THI},
       NOW(),
@@ -238,11 +293,15 @@ async function taoViTriKho({ tenViTri, sucChuaToiDa }) {
   return rows[0];
 }
 
-async function capNhatViTriKho(id, { tenViTri, sucChuaToiDa }) {
+async function capNhatViTriKho(
+  id,
+  { tenViTri, danhMucId, sucChuaToiDa }
+) {
   const rows = await prisma.$queryRaw`
     UPDATE vi_tri_kho
     SET
       ten_vi_tri = ${tenViTri},
+      danh_muc_id = ${danhMucId}::uuid,
       suc_chua_toi_da = ${sucChuaToiDa},
       updated_at = NOW()
     WHERE id = ${id}::uuid
@@ -309,7 +368,10 @@ async function xoaMemViTriKho(id) {
 }
 
 module.exports = {
+  TRANG_THAI_HIEN_THI,
+
   tinhSoLuongDangChua,
+  layDanhMucDangHienThiTheoId,
   layViTriTheoId,
   layDanhSachViTriKho,
   layDanhSachViTriKhoDangHienThi,

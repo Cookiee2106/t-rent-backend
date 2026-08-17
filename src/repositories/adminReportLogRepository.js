@@ -407,6 +407,35 @@ async function layDanhSachNhatKyThaoTacRepository({
 
       UNION ALL
 
+      -- Hủy đơn chỉ được ghi nhận khi yêu cầu hủy đã được xác nhận (1702).
+      -- Dùng bảng yêu_cau_huy_don để lấy đúng người xử lý, phí hủy và thời điểm xử lý.
+      SELECT
+        ('HUY_DON_' || ychd.id::text) AS id,
+        'HUY_DON' AS loai_thao_tac,
+        'Xác nhận hủy đơn' AS ten_thao_tac,
+        ychd.nguoi_xu_ly_id AS nguoi_dung_id,
+        nd.ho_ten AS ten_nguoi_dung,
+        nd.email,
+        nd.vai_tro,
+        dt.ma_don,
+        ychd.phi_huy::text AS so_tien,
+        COALESCE(
+          NULLIF(ychd.ghi_chu_xu_ly, ''),
+          ychd.ly_do_huy
+        ) AS ghi_chu,
+        ychd.xu_ly_luc AS thoi_gian
+      FROM yeu_cau_huy_don ychd
+      JOIN don_thue dt
+        ON dt.id = ychd.don_thue_id
+      LEFT JOIN nguoi_dung nd
+        ON nd.id = ychd.nguoi_xu_ly_id
+      WHERE ychd.trang_thai_id = 1702
+        AND ychd.xu_ly_luc IS NOT NULL
+        AND dt.huy_luc IS NOT NULL
+
+      UNION ALL
+
+
       SELECT
         ('THANH_LY_' || dt.id::text) AS id,
         'THANH_LY' AS loai_thao_tac,
@@ -485,6 +514,23 @@ async function layDanhSachNhatKyThaoTacRepository({
         )
       WHERE tt.loai_dong_tien_id = 2302
         AND dt.ban_giao_luc IS NOT NULL
+
+      UNION ALL
+
+      SELECT
+        ('HUY_DON_' || ychd.id::text) AS id,
+        'HUY_DON' AS loai_thao_tac,
+        nd.ho_ten AS ten_nguoi_dung,
+        dt.ma_don,
+        ychd.xu_ly_luc AS thoi_gian
+      FROM yeu_cau_huy_don ychd
+      JOIN don_thue dt
+        ON dt.id = ychd.don_thue_id
+      LEFT JOIN nguoi_dung nd
+        ON nd.id = ychd.nguoi_xu_ly_id
+      WHERE ychd.trang_thai_id = 1702
+        AND ychd.xu_ly_luc IS NOT NULL
+        AND dt.huy_luc IS NOT NULL
 
       UNION ALL
 
@@ -573,6 +619,34 @@ async function layChiTietNhatKyThaoTacRepository(id) {
         ON nd.id = COALESCE(tt.nguoi_thuc_hien_id, dt.nguoi_ban_giao_id)
       WHERE tt.loai_dong_tien_id = 2302
         AND dt.ban_giao_luc IS NOT NULL
+
+      UNION ALL
+
+      -- Hủy đơn chỉ được ghi nhận khi yêu cầu hủy đã được xác nhận (1702).
+      -- Dùng bảng yeu_cau_huy_don để lấy đúng người xử lý, phí hủy và thời điểm xử lý.
+      SELECT
+        ('HUY_DON_' || ychd.id::text) AS id,
+        'HUY_DON' AS loai_thao_tac,
+        'Xác nhận hủy đơn' AS ten_thao_tac,
+        ychd.nguoi_xu_ly_id AS nguoi_dung_id,
+        nd.ho_ten AS ten_nguoi_dung,
+        nd.email,
+        nd.vai_tro,
+        dt.ma_don,
+        ychd.phi_huy::text AS so_tien,
+        COALESCE(
+          NULLIF(ychd.ghi_chu_xu_ly, ''),
+          ychd.ly_do_huy
+        ) AS ghi_chu,
+        ychd.xu_ly_luc AS thoi_gian
+      FROM yeu_cau_huy_don ychd
+      JOIN don_thue dt
+        ON dt.id = ychd.don_thue_id
+      LEFT JOIN nguoi_dung nd
+        ON nd.id = ychd.nguoi_xu_ly_id
+      WHERE ychd.trang_thai_id = 1702
+        AND ychd.xu_ly_luc IS NOT NULL
+        AND dt.huy_luc IS NOT NULL
 
       UNION ALL
 

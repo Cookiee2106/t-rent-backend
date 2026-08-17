@@ -1,9 +1,7 @@
-const cloudinaryConfig = require("../config/cloudinary");
 const settlementRepository = require("../repositories/settlementRepository");
-
-const cloudinary = cloudinaryConfig.uploader
-  ? cloudinaryConfig
-  : cloudinaryConfig.cloudinary;
+const {
+  taiAnhBaoVeLenCloudinaryService,
+} = require("../modules/uploads/uploadService");
 
 function docMangJson(giaTri, tenTruong) {
   if (!giaTri) return [];
@@ -77,23 +75,6 @@ function gomSanPhamKemSerial(danhSachVatPham) {
   }
 
   return Array.from(map.values());
-}
-
-async function uploadAnhKhiTra(file) {
-  return new Promise((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(
-      {
-        folder: "t-rent/orders/returns",
-        resource_type: "image",
-      },
-      (loi, ketQua) => {
-        if (loi) return reject(loi);
-        resolve(ketQua);
-      }
-    );
-
-    stream.end(file.buffer);
-  });
 }
 
 class SettlementModel {
@@ -225,8 +206,8 @@ class SettlementModel {
       muc_dich_id: item.muc_dich_id || null,
       ten_muc_dich: item.ten_muc_dich || "",
       ten_file_goc: item.ten_file_goc || "",
-      file_url: item.file_url || "",
-      loai_file: item.loai_file || "",
+      protected: true,
+      loai_file: item.loai_file || "image/*",
       kich_thuoc_file: item.kich_thuoc_file ? Number(item.kich_thuoc_file) : null,
       ten_nguoi_upload: item.ten_nguoi_upload || "",
       uploaded_at: item.uploaded_at || null,
@@ -594,13 +575,19 @@ class SettlementModel {
     const danhSachAnhKhiTra = [];
 
     for (const file of files) {
-      const upload = await uploadAnhKhiTra(file);
+      const upload = await taiAnhBaoVeLenCloudinaryService(
+        file,
+        "t-rent/orders/returns"
+      );
 
       danhSachAnhKhiTra.push({
         ten_file_goc: file.originalname,
         file_url: upload.secure_url,
         loai_file: file.mimetype,
         kich_thuoc_file: file.size || null,
+        cloudinary_public_id: upload.public_id,
+        cloudinary_resource_type: upload.resource_type,
+        cloudinary_delivery_type: upload.type,
       });
     }
 

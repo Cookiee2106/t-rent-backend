@@ -14,6 +14,7 @@ const TRANG_THAI_YEU_CAU_HUY_TU_CHOI = 1703;
 const MUC_DICH_HOP_DONG_GIAY = 2601;
 const MUC_DICH_ANH_BAN_GIAO = 2602;
 const MUC_DICH_ANH_KHI_TRA = 2603;
+const MUC_DICH_ANH_BIEN_BAN_BAN_GIAO = 2604;
 
 async function capNhatDonQuaHanCuaKhach(nguoiDungId) {
   await prisma.$executeRaw`
@@ -56,6 +57,13 @@ async function layDanhSachDonCuaKhach(nguoiDungId) {
 
       dt.ban_giao_luc,
       dt.tra_luc,
+      EXISTS (
+        SELECT 1
+        FROM ban_giao_vat_pham bgvp
+        JOIN chi_tiet_don_thue ctdt
+          ON ctdt.id = bgvp.chi_tiet_don_thue_id
+        WHERE ctdt.don_thue_id = dt.id
+      ) AS da_xuat_bien_ban,
       dt.created_at,
       dt.updated_at
     FROM don_thue dt
@@ -77,6 +85,20 @@ async function layDonThuocKhachHang(donThueId, nguoiDungId) {
       dt.ma_don,
       dt.khach_hang_id,
       dt.phien_thanh_toan_id,
+
+      nd.ho_ten AS ten_khach_hang,
+      nd.email AS email_khach_hang,
+      nd.so_dien_thoai AS sdt_khach_hang,
+      nd.dia_chi AS dia_chi_khach_hang,
+      (
+        SELECT hsxm.so_cccd
+        FROM ho_so_xac_minh hsxm
+        WHERE hsxm.khach_hang_id = nd.id
+          AND hsxm.trang_thai = 203
+        ORDER BY COALESCE(hsxm.duyet_luc, hsxm.created_at) DESC
+        LIMIT 1
+      ) AS so_cccd_khach_hang,
+
       dt.ngay_nhan,
       dt.ngay_tra,
       dt.so_ngay_thue,
@@ -101,6 +123,10 @@ async function layDonThuocKhachHang(donThueId, nguoiDungId) {
       dt.ban_giao_luc,
       dt.nguoi_ban_giao_id,
       nv_bg.ho_ten AS ten_nguoi_ban_giao,
+      nv_bg.email AS email_nguoi_ban_giao,
+      nv_bg.so_dien_thoai AS sdt_nguoi_ban_giao,
+      nv_bg.so_cccd AS so_cccd_nguoi_ban_giao,
+      nv_bg.vai_tro AS vai_tro_nguoi_ban_giao,
       dt.ghi_chu_ban_giao,
 
       dt.tra_luc,
@@ -113,6 +139,8 @@ async function layDonThuocKhachHang(donThueId, nguoiDungId) {
       dt.created_at,
       dt.updated_at
     FROM don_thue dt
+    JOIN nguoi_dung nd
+      ON nd.id = dt.khach_hang_id
     LEFT JOIN trang_thai_he_thong tt
       ON tt.id = dt.trang_thai
     LEFT JOIN yeu_cau_huy_don ychd
@@ -141,6 +169,7 @@ async function layChiTietDonThue(donThueId) {
       dmtb.ten_danh_muc,
       ctdt.so_luong,
       ctdt.gia_thue_ngay_snapshot::text AS gia_thue_ngay_snapshot,
+      ctdt.gia_tri_thiet_bi_snapshot::text AS gia_tri_thiet_bi_snapshot,
       ctdt.tien_coc_snapshot::text AS tien_coc_snapshot,
       ctdt.tien_thue::text AS tien_thue,
       ctdt.tien_coc::text AS tien_coc,
@@ -189,7 +218,6 @@ async function layTepDonThueTheoMucDich(donThueId, danhSachMucDichId) {
       dm.ma_danh_muc AS ma_muc_dich,
       dm.ten_danh_muc AS ten_muc_dich,
       tdt.ten_file_goc,
-      tdt.file_url,
       tdt.loai_file,
       tdt.kich_thuoc_file::text AS kich_thuoc_file,
       tdt.uploaded_at,
@@ -203,6 +231,19 @@ async function layTepDonThueTheoMucDich(donThueId, danhSachMucDichId) {
       AND tdt.muc_dich_id IN (${Prisma.join(danhSachMucDichId)})
     ORDER BY tdt.muc_dich_id ASC, tdt.uploaded_at ASC
   `;
+}
+
+async function daCoVatPhamBanGiao(donThueId) {
+  const rows = await prisma.$queryRaw`
+    SELECT 1
+    FROM ban_giao_vat_pham bgvp
+    JOIN chi_tiet_don_thue ctdt
+      ON ctdt.id = bgvp.chi_tiet_don_thue_id
+    WHERE ctdt.don_thue_id = ${donThueId}::uuid
+    LIMIT 1
+  `;
+
+  return rows.length > 0;
 }
 
 async function layYeuCauHuyDonTheoDon(donThueId) {
@@ -307,12 +348,14 @@ module.exports = {
   MUC_DICH_HOP_DONG_GIAY,
   MUC_DICH_ANH_BAN_GIAO,
   MUC_DICH_ANH_KHI_TRA,
+  MUC_DICH_ANH_BIEN_BAN_BAN_GIAO,
   capNhatDonQuaHanCuaKhach,
   layDanhSachDonCuaKhach,
   layDonThuocKhachHang,
   layChiTietDonThue,
   layThanhToanCuaDon,
   layTepDonThueTheoMucDich,
+  daCoVatPhamBanGiao,
   layYeuCauHuyDonTheoDon,
   guiYeuCauHuyDon,
 };

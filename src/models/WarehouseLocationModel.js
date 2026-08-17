@@ -38,10 +38,28 @@ async function layViTriBatBuocTonTai(id) {
   return viTri;
 }
 
+// Danh mục của vị trí phải còn tồn tại và đang hiển thị.
+async function kiemTraDanhMuc(danhMucId) {
+  if (!danhMucId) {
+    throw new Error("Vui lòng chọn danh mục");
+  }
+
+  const danhMuc =
+    await warehouseLocationRepository.layDanhMucDangHienThiTheoId(danhMucId);
+
+  if (!danhMuc) {
+    throw new Error("Danh mục không tồn tại hoặc đang bị ẩn");
+  }
+
+  return danhMuc;
+}
+
 class WarehouseLocationModel {
   constructor({
     id,
     ten_vi_tri,
+    danh_muc_id,
+    ten_danh_muc,
     suc_chua_toi_da,
     so_luong_dang_chua,
     trang_thai,
@@ -51,6 +69,8 @@ class WarehouseLocationModel {
   } = {}) {
     this.id = id;
     this.ten_vi_tri = ten_vi_tri;
+    this.danh_muc_id = danh_muc_id || null;
+    this.ten_danh_muc = ten_danh_muc || null;
     this.suc_chua_toi_da = Number(suc_chua_toi_da || 0);
     this.so_luong_dang_chua = Number(so_luong_dang_chua || 0);
     this.trang_thai = trang_thai;
@@ -65,8 +85,16 @@ class WarehouseLocationModel {
     return rows.map((item) => new WarehouseLocationModel(item));
   }
 
-  static async layDanhSachViTriKhoDangHienThiService() {
-    return await warehouseLocationRepository.layDanhSachViTriKhoDangHienThi();
+  static async layDanhSachViTriKhoDangHienThiService(danhMucId = null) {
+    const danhMucIdChuanHoa = chuanHoaChuoi(danhMucId) || null;
+
+    if (danhMucIdChuanHoa) {
+      await kiemTraDanhMuc(danhMucIdChuanHoa);
+    }
+
+    return await warehouseLocationRepository.layDanhSachViTriKhoDangHienThi(
+      danhMucIdChuanHoa
+    );
   }
 
   static async layDanhSachViTriPhuKienKhaDungService(phuKienId) {
@@ -81,13 +109,17 @@ class WarehouseLocationModel {
 
   static async taoViTriKhoService(body = {}) {
     const tenViTri = chuanHoaChuoi(body.ten_vi_tri);
+    const danhMucId = chuanHoaChuoi(body.danh_muc_id);
     const sucChuaToiDa = docSoLuong(body.suc_chua_toi_da);
 
     if (!tenViTri) {
       throw new Error("Vui lòng nhập tên vị trí kho");
     }
 
-    const tenTrung = await warehouseLocationRepository.timViTriTrungTen(tenViTri);
+    await kiemTraDanhMuc(danhMucId);
+
+    const tenTrung =
+      await warehouseLocationRepository.timViTriTrungTen(tenViTri);
 
     if (tenTrung) {
       throw new Error("Tên vị trí kho đã tồn tại");
@@ -95,10 +127,13 @@ class WarehouseLocationModel {
 
     const ketQua = await warehouseLocationRepository.taoViTriKho({
       tenViTri,
+      danhMucId,
       sucChuaToiDa,
     });
 
-    const viTriMoi = await warehouseLocationRepository.layViTriTheoId(ketQua.id);
+    const viTriMoi = await warehouseLocationRepository.layViTriTheoId(
+      ketQua.id
+    );
 
     return new WarehouseLocationModel(viTriMoi);
   }
@@ -111,6 +146,11 @@ class WarehouseLocationModel {
         ? chuanHoaChuoi(body.ten_vi_tri)
         : viTriHienTai.ten_vi_tri;
 
+    const danhMucId =
+      body.danh_muc_id !== undefined
+        ? chuanHoaChuoi(body.danh_muc_id)
+        : viTriHienTai.danh_muc_id;
+
     const sucChuaToiDa =
       body.suc_chua_toi_da !== undefined
         ? docSoLuong(body.suc_chua_toi_da)
@@ -120,13 +160,24 @@ class WarehouseLocationModel {
       throw new Error("Vui lòng nhập tên vị trí kho");
     }
 
-    const soLuongDangChua = await warehouseLocationRepository.tinhSoLuongDangChua(
-      id
-    );
+    await kiemTraDanhMuc(danhMucId);
+
+    const soLuongDangChua =
+      await warehouseLocationRepository.tinhSoLuongDangChua(id);
 
     if (sucChuaToiDa < soLuongDangChua) {
       throw new Error(
         `Sức chứa không được nhỏ hơn số lượng đang chứa hiện tại (${soLuongDangChua})`
+      );
+    }
+
+    // Vị trí đã có hàng thì không được đổi sang danh mục khác.
+    const doiDanhMuc =
+      String(viTriHienTai.danh_muc_id || "") !== String(danhMucId || "");
+
+    if (doiDanhMuc && soLuongDangChua > 0) {
+      throw new Error(
+        `Vị trí đang chứa ${soLuongDangChua} vật phẩm, không thể đổi danh mục`
       );
     }
 
@@ -141,6 +192,7 @@ class WarehouseLocationModel {
 
     const ketQua = await warehouseLocationRepository.capNhatViTriKho(id, {
       tenViTri,
+      danhMucId,
       sucChuaToiDa,
     });
 
@@ -148,7 +200,8 @@ class WarehouseLocationModel {
       throw new Error("Không tìm thấy vị trí kho");
     }
 
-    const viTriSauCapNhat = await warehouseLocationRepository.layViTriTheoId(id);
+    const viTriSauCapNhat =
+      await warehouseLocationRepository.layViTriTheoId(id);
 
     return new WarehouseLocationModel(viTriSauCapNhat);
   }
@@ -158,16 +211,18 @@ class WarehouseLocationModel {
 
     const trangThai = docTrangThai(body.trang_thai);
 
-    const ketQua = await warehouseLocationRepository.capNhatTrangThaiViTriKho(
-      id,
-      trangThai
-    );
+    const ketQua =
+      await warehouseLocationRepository.capNhatTrangThaiViTriKho(
+        id,
+        trangThai
+      );
 
     if (!ketQua) {
       throw new Error("Không tìm thấy vị trí kho");
     }
 
-    const viTriSauCapNhat = await warehouseLocationRepository.layViTriTheoId(id);
+    const viTriSauCapNhat =
+      await warehouseLocationRepository.layViTriTheoId(id);
 
     return new WarehouseLocationModel(viTriSauCapNhat);
   }
@@ -175,17 +230,15 @@ class WarehouseLocationModel {
   static async xoaMemViTriKhoService(id) {
     await layViTriBatBuocTonTai(id);
 
-    const thietBiDangDung = await warehouseLocationRepository.timThietBiTheoViTri(
-      id
-    );
+    const thietBiDangDung =
+      await warehouseLocationRepository.timThietBiTheoViTri(id);
 
     if (thietBiDangDung) {
       throw new Error("Vị trí kho đang được thiết bị sử dụng, không thể xóa");
     }
 
-    const phuKienDangDung = await warehouseLocationRepository.timPhuKienTheoViTri(
-      id
-    );
+    const phuKienDangDung =
+      await warehouseLocationRepository.timPhuKienTheoViTri(id);
 
     if (phuKienDangDung) {
       throw new Error("Vị trí kho đang được phụ kiện sử dụng, không thể xóa");

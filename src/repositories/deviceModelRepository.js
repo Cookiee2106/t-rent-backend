@@ -4,6 +4,9 @@ const prisma = require("../config/prisma");
 // Chỉ giữ các truy vấn đang được DeviceModelModel sử dụng.
 const { Prisma } = require("@prisma/client");
 
+// Phiên VNPay còn chờ thanh toán và chưa hết hạn được xem là giữ chỗ tạm.
+const PHIEN_CHO_THANH_TOAN = 901;
+
 function loaiBoIdTrung(danhSachId = []) {
   return [...new Set(danhSachId.filter(Boolean).map(String))];
 }
@@ -312,6 +315,48 @@ async function laySoLuongKhaDungCuaTatCaMau(ngayNhan, ngayTra) {
         AND dt.ngay_tra > ${ngayNhan}::timestamptz
 
       GROUP BY bdk.mau_thiet_bi_phu_id
+    ),
+
+    -- Phiên 901 còn hạn giữ tạm mẫu được khách chọn trực tiếp.
+    phien_giu_truc_tiep AS (
+      SELECT
+        ctpt.mau_thiet_bi_id,
+        COALESCE(SUM(ctpt.so_luong), 0)::int AS da_giu_tam
+
+      FROM chi_tiet_phien_thanh_toan ctpt
+
+      JOIN phien_thanh_toan ptt
+        ON ptt.id = ctpt.phien_thanh_toan_id
+
+      WHERE ptt.trang_thai = ${PHIEN_CHO_THANH_TOAN}
+        AND ptt.het_han_luc > NOW()
+        AND ctpt.ngay_nhan < ${ngayTra}::timestamptz
+        AND ctpt.ngay_tra > ${ngayNhan}::timestamptz
+
+      GROUP BY ctpt.mau_thiet_bi_id
+    ),
+
+    -- Phiên 901 cũng giữ tạm mẫu thiết bị phụ trong bộ đi kèm.
+    phien_giu_lam_bo_di_kem AS (
+      SELECT
+        bdk.mau_thiet_bi_phu_id AS mau_thiet_bi_id,
+        COALESCE(SUM(ctpt.so_luong * bdk.so_luong), 0)::int AS da_giu_tam
+
+      FROM chi_tiet_phien_thanh_toan ctpt
+
+      JOIN phien_thanh_toan ptt
+        ON ptt.id = ctpt.phien_thanh_toan_id
+
+      JOIN bo_di_kem bdk
+        ON bdk.mau_thiet_bi_chinh_id = ctpt.mau_thiet_bi_id
+
+      WHERE bdk.mau_thiet_bi_phu_id IS NOT NULL
+        AND ptt.trang_thai = ${PHIEN_CHO_THANH_TOAN}
+        AND ptt.het_han_luc > NOW()
+        AND ctpt.ngay_nhan < ${ngayTra}::timestamptz
+        AND ctpt.ngay_tra > ${ngayNhan}::timestamptz
+
+      GROUP BY bdk.mau_thiet_bi_phu_id
     )
 
     SELECT
@@ -320,7 +365,9 @@ async function laySoLuongKhaDungCuaTatCaMau(ngayNhan, ngayTra) {
       GREATEST(
         COALESCE(ttb.tong, 0)
         - COALESCE(dtt.da_dat, 0)
-        - COALESCE(dbdk.da_dat, 0),
+        - COALESCE(dbdk.da_dat, 0)
+        - COALESCE(pgtt.da_giu_tam, 0)
+        - COALESCE(pgbdk.da_giu_tam, 0),
         0
       )::int AS so_luong_kha_dung
 
@@ -335,9 +382,16 @@ async function laySoLuongKhaDungCuaTatCaMau(ngayNhan, ngayTra) {
     LEFT JOIN dat_lam_bo_di_kem dbdk
       ON dbdk.mau_thiet_bi_id = mtb.id
 
+    LEFT JOIN phien_giu_truc_tiep pgtt
+      ON pgtt.mau_thiet_bi_id = mtb.id
+
+    LEFT JOIN phien_giu_lam_bo_di_kem pgbdk
+      ON pgbdk.mau_thiet_bi_id = mtb.id
+
     WHERE mtb.da_xoa_luc IS NULL
   `;
 }
+
 
 // Tính số lượng còn lại của toàn bộ phụ kiện bằng một query.
 async function laySoLuongKhaDungCuaTatCaPhuKien(ngayNhan, ngayTra) {
@@ -361,6 +415,29 @@ async function laySoLuongKhaDungCuaTatCaPhuKien(ngayNhan, ngayTra) {
         AND dt.ngay_tra > ${ngayNhan}::timestamptz
 
       GROUP BY bdk.phu_kien_id
+    ),
+
+    -- Phiên 901 còn hạn giữ tạm cả phụ kiện trong bộ đi kèm.
+    phu_kien_phien_giu AS (
+      SELECT
+        bdk.phu_kien_id,
+        COALESCE(SUM(ctpt.so_luong * bdk.so_luong), 0)::int AS da_giu_tam
+
+      FROM chi_tiet_phien_thanh_toan ctpt
+
+      JOIN phien_thanh_toan ptt
+        ON ptt.id = ctpt.phien_thanh_toan_id
+
+      JOIN bo_di_kem bdk
+        ON bdk.mau_thiet_bi_chinh_id = ctpt.mau_thiet_bi_id
+
+      WHERE bdk.phu_kien_id IS NOT NULL
+        AND ptt.trang_thai = ${PHIEN_CHO_THANH_TOAN}
+        AND ptt.het_han_luc > NOW()
+        AND ctpt.ngay_nhan < ${ngayTra}::timestamptz
+        AND ctpt.ngay_tra > ${ngayNhan}::timestamptz
+
+      GROUP BY bdk.phu_kien_id
     )
 
     SELECT
@@ -368,7 +445,8 @@ async function laySoLuongKhaDungCuaTatCaPhuKien(ngayNhan, ngayTra) {
 
       GREATEST(
         COALESCE(pk.tong_so_luong, 0)
-        - COALESCE(pkdd.da_dat, 0),
+        - COALESCE(pkdd.da_dat, 0)
+        - COALESCE(pkpg.da_giu_tam, 0),
         0
       )::int AS so_luong_kha_dung
 
@@ -376,6 +454,9 @@ async function laySoLuongKhaDungCuaTatCaPhuKien(ngayNhan, ngayTra) {
 
     LEFT JOIN phu_kien_da_dat pkdd
       ON pkdd.phu_kien_id = pk.id
+
+    LEFT JOIN phu_kien_phien_giu pkpg
+      ON pkpg.phu_kien_id = pk.id
 
     WHERE pk.da_xoa_luc IS NULL
   `;

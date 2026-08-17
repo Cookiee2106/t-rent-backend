@@ -33,14 +33,24 @@ const vaiTroNoiBo = [
   "QUAN_TRI_VIEN",
 ];
 
-router.use(xacThucDangNhap);
-router.use(kiemTraVaiTro(vaiTroNoiBo));
+const vaiTroQuanTri = [
+  "QUAN_TRI",
+  "QUAN_TRI_VIEN",
+];
 
-// Các route tĩnh phải đặt trước /:id.
+// Tất cả API trong module đều bắt buộc đăng nhập.
+router.use(xacThucDangNhap);
+
+// Nhân viên vẫn được xem dữ liệu cấu hình vì màn phụ kiện cần API này.
 router.get(
   "/configuration-options",
+  kiemTraVaiTro(vaiTroNoiBo),
   layLuaChonCauHinhMauAdmin
 );
+
+// Từ đây trở xuống là API quản lý mẫu thiết bị/bộ đi kèm:
+// chỉ Quản trị viên được phép truy cập. Nhân viên gọi trực tiếp sẽ nhận 403.
+router.use(kiemTraVaiTro(vaiTroQuanTri));
 
 // Quản lý mẫu thiết bị.
 router.get("/", layDanhSachMauThietBiAdmin);

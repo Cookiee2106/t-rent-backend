@@ -8,6 +8,9 @@ const {
   layDanhSachDonThue,
   layChiTietDonThue,
   layThietBiSanSang,
+  xemHopDong,
+  xuatBienBanBanGiao,
+  xemBienBanBanGiao,
   lapPhieuBanGiao,
   layChinhSachThue,
   capNhatChinhSachThue,
@@ -70,6 +73,30 @@ router.get(
   layThietBiSanSang
 );
 
+// Xem/in hợp đồng được điền từ mẫu Word của T-Rent.
+router.get(
+  "/admin/orders/:id/contract",
+  xacThucDangNhap,
+  kiemTraVaiTro(vaiTroNoiBo),
+  xemHopDong
+);
+
+// Xuất biên bản lần đầu: lưu/khóa lựa chọn vào ban_giao_vat_pham.
+router.post(
+  "/admin/orders/:id/handover-document",
+  xacThucDangNhap,
+  kiemTraVaiTro(vaiTroNoiBo),
+  xuatBienBanBanGiao
+);
+
+// Xem/in lại biên bản đã xuất.
+router.get(
+  "/admin/orders/:id/handover-document",
+  xacThucDangNhap,
+  kiemTraVaiTro(vaiTroNoiBo),
+  xemBienBanBanGiao
+);
+
 router.get(
   "/admin/orders/:id",
   xacThucDangNhap,
@@ -84,6 +111,7 @@ router.post(
   upload.fields([
     { name: "hop_dong_giay", maxCount: 5 },
     { name: "anh_ban_giao", maxCount: 5 },
+    { name: "anh_bien_ban_ban_giao", maxCount: 5 },
   ]),
   lapPhieuBanGiao
 );

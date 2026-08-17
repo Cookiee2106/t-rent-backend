@@ -9,6 +9,7 @@ async function layDanhSachNhanVien() {
       nd.ho_ten,
       nd.email,
       nd.so_dien_thoai,
+      nd.so_cccd,
       nd.dia_chi,
       nd.vai_tro,
       nd.trang_thai,
@@ -34,6 +35,7 @@ async function layChiTietNhanVien(id) {
       nd.ho_ten,
       nd.email,
       nd.so_dien_thoai,
+      nd.so_cccd,
       nd.dia_chi,
       nd.vai_tro,
       nd.trang_thai,
@@ -74,10 +76,26 @@ async function timTrungEmailHoacSoDienThoai(email, soDienThoai, idBoQua = null) 
   return rows[0] || null;
 }
 
+async function timTrungCccd(soCccd, idBoQua = null) {
+  if (!soCccd) return null;
+
+  const rows = await prisma.$queryRaw`
+    SELECT id, so_cccd
+    FROM nguoi_dung
+    WHERE da_xoa_luc IS NULL
+      AND so_cccd = ${soCccd}
+      AND (${idBoQua}::uuid IS NULL OR id <> ${idBoQua}::uuid)
+    LIMIT 1
+  `;
+
+  return rows[0] || null;
+}
+
 async function themNhanVien({
   hoTen,
   email,
   soDienThoai,
+  soCccd,
   diaChi,
   matKhauHash,
   trangThai,
@@ -87,6 +105,7 @@ async function themNhanVien({
       ho_ten,
       email,
       so_dien_thoai,
+      so_cccd,
       dia_chi,
       mat_khau_hash,
       vai_tro,
@@ -96,6 +115,7 @@ async function themNhanVien({
       ${hoTen},
       ${email},
       ${soDienThoai},
+      ${soCccd},
       ${diaChi},
       ${matKhauHash},
       ${VAI_TRO_NHAN_VIEN},
@@ -106,6 +126,7 @@ async function themNhanVien({
       ho_ten,
       email,
       so_dien_thoai,
+      so_cccd,
       dia_chi,
       vai_tro,
       trang_thai,
@@ -116,12 +137,13 @@ async function themNhanVien({
   return rows[0];
 }
 
-async function capNhatNhanVien(id, { hoTen, soDienThoai, diaChi }) {
+async function capNhatNhanVien(id, { hoTen, soDienThoai, soCccd, diaChi }) {
   const rows = await prisma.$queryRaw`
     UPDATE nguoi_dung
     SET
       ho_ten = ${hoTen},
       so_dien_thoai = ${soDienThoai},
+      so_cccd = ${soCccd},
       dia_chi = ${diaChi},
       updated_at = NOW()
     WHERE id = ${id}::uuid
@@ -167,6 +189,7 @@ module.exports = {
   layDanhSachNhanVien,
   layChiTietNhanVien,
   timTrungEmailHoacSoDienThoai,
+  timTrungCccd,
   themNhanVien,
   capNhatNhanVien,
   capNhatTrangThaiNhanVien,
